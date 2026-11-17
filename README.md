@@ -7,82 +7,88 @@ VS Code extension: persistent, manipulable call graphs laid out on a character g
 ```bash
 npm install
 npm run package                              # typecheck, tests, bundles, gaffy-<version>.vsix
-code --install-extension gaffy-0.1.0.vsix
+code --install-extension gaffy-0.2.1.vsix
 ```
 
 Development: open `gaffy/` in VS Code and press F5 (Extension Development Host). `npm run watch` rebuilds on change.
 
+## Test installed .vsix extension
+`Ctrl+Shift+P > **Developer: Reload Window**`
+
 ## Create a view
 
-| entry | command | seeds | traversal |
-|---|---|---|---|
-| editor context menu, cursor on a function | gaffy: Graph Callers | the function | incoming calls, `gaffy.depth` hops |
-| | gaffy: Graph Callees | the function | outgoing calls |
-| | gaffy: Graph Callers and Callees | the function | both |
-| | gaffy: Add Symbol to Active View | appended to the open view | view direction |
-| explorer context menu on a file | gaffy: Graph File | functions and methods of the file | outgoing, 1 hop |
+Right click on a function name in the editor, then the **gaffy** submenu:
 
-The view file is written to `.gaffy/views/<name>.<callers|callees|calls>.gaffy` and opened.
+| entry | seeds | traversal |
+|---|---|---|
+| New View: Callers of Symbol | the function | incoming calls, `gaffy.depth` hops |
+| New View: Callees of Symbol | the function | outgoing calls |
+| New View: Callers and Callees of Symbol | the function | both |
+| Add Symbol to Active View | appended to the open view | view direction |
+
+Explorer, right click on a file, **gaffy** > New View: Functions of File: seeds are the file's functions and methods, outgoing calls, one hop. The view file goes to `.gaffy/views/<name>.<callers|callees|calls>.gaffy` and opens.
 
 ## Layout
 
-Rows list callers above callees (orientation `down`); each definition occupies one row.
-
 ```
-scripts/mote_paths.traverse()
-├─> scripts/mote_paths.speckle()
-│   └─> analysis.speckle.treatments() ──────────────────┐
-├─> scripts/mote_paths.streamed()                       │
-│   └─> render.harmonics.project_streamed()             │
-│       └─> render.harmonics.sh_eval()                  │
-│           └─> render.mi_render.compile_aovs() ────────┤
-└─> scripts/mote_paths.layers()                         │
-    └─> render.mi_scene.load() <────────────────────────┘
+┌─ gutai ─────────────────────────────────────────────────────────────────┐
+│  ┌─ render.harmonics ────────────┐         ┌─ runtime ────────────────┐ │
+│  │  sh_eval() ───────────────────┼──┬─────┬┼> interop.to_drjit() ↻    │ │
+│  │  ├─> resolve_backend() ──┐    │  │     ││  ├─> interop._shape()    │ │
+│  │  ├─> _in_type() <────────┘    │  │     ││                          │ │
+│  │  ├─> _from_tensor() ──────────┼──┘     ││                          │ │
+│  │  ├─> _from_columns() ────┐    │        ││                          │ │
+│  │  │   └─> _stacked() ─────│────┼────────┴┼> interop.to_torch()      │ │
 ```
 
-- `├─>`, `└─>`: tree edge from the caller's stem.
-- `──┐`, `──┤`, `<──┘`: lane; all calls into one definition share one lane and arrive with `<`.
-- `└────┐` on the row under a definition: departure row, used when the definition both receives and sends lanes.
+- Order `callers on top` (default): each caller sits above its callees, `└─>` points to the callee. Order `callees on top`: each callee sits above its callers with `└──`, as in the VS Code call hierarchy view. Calls always go from caller to callee; the order only changes which end sits on top.
+- Namespace boxes (optional, key `b`): packages and folders; a package holding one module merges with it (`render.harmonics`); labels are relative to their box. Callee boxes sit right of their caller boxes; the top-level functions of a box take the rows of their callers outside the box, so those calls draw level.
+- `├─>`, `└─>`: tree edge from the caller's stem. `──┐ ──┤ <──┘`: lane inside a box. `──┼> f()`: routed call arriving from the left across a box border. Calls into one function share one line.
 - `↻`: direct recursion; `↻ f()`: call back to `f` higher in the same chain.
-- `[render.harmonics] (6)`: collapsed container with its member count.
-- `⌉ │ ⌋ name`: run of consecutive rows in one module or file.
-- `ADD`, `MOD`, `REMOVE`: change against the view baseline (first build, or the last "Accept Changes").
+- `[render.harmonics] (6)`: collapsed container with its member count. ` ▸3`: three functions folded below (reached only through this one). ` +2`: two hidden callers or callees.
 
-Algorithm, invariants and complexity: [src/core/layout.ts](src/core/layout.ts); plan: [plan.md](plan.md).
+Algorithms: [src/core/layout.ts](src/core/layout.ts) (rows and lanes in a block), [src/core/boxes.ts](src/core/boxes.ts), [src/core/place.ts](src/core/place.ts) (2D placement, moves, locks), [src/core/grid.ts](src/core/grid.ts) (routing); plan: [plan.md](plan.md).
 
 ## Interaction
 
 | input | action |
 |---|---|
-| click a definition | open it beside the graph (`gaffy.openBeside`) |
-| double click | expand one level in the view direction; Shift: both directions |
-| double click a collapsed container | expand it |
-| click a bracket label | collapse that container |
-| drag a definition vertically | reorder among its tree siblings |
-| hover | highlight its stems and lanes, its callers and callees |
-| right click | node menu: go to definition, editor context menu, peek references, call hierarchy, expand callers or callees, make or remove seed, hide, collapse class, file or package, move up or down, tag, reveal in explorer, copy path or qualified name |
-| ↑ ↓ | move focus |
-| Enter, e, c or ←, → | open; expand; collapse innermost container; expand collapsed |
-| h, u | hide focused; unhide all |
-| Alt+↑ ↓ | move focused definition among siblings |
-| f, g, l | flip orientation; glyph or vector edges; full or relative labels |
+| click a function | select it and open it beside the graph (`gaffy.openBeside`) |
+| Shift+click | add to or remove from the selection |
+| double click a function | fold what lies below it (` ▸n` marks the folded count); again to unfold; a function with nothing below expands through the language server; Shift: expand both directions |
+| double click a collapsed container; a box header | expand it; collapse the box |
+| drag a function | move it with its tree children; calls re-route |
+| drag a box header | move the box with its content |
+| `+n` badge | pick hidden neighbors to unhide |
+| hover | highlight its calls, callers and callees |
+| right click a function | go to definition, editor context menu, peek references, VS Code call hierarchy; fold or unfold; expand callers or callees; make or remove seed; select all callers, all callees, through, paths between two; hide selection, show only selection; hide, show hidden neighbors; collapse class, module, package; lock or unlock position; move among siblings; tag; reveal in explorer; copy path or qualified name |
+| right click a box header | collapse, lock or unlock, reveal, copy path |
+| ↑ ↓, Alt+↑ ↓ | move focus; move the focused function among its siblings |
+| Enter, e, f, c or ←, → | open; expand through the language server; fold or unfold; collapse innermost container; expand collapsed |
+| h or Delete, i, Esc | hide selection; show only selection; clear selection |
+| k | lock or unlock the focused function |
+| u, o, g, b | unhide all; toggle order; glyph or vector edges; namespace boxes |
 | r, 0, x | rebuild; fit; export |
 
-"Editor context menu…" opens the definition in an editor and shows VS Code's own editor context menu at its cursor, with every installed extension's entries. VS Code exposes no command that opens the explorer context menu for a given file; "Reveal in Explorer" selects the file there, where Shift+F10 opens it.
+Toolbar: traverse (callers, callees, both), depth, order, namespace boxes, edges (glyph, vector, and in vector mode the curve: orthogonal, rounded, sigmoid, spline), tree parent rule, re-arrange (drop the moves of unlocked items), unlock all, unhide, expand, folders (per top-level folder: included or excluded), export, style.
+
+Locks: a locked function or box keeps its absolute position; re-arrange and rebuilds place every unlocked item around it.
+
+"Editor Context Menu…" opens the definition in an editor and shows VS Code's own editor context menu at its cursor, with every installed extension's entries. VS Code exposes no command that opens the explorer context menu for a given file; "Reveal in Explorer" selects the file there, where Shift+F10 opens it.
 
 ## Change tracking
 
 - Saving a source file rebuilds open views that contain a definition from that file (`gaffy.refreshOnSave`: `touched`, `all`, `off`).
 - Renaming a file rewrites keys, paths and URIs in open views, then rebuilds them.
 - Definitions keep their identity across line moves: keys are `<lang>:<path>#<qualified name>`.
-- A definition removed since the baseline remains as a REMOVE ghost until "Accept Changes".
+- A rebuild replaces the graph: definitions outside the new reach set (lower depth, other direction, deleted code) disappear.
 
 ## Files
 
 ```
 .gaffy/
-  views/<name>.gaffy     view: seeds, direction, depth, collapsed, hidden, order, tags, orientation,
-                         last built graph, baseline hashes, ghosts (JSON)
+  views/<name>.gaffy     view: seeds, direction, depth, order, collapsed, hidden, sibling order, moves (offset),
+                         locks, folder include and exclude, tags, last built graph (JSON)
   export/<name>.md       ASCII export, <pre> with links to path#Lline
   export/<name>.txt      ASCII export, plain
   style.json             style overrides (gaffy: Edit Style writes the defaults)
@@ -94,12 +100,13 @@ Algorithm, invariants and complexity: [src/core/layout.ts](src/core/layout.ts); 
 
 ```json
 {
-  "font":      { "family": "'JetBrains Mono', monospace", "size": 13, "lineHeight": 1.25 },
-  "grid":      { "indent": 4, "laneGap": 2, "parentRule": "dfs" },
-  "edges":     { "mode": "glyph", "glyphs": "unicode", "arrow": true, "cross": "│", "width": 1 },
-  "labels":    { "mode": "full", "strip": ["gutai."], "parens": true, "status": true },
-  "container": { "kinds": ["module", "file"], "minRun": 2, "boxes": true },
-  "colors":    { "ADD": "#3fb950", "MOD": "#d29922", "REMOVE": "#f85149" }
+  "font":   { "family": "'JetBrains Mono', monospace", "size": 13, "lineHeight": 1.25 },
+  "grid":   { "indent": 4, "laneGap": 2, "parentRule": "dfs" },
+  "edges":  { "mode": "glyph", "glyphs": "unicode", "arrow": true, "cross": "│", "width": 1, "curve": "orthogonal" },
+  "labels": { "strip": [], "parens": true },
+  "boxes":  { "enabled": true, "modules": false, "root": true, "fill": "hue", "alpha": 0.08 },
+  "route":  { "bend": 3, "cross": 6, "border": 4, "channel": 4 },
+  "colors": { "edge": "#6e7681", "seed": "#4daafc" }
 }
 ```
 
@@ -109,6 +116,7 @@ Algorithm, invariants and complexity: [src/core/layout.ts](src/core/layout.ts); 
 |---|---|---|
 | `gaffy.depth` | 4 | hop limit for new views |
 | `gaffy.maxNodes` | 400 | definitions fetched per build |
+| `gaffy.exclude` | tests (`**/tests/**`, `**/test_*.py`, …) | globs left out of builds; the folders toolbar includes them per view |
 | `gaffy.includeExternal` | false | include site-packages, node_modules, stubs |
 | `gaffy.autoSave` | true | save the view file after each graph change |
 | `gaffy.refreshOnSave` | touched | rebuild policy after a source save |
@@ -117,11 +125,11 @@ Algorithm, invariants and complexity: [src/core/layout.ts](src/core/layout.ts); 
 ## Tests and preview
 
 ```bash
-npm test                  # core: quotient, layout invariants, golden ASCII in test/golden/
+npm test                  # core: quotient, layout, boxes, placement, routing invariants, golden ASCII in test/golden/
 UPDATE_GOLDEN=1 npm test  # rewrite goldens after an intended layout change
-npm run preview           # dist/preview.html?doc=exp4|star[&edges=vector&orientation=up&labels=relative]
+npm run preview           # dist/preview.html?doc=sh|exp4|star[&edges=vector&curve=sigmoid&fill=hue&order=callees&boxes=off]
 ```
 
-The preview loads the webview bundle in a browser with a mocked VS Code API and fixture views from giddy's experiment 4 and rrequest.md example (*).
+The preview loads the webview bundle in a browser with a mocked VS Code API and fixture views: `sh` (..rrequest.md addendum 1a), `exp4` (giddy experiment 4), `star` (..rrequest.md example (*)).
 
 [^lsp]: LSP, Language Server Protocol: JSON-RPC protocol between editors and language servers; call hierarchy requests `textDocument/prepareCallHierarchy`, `callHierarchy/incomingCalls`, `callHierarchy/outgoingCalls` since version 3.16.

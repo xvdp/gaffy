@@ -1,6 +1,5 @@
 /**
- * View build: reach set from the seeds through the provider, then reconciliation with the previous
- * build (ghosts for removed definitions, baseline on first build).
+ * View build: reach set from the seeds through the provider.
  *
  * Reach: breadth-first, level by level up to `depth` hops. A seed traverses `direction`; a vertex
  * reached through incoming calls keeps traversing incoming calls, one reached through outgoing calls
@@ -8,8 +7,8 @@
  * Requests per level run with bounded concurrency.
  */
 import * as vscode from 'vscode';
-import { GEdge, GNode, isContainer, mergeGraphs, NodeKey, Subgraph } from '../core/model';
-import { Direction, ViewDoc } from '../core/viewdoc';
+import { GEdge, GNode, isContainer, NodeKey, Subgraph } from '../core/model';
+import { Direction, excludedBy, ViewDoc } from '../core/viewdoc';
 import { LspProvider } from './lsp';
 
 type Dir = 'in' | 'out';
@@ -28,10 +27,13 @@ export interface BuildResult {
 }
 
 export async function buildGraph(
-  p: LspProvider, doc: ViewDoc, opts: { maxNodes: number; token?: vscode.CancellationToken },
+  p: LspProvider, doc: ViewDoc, opts: { maxNodes: number; exclude?: RegExp[]; token?: vscode.CancellationToken },
 ): Promise<BuildResult> {
+  const excluded = excludedBy(doc.view, opts.exclude ?? []);
+  const seedSet = new Set(doc.view.seeds);
+  const skip = (k: NodeKey) => !seedSet.has(k) && excluded(acc[k]?.path);
   const view = doc.view;
-  const known = mergeGraphs(doc.ghosts, doc.graph).nodes;
+  const known = doc.graph.nodes;
   const acc: Record<NodeKey, GNode> = {};
   const edges = new Map<string, GEdge>();
   const queried = new Set<string>();
@@ -54,6 +56,7 @@ export async function buildGraph(
     if (!acc[key] && known[key]) acc[key] = known[key];
     const es = dir === 'out' ? await p.outgoing(key, acc) : await p.incoming(key, acc);
     for (const e of es) {
+      if (skip(dir === 'out' ? e.to : e.from)) continue;   // excluded folder: no edge, no traversal
       const eid = `${e.from}\u0000${e.to}`;
       const prev = edges.get(eid);
       if (!prev || (e.line ?? Infinity) < (prev.line ?? Infinity)) edges.set(eid, e);
@@ -73,34 +76,15 @@ export async function buildGraph(
   await pool(extra.flatMap(([key, d]) => dirsOf(d).map((dir) => ({ key, dir }))), 6,
     ({ key, dir }) => query(key, dir, []));
 
+  // drop definitions of excluded folders that only the provider's answers introduced
+  for (const k of Object.keys(acc)) if (!isContainer(acc[k]) && skip(k)) delete acc[k];
   return { graph: { nodes: acc, edges: [...edges.values()] }, truncated, missing };
 }
 
-/** New document state after a build: ghosts for baseline definitions that disappeared. */
-export function reconcile(doc: ViewDoc, r: BuildResult): ViewDoc {
-  const prev = mergeGraphs(doc.ghosts, doc.graph);
-  const live = r.graph;
-  const baseline = Object.keys(doc.baseline).length ? doc.baseline : Object.fromEntries(
-    Object.values(live.nodes).filter((n) => !isContainer(n)).map((n) => [n.key, n.hash ?? '']));
-
-  const ghostNodes: Record<NodeKey, GNode> = {};
-  for (const n of Object.values(prev.nodes)) {
-    if (isContainer(n) || live.nodes[n.key] || baseline[n.key] === undefined) continue;
-    ghostNodes[n.key] = n;
-    for (let a = n.parent; a && !live.nodes[a] && !ghostNodes[a] && prev.nodes[a]; a = prev.nodes[a].parent) {
-      ghostNodes[a] = prev.nodes[a];
-    }
-  }
-  const alive = (k: NodeKey) => !!live.nodes[k] || !!ghostNodes[k];
-  const ghostEdges = prev.edges.filter((e) =>
-    (ghostNodes[e.from] || ghostNodes[e.to]) && alive(e.from) && alive(e.to));
-
-  return {
-    ...doc,
-    graph: live,
-    ghosts: { nodes: ghostNodes, edges: ghostEdges },
-    baseline,
-    truncated: r.truncated || undefined,
-    updated: new Date().toISOString(),
-  };
+/** Document after a build: the new graph replaces the old one; definitions outside the new reach set disappear. */
+export function applyBuild(doc: ViewDoc, r: BuildResult): ViewDoc {
+  const out: ViewDoc = { ...doc, graph: r.graph, updated: new Date().toISOString() };
+  if (r.truncated) out.truncated = true;
+  else delete out.truncated;
+  return out;
 }

@@ -16,8 +16,6 @@ export type Kind =
 
 export const CONTAINER_KINDS: ReadonlySet<Kind> = new Set<Kind>(['class', 'module', 'file', 'package', 'folder']);
 
-export type Status = 'ADD' | 'MOD' | 'REMOVE';
-
 export interface GNode {
   key: NodeKey;
   kind: Kind;
@@ -29,7 +27,7 @@ export interface GNode {
   path?: string;           // workspace-relative file path
   line?: number;           // 0-based line of the name
   character?: number;      // 0-based column of the name
-  hash?: string;           // body hash, drives MOD
+  hash?: string;           // body hash, whitespace-invariant
   detail?: string;
   external?: boolean;
 }

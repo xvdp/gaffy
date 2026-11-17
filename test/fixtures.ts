@@ -84,6 +84,49 @@ export const EXP4: [string, string][] = [
   ['render.mi_sensor:register_plugins', 'render.mi_emitters:register_sphere_spot'],
 ];
 
+/** ..rrequest.md addendum 1a: `gutai.render.harmonics.sh_eval` and its callees. */
+const RH = 'gutai.render.harmonics', IO = 'gutai.runtime.interop', VA = 'gutai.runtime.variant', DV = 'gutai.runtime.device';
+export const SH: [string, string][] = [
+  [`${RH}:sh_eval`, `${RH}:resolve_backend`],
+  [`${RH}:resolve_backend`, `${RH}:_in_type`],
+  [`${RH}:sh_eval`, `${RH}:_in_type`],
+  [`${RH}:sh_eval`, `${RH}:sh_eval_torch_compiled`],
+  [`${RH}:sh_eval_torch_compiled`, `${RH}:_torch_order`],
+  [`${RH}:sh_eval_torch_compiled`, `${RH}:_poly_table`],
+  [`${RH}:sh_eval_torch_compiled`, `${RH}:_compiled`],
+  [`${RH}:sh_eval`, `${RH}:_from_tensor`],
+  [`${RH}:sh_eval`, `${RH}:_from_columns`],
+  [`${RH}:_from_columns`, `${RH}:_stacked`],
+  [`${RH}:_stacked`, `${IO}:to_torch`],
+  [`${RH}:sh_eval`, `${IO}:to_torch`],
+  [`${RH}:sh_eval`, `${RH}:_wrapped_mi`],
+  [`${RH}:_wrapped_mi`, `${IO}:unravel`],
+  [`${RH}:_wrapped_mi`, `${RH}:sh_eval_mi`],
+  [`${RH}:sh_eval`, `${RH}:sh_eval_mi`],
+  [`${RH}:sh_eval_mi`, `${VA}:pick_parallel`],
+  [`${VA}:pick_parallel`, `${VA}:_host_process`],
+  [`${VA}:_host_process`, `${DV}:_mask`],
+  [`${VA}:_host_process`, `${DV}:has_cards`],
+  [`${DV}:has_cards`, `${DV}:_nvml`],
+  [`${VA}:pick_parallel`, `${VA}:backend`],
+  [`${RH}:sh_eval_mi`, `${VA}:assert_variant`],
+  [`${VA}:assert_variant`, `${VA}:_validate`],
+  [`${VA}:_validate`, `${VA}:available`],
+  [`${VA}:pick_parallel`, `${VA}:available`],
+  [`${VA}:available`, `${VA}:_build_list`],
+  [`${VA}:assert_variant`, `${VA}:current`],
+  [`${VA}:pick_parallel`, `${VA}:current`],
+  [`${RH}:sh_eval_mi`, `${RH}:_order_check`],
+  [`${RH}:_wrapped_mi`, `${RH}:_tensorxf`],
+  [`${RH}:_from_columns`, `${RH}:_tensorxf`],
+  [`${RH}:sh_eval`, `${IO}:to_drjit`],
+  [`${RH}:_from_tensor`, `${IO}:to_drjit`],
+  [`${IO}:to_drjit`, `${IO}:_device_of`],
+  [`${IO}:to_drjit`, `${IO}:_on_device`],
+  [`${IO}:to_drjit`, `${IO}:_shape`],
+  [`${IO}:to_drjit`, `${IO}:to_drjit`],
+];
+
 /** rrequest.md example (*). */
 export const STAR: [string, string][] = [
   ['fit.surfel:linear_harmonics', `${H}:sh_eval`],

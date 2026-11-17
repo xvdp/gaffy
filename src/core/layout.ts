@@ -3,7 +3,7 @@
  *
  * 1. DFS over the quotient graph from its sources (in-degree 0), then from vertices left unvisited
  *    (cycles without an entry from a source; seeds first). Sources and children are visited in reverse
- *    of their display order (override `order`, then call-site line, then path), so the reverse
+ *    of their display order (override `sibling`, then call-site line, then path), so the reverse
  *    postorder lists them in display order.
  * 2. Row order π = reverse DFS postorder. Every non-back edge (u, v) has π(u) < π(v): reverse
  *    postorder is a topological order of the DAG left after removing back edges (CLRS §22.4).
@@ -20,7 +20,10 @@
  * 5. Lane columns: base = max row end over the lane's rows + 3. Lanes sorted by (span, start) take the
  *    first column ≥ base at distance ≥ laneGap from every placed lane with overlapping rows.
  *    Labels never meet a lane: lane columns exceed the row ends of all rows they span.
- * 6. Brackets: maximal runs of consecutive rows sharing a container, right of all lanes.
+ *
+ * Inside namespace boxes the layout runs once per block (the direct members of one box). Calls that
+ * leave or enter the block count for port rows (`extIn`, `extOut`); `rootRank` orders the block's
+ * roots by the rows of their callers outside the block, so rows can line up with those callers.
  *
  * Cost: O(V + E) for 1, 2, 4; O(V · d) for the stem checks, d = row distance; O(L²) for first fit.
  */
@@ -31,15 +34,16 @@ import { ParentRule, ROOTS } from './viewdoc';
 export interface LayoutInput {
   vg: VGraph;
   seeds: readonly NodeKey[];
-  order: Record<NodeKey, NodeKey[]>;
+  sibling: Record<NodeKey, NodeKey[]>;   // child order override per tree parent; ROOTS for the top level
   indent: number;
   laneGap: number;
   parentRule: ParentRule;
   sortKey: (k: NodeKey) => string;
   label: (k: NodeKey, parent: NodeKey | null) => string;
   shortName: (k: NodeKey) => string;
-  bracketOf?: (k: NodeKey) => { key: NodeKey; label: string } | null;
-  minRun?: number;
+  extIn?: ReadonlySet<NodeKey>;          // vertices called from outside this block
+  extOut?: ReadonlySet<NodeKey>;         // vertices calling outside this block
+  rootRank?: (k: NodeKey) => number;     // primary root order, ascending
 }
 
 export interface Row {
@@ -58,14 +62,6 @@ export interface Lane {
   sources: { key: NodeKey; row: number; port: boolean }[];
 }
 
-export interface Bracket {
-  key: NodeKey;
-  label: string;
-  lo: number;
-  hi: number;
-  col: number;
-}
-
 export interface Layout {
   rows: Row[];
   rowOf: Map<NodeKey, number>;
@@ -75,7 +71,6 @@ export interface Layout {
   roots: NodeKey[];
   lanes: Lane[];
   back: Map<NodeKey, NodeKey[]>;
-  brackets: Bracket[];
   indent: number;
   width: number;
 }
@@ -90,12 +85,14 @@ export function layout(inp: LayoutInput): Layout {
 
   // ---- ordering -------------------------------------------------------------------------------
   const idx = (list: readonly NodeKey[] | undefined) => new Map((list ?? []).map((k, i) => [k, i] as const));
-  const rootIdx = idx(inp.order[ROOTS]);
+  const rootIdx = idx(inp.sibling[ROOTS]);
   const seedIdx = idx(inp.seeds);
   const sk = new Map(keys.map((k) => [k, inp.sortKey(k)] as const));
   const big = Number.MAX_SAFE_INTEGER;
+  const rank = inp.rootRank ?? (() => 0);
   const rootCmp = (a: NodeKey, b: NodeKey) =>
     (rootIdx.get(a) ?? big) - (rootIdx.get(b) ?? big) ||
+    rank(a) - rank(b) ||
     (seedIdx.get(a) ?? big) - (seedIdx.get(b) ?? big) ||
     cmp(sk.get(a)!, sk.get(b)!);
 
@@ -103,7 +100,7 @@ export function layout(inp: LayoutInput): Layout {
   const orderedOut = (u: NodeKey): NodeKey[] => {
     let r = childOrder.get(u);
     if (!r) {
-      const o = idx(inp.order[u]);
+      const o = idx(inp.sibling[u]);
       r = [...vg.out.get(u)!]
         .sort((a, b) => (o.get(a.to) ?? big) - (o.get(b.to) ?? big) || a.line - b.line || cmp(sk.get(a.to)!, sk.get(b.to)!))
         .map((e) => e.to);
@@ -201,7 +198,9 @@ export function layout(inp: LayoutInput): Layout {
     const c = col.get(k)!;
     rowOf.set(k, rows.length);
     rows.push({ kind: 'node', key: k, col: c, text, end: c + text.length });
-    if (crossIn.has(k) && crossOut.has(k)) {
+    // arrivals land at the right end unless the vertex is a block root (then from the left)
+    const inRight = crossIn.has(k) || (!!inp.extIn?.has(k) && !!parent.get(k));
+    if (inRight && (crossOut.has(k) || !!inp.extOut?.has(k))) {
       portOf.set(k, rows.length);
       rows.push({ kind: 'port', key: k, col: c, text: '', end: c + 1 });
     }
@@ -245,37 +244,9 @@ export function layout(inp: LayoutInput): Layout {
     placed.push(lane);
   }
 
-  // ---- 6. brackets ----------------------------------------------------------------------------
-  let right = 0;
-  for (const r of rows) right = Math.max(right, r.end);
-  for (const l of lanes) right = Math.max(right, l.col + 1);
-  const brackets: Bracket[] = [];
-  let width = right;
-  if (inp.bracketOf) {
-    const minRun = Math.max(1, inp.minRun ?? 2);
-    const bcol = right + 2;
-    let cur: { key: NodeKey; label: string; lo: number; hi: number; n: number } | null = null;
-    const flush = () => {
-      if (cur && cur.n >= minRun) {
-        brackets.push({ key: cur.key, label: cur.label, lo: cur.lo, hi: cur.hi, col: bcol });
-        width = Math.max(width, bcol + 2 + cur.label.length);
-      }
-      cur = null;
-    };
-    const memo = new Map<NodeKey, { key: NodeKey; label: string } | null>();
-    rows.forEach((row, r) => {
-      if (!memo.has(row.key)) memo.set(row.key, inp.bracketOf!(row.key));
-      const b = memo.get(row.key)!;
-      if (b && cur && cur.key === b.key) {
-        cur.hi = r;
-        if (row.kind === 'node') cur.n++;
-      } else {
-        flush();
-        if (b) cur = { key: b.key, label: b.label, lo: r, hi: r, n: row.kind === 'node' ? 1 : 0 };
-      }
-    });
-    flush();
-  }
+  let width = 0;
+  for (const r of rows) width = Math.max(width, r.end);
+  for (const l of lanes) width = Math.max(width, l.col + 1);
 
-  return { rows, rowOf, portOf, parent, children, roots, lanes, back, brackets, indent, width };
+  return { rows, rowOf, portOf, parent, children, roots, lanes, back, indent, width };
 }

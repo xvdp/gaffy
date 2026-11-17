@@ -2,7 +2,7 @@
   "name": "gaffy",
   "displayName": "gaffy",
   "description": "Persistent, manipulable call graphs on a character grid, rendered with D3",
-  "version": "0.1.0",
+  "version": "0.2.1",
   "publisher": "xvdp",
   "license": "UNLICENSED",
   "private": true,
@@ -80,23 +80,38 @@
           "type": "object",
           "default": {},
           "description": "Style overrides; .gaffy/style.json overrides these."
+        },
+        "gaffy.exclude": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "**/tests/**",
+            "**/test/**",
+            "**/test_*.py",
+            "**/*_test.py",
+            "**/*.test.*",
+            "**/*.spec.*"
+          ],
+          "description": "Workspace-relative globs left out of view builds; a view can include a folder again from its toolbar."
         }
       }
     },
     "commands": [
       {
         "command": "gaffy.graphCallers",
-        "title": "Graph Callers",
+        "title": "New View: Callers of Symbol",
         "category": "gaffy"
       },
       {
         "command": "gaffy.graphCallees",
-        "title": "Graph Callees",
+        "title": "New View: Callees of Symbol",
         "category": "gaffy"
       },
       {
         "command": "gaffy.graphBoth",
-        "title": "Graph Callers and Callees",
+        "title": "New View: Callers and Callees of Symbol",
         "category": "gaffy"
       },
       {
@@ -106,12 +121,12 @@
       },
       {
         "command": "gaffy.graphFile",
-        "title": "Graph File",
+        "title": "New View: Functions of File",
         "category": "gaffy"
       },
       {
         "command": "gaffy.refresh",
-        "title": "Refresh View",
+        "title": "Rebuild View",
         "category": "gaffy"
       },
       {
@@ -120,18 +135,18 @@
         "category": "gaffy"
       },
       {
-        "command": "gaffy.acceptChanges",
-        "title": "Accept Changes (reset ADD/MOD/REMOVE baseline)",
-        "category": "gaffy"
-      },
-      {
         "command": "gaffy.editStyle",
         "title": "Edit Style",
         "category": "gaffy"
       },
       {
-        "command": "gaffy.flip",
-        "title": "Flip Orientation",
+        "command": "gaffy.toggleOrder",
+        "title": "Toggle Order (callers on top / callees on top)",
+        "category": "gaffy"
+      },
+      {
+        "command": "gaffy.toggleBoxes",
+        "title": "Toggle Namespace Boxes",
         "category": "gaffy"
       },
       {
@@ -140,8 +155,13 @@
         "category": "gaffy"
       },
       {
-        "command": "gaffy.toggleLabels",
-        "title": "Toggle Full or Relative Labels",
+        "command": "gaffy.rearrange",
+        "title": "Re-arrange Unlocked Nodes and Boxes",
+        "category": "gaffy"
+      },
+      {
+        "command": "gaffy.unlockAll",
+        "title": "Unlock All Positions",
         "category": "gaffy"
       },
       {
@@ -163,7 +183,11 @@
       },
       {
         "command": "gaffy.node.callHierarchy",
-        "title": "Show Call Hierarchy"
+        "title": "VS Code Call Hierarchy"
+      },
+      {
+        "command": "gaffy.node.fold",
+        "title": "Fold / Unfold"
       },
       {
         "command": "gaffy.node.expandCallers",
@@ -174,12 +198,56 @@
         "title": "Expand Callees"
       },
       {
+        "command": "gaffy.node.makeSeed",
+        "title": "Make Seed"
+      },
+      {
+        "command": "gaffy.node.removeSeed",
+        "title": "Remove Seed"
+      },
+      {
+        "command": "gaffy.sel.upstream",
+        "title": "Select All Callers (upstream)"
+      },
+      {
+        "command": "gaffy.sel.downstream",
+        "title": "Select All Callees (downstream)"
+      },
+      {
+        "command": "gaffy.sel.through",
+        "title": "Select Callers and Callees (through)"
+      },
+      {
+        "command": "gaffy.sel.between",
+        "title": "Select Paths Between the 2 Selected"
+      },
+      {
+        "command": "gaffy.sel.hide",
+        "title": "Hide Selection"
+      },
+      {
+        "command": "gaffy.sel.isolate",
+        "title": "Show Only Selection"
+      },
+      {
+        "command": "gaffy.sel.clear",
+        "title": "Clear Selection"
+      },
+      {
+        "command": "gaffy.node.hide",
+        "title": "Hide"
+      },
+      {
+        "command": "gaffy.node.showHidden",
+        "title": "Show Hidden Neighbors…"
+      },
+      {
         "command": "gaffy.node.collapseClass",
         "title": "Collapse Class"
       },
       {
         "command": "gaffy.node.collapseFile",
-        "title": "Collapse File / Module"
+        "title": "Collapse Module / File"
       },
       {
         "command": "gaffy.node.collapsePackage",
@@ -190,28 +258,24 @@
         "title": "Expand Container"
       },
       {
-        "command": "gaffy.node.hide",
-        "title": "Hide"
+        "command": "gaffy.node.lock",
+        "title": "Lock Position"
       },
       {
-        "command": "gaffy.node.makeSeed",
-        "title": "Make Seed"
+        "command": "gaffy.node.unlock",
+        "title": "Unlock Position"
       },
       {
-        "command": "gaffy.node.removeSeed",
-        "title": "Remove Seed"
+        "command": "gaffy.node.moveUp",
+        "title": "Move Up Among Siblings"
+      },
+      {
+        "command": "gaffy.node.moveDown",
+        "title": "Move Down Among Siblings"
       },
       {
         "command": "gaffy.node.tag",
         "title": "Tag…"
-      },
-      {
-        "command": "gaffy.node.moveUp",
-        "title": "Move Up"
-      },
-      {
-        "command": "gaffy.node.moveDown",
-        "title": "Move Down"
       },
       {
         "command": "gaffy.node.revealInExplorer",
@@ -229,31 +293,40 @@
     "menus": {
       "editor/context": [
         {
-          "command": "gaffy.graphCallers",
+          "submenu": "gaffy.editor",
           "when": "editorHasCallHierarchyProvider",
-          "group": "gaffy@1"
+          "group": "z_gaffy@1"
+        }
+      ],
+      "gaffy.editor": [
+        {
+          "command": "gaffy.graphCallers",
+          "group": "1@1"
         },
         {
           "command": "gaffy.graphCallees",
-          "when": "editorHasCallHierarchyProvider",
-          "group": "gaffy@2"
+          "group": "1@2"
         },
         {
           "command": "gaffy.graphBoth",
-          "when": "editorHasCallHierarchyProvider",
-          "group": "gaffy@3"
+          "group": "1@3"
         },
         {
           "command": "gaffy.addToView",
-          "when": "editorHasCallHierarchyProvider",
-          "group": "gaffy@4"
+          "group": "2@1"
         }
       ],
       "explorer/context": [
         {
-          "command": "gaffy.graphFile",
+          "submenu": "gaffy.explorer",
           "when": "!explorerResourceIsFolder",
-          "group": "gaffy@1"
+          "group": "z_gaffy@1"
+        }
+      ],
+      "gaffy.explorer": [
+        {
+          "command": "gaffy.graphFile",
+          "group": "1@1"
         }
       ],
       "webview/context": [
@@ -264,93 +337,148 @@
         },
         {
           "command": "gaffy.node.editorMenu",
-          "when": "webviewId == 'gaffy.view' && webviewSection == 'node'",
+          "when": "webviewId == 'gaffy.view' && webviewSection =~ /^(node)$/",
           "group": "1_nav@2"
         },
         {
           "command": "gaffy.node.references",
-          "when": "webviewId == 'gaffy.view' && webviewSection == 'node'",
+          "when": "webviewId == 'gaffy.view' && webviewSection =~ /^(node)$/",
           "group": "1_nav@3"
         },
         {
           "command": "gaffy.node.callHierarchy",
-          "when": "webviewId == 'gaffy.view' && webviewSection == 'node'",
+          "when": "webviewId == 'gaffy.view' && webviewSection =~ /^(node)$/",
           "group": "1_nav@4"
         },
         {
+          "command": "gaffy.node.fold",
+          "when": "webviewId == 'gaffy.view' && webviewSection =~ /^(node)$/",
+          "group": "2_graph@0"
+        },
+        {
           "command": "gaffy.node.expandCallers",
-          "when": "webviewId == 'gaffy.view' && webviewSection == 'node'",
+          "when": "webviewId == 'gaffy.view' && webviewSection =~ /^(node)$/",
           "group": "2_graph@1"
         },
         {
           "command": "gaffy.node.expandCallees",
-          "when": "webviewId == 'gaffy.view' && webviewSection == 'node'",
+          "when": "webviewId == 'gaffy.view' && webviewSection =~ /^(node)$/",
           "group": "2_graph@2"
         },
         {
           "command": "gaffy.node.makeSeed",
-          "when": "webviewId == 'gaffy.view' && webviewSection == 'node'",
+          "when": "webviewId == 'gaffy.view' && webviewSection =~ /^(node)$/",
           "group": "2_graph@3"
         },
         {
           "command": "gaffy.node.removeSeed",
-          "when": "webviewId == 'gaffy.view' && webviewSection == 'node'",
+          "when": "webviewId == 'gaffy.view' && webviewSection =~ /^(node)$/",
           "group": "2_graph@4"
+        },
+        {
+          "command": "gaffy.sel.upstream",
+          "when": "webviewId == 'gaffy.view' && webviewSection =~ /^(node|collapsed)$/",
+          "group": "3_select@1"
+        },
+        {
+          "command": "gaffy.sel.downstream",
+          "when": "webviewId == 'gaffy.view' && webviewSection =~ /^(node|collapsed)$/",
+          "group": "3_select@2"
+        },
+        {
+          "command": "gaffy.sel.through",
+          "when": "webviewId == 'gaffy.view' && webviewSection =~ /^(node|collapsed)$/",
+          "group": "3_select@3"
+        },
+        {
+          "command": "gaffy.sel.between",
+          "when": "webviewId == 'gaffy.view' && webviewSection =~ /^(node|collapsed)$/",
+          "group": "3_select@4"
+        },
+        {
+          "command": "gaffy.sel.hide",
+          "when": "webviewId == 'gaffy.view' && webviewSection =~ /^(node|collapsed)$/",
+          "group": "3_select@5"
+        },
+        {
+          "command": "gaffy.sel.isolate",
+          "when": "webviewId == 'gaffy.view' && webviewSection =~ /^(node|collapsed)$/",
+          "group": "3_select@6"
+        },
+        {
+          "command": "gaffy.sel.clear",
+          "when": "webviewId == 'gaffy.view' && webviewSection =~ /^(node|collapsed|canvas)$/",
+          "group": "3_select@7"
         },
         {
           "command": "gaffy.node.hide",
           "when": "webviewId == 'gaffy.view' && webviewSection =~ /^(node|collapsed)$/",
-          "group": "2_graph@5"
+          "group": "4_hide@1"
+        },
+        {
+          "command": "gaffy.node.showHidden",
+          "when": "webviewId == 'gaffy.view' && webviewSection =~ /^(node|collapsed)$/",
+          "group": "4_hide@2"
         },
         {
           "command": "gaffy.node.collapseClass",
           "when": "webviewId == 'gaffy.view' && webviewSection =~ /^(node|collapsed)$/",
-          "group": "3_collapse@1"
+          "group": "5_collapse@1"
         },
         {
           "command": "gaffy.node.collapseFile",
-          "when": "webviewId == 'gaffy.view' && webviewSection =~ /^(node|collapsed|container)$/",
-          "group": "3_collapse@2"
+          "when": "webviewId == 'gaffy.view' && webviewSection =~ /^(node|collapsed|box)$/",
+          "group": "5_collapse@2"
         },
         {
           "command": "gaffy.node.collapsePackage",
-          "when": "webviewId == 'gaffy.view' && webviewSection =~ /^(node|collapsed|container)$/",
-          "group": "3_collapse@3"
+          "when": "webviewId == 'gaffy.view' && webviewSection =~ /^(node|collapsed|box)$/",
+          "group": "5_collapse@3"
         },
         {
           "command": "gaffy.node.expandContainer",
-          "when": "webviewId == 'gaffy.view' && webviewSection == 'collapsed'",
-          "group": "3_collapse@4"
+          "when": "webviewId == 'gaffy.view' && webviewSection =~ /^(collapsed)$/",
+          "group": "5_collapse@4"
+        },
+        {
+          "command": "gaffy.node.lock",
+          "when": "webviewId == 'gaffy.view' && webviewSection =~ /^(node|collapsed|box)$/",
+          "group": "6_place@1"
+        },
+        {
+          "command": "gaffy.node.unlock",
+          "when": "webviewId == 'gaffy.view' && webviewSection =~ /^(node|collapsed|box)$/",
+          "group": "6_place@2"
         },
         {
           "command": "gaffy.node.moveUp",
           "when": "webviewId == 'gaffy.view' && webviewSection =~ /^(node|collapsed)$/",
-          "group": "4_arrange@1"
+          "group": "6_place@3"
         },
         {
           "command": "gaffy.node.moveDown",
           "when": "webviewId == 'gaffy.view' && webviewSection =~ /^(node|collapsed)$/",
-          "group": "4_arrange@2"
+          "group": "6_place@4"
         },
         {
           "command": "gaffy.node.tag",
-          "when": "webviewId == 'gaffy.view' && webviewSection =~ /^(node|collapsed|container)$/",
-          "group": "4_arrange@3"
+          "when": "webviewId == 'gaffy.view' && webviewSection =~ /^(node|collapsed)$/",
+          "group": "6_place@5"
         },
         {
           "command": "gaffy.node.revealInExplorer",
-          "when": "webviewId == 'gaffy.view' && webviewSection =~ /^(node|collapsed|container)$/",
-          "group": "5_file@1"
+          "when": "webviewId == 'gaffy.view' && webviewSection =~ /^(node|collapsed|box)$/",
+          "group": "7_file@1"
         },
         {
           "command": "gaffy.node.copyPath",
-          "when": "webviewId == 'gaffy.view' && webviewSection =~ /^(node|collapsed|container)$/",
-          "group": "5_file@2"
+          "when": "webviewId == 'gaffy.view' && webviewSection =~ /^(node|collapsed|box)$/",
+          "group": "7_file@2"
         },
         {
           "command": "gaffy.node.copyQualname",
-          "when": "webviewId == 'gaffy.view' && webviewSection =~ /^(node|collapsed|container)$/",
-          "group": "5_file@3"
+          "when": "webviewId == 'gaffy.view' && webviewSection =~ /^(node|collapsed|box)$/",
+          "group": "7_file@3"
         },
         {
           "command": "gaffy.refresh",
@@ -358,34 +486,39 @@
           "group": "9_view@1"
         },
         {
-          "command": "gaffy.flip",
+          "command": "gaffy.toggleOrder",
           "when": "webviewId == 'gaffy.view'",
           "group": "9_view@2"
         },
         {
-          "command": "gaffy.toggleEdges",
+          "command": "gaffy.toggleBoxes",
           "when": "webviewId == 'gaffy.view'",
           "group": "9_view@3"
         },
         {
-          "command": "gaffy.toggleLabels",
+          "command": "gaffy.toggleEdges",
           "when": "webviewId == 'gaffy.view'",
           "group": "9_view@4"
         },
         {
-          "command": "gaffy.unhideAll",
+          "command": "gaffy.rearrange",
           "when": "webviewId == 'gaffy.view'",
           "group": "9_view@5"
         },
         {
-          "command": "gaffy.export",
+          "command": "gaffy.unlockAll",
           "when": "webviewId == 'gaffy.view'",
           "group": "9_view@6"
         },
         {
-          "command": "gaffy.acceptChanges",
+          "command": "gaffy.unhideAll",
           "when": "webviewId == 'gaffy.view'",
           "group": "9_view@7"
+        },
+        {
+          "command": "gaffy.export",
+          "when": "webviewId == 'gaffy.view'",
+          "group": "9_view@8"
         }
       ],
       "commandPalette": [
@@ -414,6 +547,50 @@
           "when": "false"
         },
         {
+          "command": "gaffy.node.makeSeed",
+          "when": "false"
+        },
+        {
+          "command": "gaffy.node.removeSeed",
+          "when": "false"
+        },
+        {
+          "command": "gaffy.sel.upstream",
+          "when": "false"
+        },
+        {
+          "command": "gaffy.sel.downstream",
+          "when": "false"
+        },
+        {
+          "command": "gaffy.sel.through",
+          "when": "false"
+        },
+        {
+          "command": "gaffy.sel.between",
+          "when": "false"
+        },
+        {
+          "command": "gaffy.sel.hide",
+          "when": "false"
+        },
+        {
+          "command": "gaffy.sel.isolate",
+          "when": "false"
+        },
+        {
+          "command": "gaffy.sel.clear",
+          "when": "false"
+        },
+        {
+          "command": "gaffy.node.hide",
+          "when": "false"
+        },
+        {
+          "command": "gaffy.node.showHidden",
+          "when": "false"
+        },
+        {
           "command": "gaffy.node.collapseClass",
           "when": "false"
         },
@@ -430,19 +607,11 @@
           "when": "false"
         },
         {
-          "command": "gaffy.node.hide",
+          "command": "gaffy.node.lock",
           "when": "false"
         },
         {
-          "command": "gaffy.node.makeSeed",
-          "when": "false"
-        },
-        {
-          "command": "gaffy.node.removeSeed",
-          "when": "false"
-        },
-        {
-          "command": "gaffy.node.tag",
+          "command": "gaffy.node.unlock",
           "when": "false"
         },
         {
@@ -451,6 +620,10 @@
         },
         {
           "command": "gaffy.node.moveDown",
+          "when": "false"
+        },
+        {
+          "command": "gaffy.node.tag",
           "when": "false"
         },
         {
@@ -468,9 +641,23 @@
         {
           "command": "gaffy.graphFile",
           "when": "false"
+        },
+        {
+          "command": "gaffy.node.fold",
+          "when": "false"
         }
       ]
-    }
+    },
+    "submenus": [
+      {
+        "id": "gaffy.editor",
+        "label": "gaffy"
+      },
+      {
+        "id": "gaffy.explorer",
+        "label": "gaffy"
+      }
+    ]
   },
   "scripts": {
     "build": "node esbuild.mjs",
@@ -483,11 +670,13 @@
   "dependencies": {
     "d3-drag": "3.0.1",
     "d3-selection": "3.0.1",
+    "d3-shape": "3.2.0",
     "d3-zoom": "3.0.1"
   },
   "devDependencies": {
     "@types/d3-drag": "3.0.7",
     "@types/d3-selection": "3.0.12",
+    "@types/d3-shape": "3.1.8",
     "@types/d3-zoom": "3.0.9",
     "@types/node": "20.19.0",
     "@types/vscode": "1.90.0",

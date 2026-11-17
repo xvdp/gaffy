@@ -4,12 +4,10 @@
   --g-edge: var(--vscode-editorLineNumber-foreground);
   --g-highlight: var(--vscode-focusBorder);
   --g-seed: var(--vscode-textLink-foreground);
-  --g-container: var(--vscode-descriptionForeground);
-  --g-box: var(--vscode-editorWidget-border);
+  --g-frame: var(--vscode-editorWidget-border);
+  --g-namespace: var(--vscode-descriptionForeground);
   --g-external: var(--vscode-disabledForeground);
-  --g-ADD: #3fb950;
-  --g-MOD: #d29922;
-  --g-REMOVE: #f85149;
+  --g-selected: var(--vscode-editor-selectionBackground);
   --g-ew: 1;
 }
 
@@ -51,6 +49,7 @@ body { display: flex; flex-direction: column; }
 }
 
 #toolbar .sep { width: 1px; height: 16px; margin: 0 4px; background: var(--vscode-panel-border); }
+#toolbar .caption { color: var(--vscode-descriptionForeground); margin-left: 2px; }
 
 #graph { flex: 1; width: 100%; outline: none; cursor: grab; user-select: none; }
 #graph:active { cursor: grabbing; }
@@ -70,9 +69,18 @@ text { dominant-baseline: central; white-space: pre; }
 .edges text { fill: var(--g-edge); }
 .edges path.net { fill: none; stroke: var(--g-edge); stroke-width: var(--g-ew); }
 .edges path.arrow, .edges circle.joint { fill: var(--g-edge); }
-.edges path.net.hl, .overlay path { stroke: var(--g-highlight); stroke-width: 2; fill: none; }
+.overlay path { fill: none; stroke-width: 2; }
+.overlay path.hl { stroke: var(--g-highlight); }
+.overlay path.sel { stroke: var(--g-seed); stroke-opacity: 0.7; }
 
-.boxes rect { fill: var(--g-box); fill-opacity: 0.07; stroke: var(--g-box); stroke-opacity: 0.6; }
+.frames rect.frame { fill: none; stroke: var(--g-frame); }
+.mode-glyph .frames rect.frame { display: none; }
+.heads g { cursor: move; }
+.heads .hit { fill: var(--g-bg); }
+.heads text { fill: var(--g-namespace); font-style: italic; }
+.heads g.locked text { text-decoration: underline dotted; }
+.heads g:hover text { fill: var(--g-fg); }
+.drag rect { fill: none; stroke: var(--g-highlight); stroke-dasharray: 4 3; }
 
 .labels g { cursor: pointer; }
 .labels .hit { fill: transparent; }
@@ -82,11 +90,11 @@ text { dominant-baseline: central; white-space: pre; }
 .labels text { fill: var(--g-fg); }
 .labels g.focus text { fill: var(--vscode-list-activeSelectionForeground, var(--g-fg)); }
 .labels g.seed text { fill: var(--g-seed); font-weight: 600; }
-.labels g.container text { fill: var(--g-container); font-style: italic; }
+.labels g.sel .hit { fill: var(--g-selected); }
+.labels g.locked text { text-decoration: underline dotted; }
+.labels g.folded text { font-style: italic; }
+.labels .badge { fill: var(--g-seed); cursor: pointer; font-weight: 600; }
 .labels g.collapsed text { font-weight: 600; }
 .labels g.external text { fill: var(--g-external); font-style: italic; }
-.labels g.st-ADD text { fill: var(--g-ADD); }
-.labels g.st-MOD text { fill: var(--g-MOD); }
-.labels g.st-REMOVE text { fill: var(--g-REMOVE); text-decoration: line-through; }
 
 .empty { fill: var(--vscode-descriptionForeground); }

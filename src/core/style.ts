@@ -1,36 +1,38 @@
 /**
  * Style: defaults, merged with the `gaffy.style` setting, then `.gaffy/style.json`, then per-view
- * overrides (ViewSpec.edges, labels, parentRule).
+ * overrides (ViewSpec.boxes, edges, curve, parentRule).
  */
-import type { EdgeMode, LabelMode, ParentRule } from './viewdoc';
+import type { EdgeMode, ParentRule } from './viewdoc';
+
+export type Curve = 'orthogonal' | 'rounded' | 'sigmoid' | 'spline';
 
 export interface Style {
   font: { family: string; size: number; lineHeight: number };
   grid: { indent: number; laneGap: number; parentRule: ParentRule };
-  edges: { mode: EdgeMode; glyphs: 'unicode' | 'ascii'; arrow: boolean; cross: string; width: number };
-  labels: { mode: LabelMode; strip: string[]; parens: boolean; status: boolean };
-  container: { kinds: string[]; minRun: number; boxes: boolean };
+  edges: { mode: EdgeMode; glyphs: 'unicode' | 'ascii'; arrow: boolean; cross: string; width: number; curve: Curve };
+  labels: { strip: string[]; parens: boolean };
+  boxes: { enabled: boolean; modules: boolean; root: boolean; fill: 'none' | 'hue'; alpha: number };
+  route: { bend: number; cross: number; border: number; channel: number };
   colors: Record<string, string>;
 }
 
 export const DEFAULT_STYLE: Style = {
   font: { family: "'JetBrains Mono', 'Fira Code', Menlo, Consolas, monospace", size: 13, lineHeight: 1.25 },
   grid: { indent: 4, laneGap: 2, parentRule: 'dfs' },
-  edges: { mode: 'glyph', glyphs: 'unicode', arrow: true, cross: '│', width: 1 },
-  labels: { mode: 'full', strip: [], parens: true, status: true },
-  container: { kinds: ['module', 'file'], minRun: 2, boxes: true },
+  edges: { mode: 'glyph', glyphs: 'unicode', arrow: true, cross: '│', width: 1, curve: 'orthogonal' },
+  labels: { strip: [], parens: true },
+  boxes: { enabled: true, modules: false, root: true, fill: 'none', alpha: 0.08 },
+  route: { bend: 3, cross: 6, border: 4, channel: 4 },
   colors: {
     fg: 'var(--vscode-editor-foreground)',
     bg: 'var(--vscode-editor-background)',
     edge: 'var(--vscode-editorLineNumber-foreground)',
     highlight: 'var(--vscode-focusBorder)',
     seed: 'var(--vscode-textLink-foreground)',
-    container: 'var(--vscode-descriptionForeground)',
-    box: 'var(--vscode-editorWidget-border)',
+    frame: 'var(--vscode-editorWidget-border)',
+    namespace: 'var(--vscode-descriptionForeground)',
     external: 'var(--vscode-disabledForeground)',
-    ADD: '#3fb950',
-    MOD: '#d29922',
-    REMOVE: '#f85149',
+    selected: 'var(--vscode-editor-selectionBackground)',
   },
 };
 
@@ -71,15 +73,17 @@ const ASCII: Record<number, string> = {
 export interface GlyphSet {
   mask: (m: number) => string;
   cross: string;
-  bracket: { top: string; mid: string; bot: string; one: string };
+  frame: { tl: string; tr: string; bl: string; br: string; h: string; v: string };
 }
 
 export function glyphSet(style: Style): GlyphSet {
-  const table = style.edges.glyphs === 'ascii' ? ASCII : UNICODE;
   const ascii = style.edges.glyphs === 'ascii';
+  const table = ascii ? ASCII : UNICODE;
   return {
     mask: (m) => table[m] ?? ' ',
     cross: ascii ? '|' : style.edges.cross,
-    bracket: ascii ? { top: ']', mid: '|', bot: ']', one: ']' } : { top: '⌉', mid: '│', bot: '⌋', one: ']' },
+    frame: ascii
+      ? { tl: '+', tr: '+', bl: '+', br: '+', h: '-', v: '|' }
+      : { tl: '┌', tr: '┐', bl: '└', br: '┘', h: '─', v: '│' },
   };
 }

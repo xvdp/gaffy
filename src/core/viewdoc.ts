@@ -1,17 +1,23 @@
 /**
  * View document: the content of a `.gaffy` file. One view = seeds, traversal, user overrides, and the
- * last resolved subgraph, so a view opens without a language server and carries the baseline for
- * ADD / MOD / REMOVE tags.
+ * last resolved subgraph, so a view opens without a language server.
+ *
+ * Placement units: a vertex key moves the vertex with its tree descendants; `box:<container key>`
+ * moves a namespace box with its content. `offset` holds unlocked moves relative to the computed
+ * placement; `lock` holds absolute positions (column, row) of locked units, which the placement of
+ * every unlocked unit avoids.
  */
-import { emptyGraph, GNode, NodeKey, Status, Subgraph } from './model';
+import { emptyGraph, NodeKey, Subgraph } from './model';
+import type { Curve } from './style';
 
 export type Direction = 'in' | 'out' | 'both';
-export type Orientation = 'down' | 'up';
+export type Order = 'callers' | 'callees';
 export type EdgeMode = 'glyph' | 'vector';
-export type LabelMode = 'full' | 'relative';
 export type ParentRule = 'dfs' | 'nearest';
+export type Cell = [number, number];        // [column, row]
 
 export const ROOTS = '__roots__';
+export const boxUnit = (containerKey: string) => `box:${containerKey}`;
 
 export interface ViewSpec {
   seeds: NodeKey[];
@@ -20,10 +26,16 @@ export interface ViewSpec {
   expanded: Record<NodeKey, Direction>;   // per-node expansions beyond the depth limit
   collapsed: NodeKey[];                    // collapse set K
   hidden: NodeKey[];
-  order: Record<NodeKey, NodeKey[]>;       // child order per caller; ROOTS orders the top level
-  orientation: Orientation;                // down: callers above callees
+  folded: NodeKey[];                       // vertices whose dominated subtree is folded away
+  order: Order;                            // callers: caller above, `└─>` to callee; callees: callee above, `└──` to caller
+  sibling: Record<NodeKey, NodeKey[]>;     // child order per tree parent; ROOTS orders the top level
+  offset: Record<string, Cell>;            // unlocked moves: [Δcolumn, Δrow] per unit
+  lock: Record<string, Cell>;              // locked units: absolute [column, row]
+  exclude: string[];                       // folders (workspace-relative) left out of the build
+  include: string[];                       // folders kept although `gaffy.exclude` matches them
+  boxes?: boolean;                         // overrides style.boxes.enabled
   edges?: EdgeMode;                        // overrides style.edges.mode
-  labels?: LabelMode;                      // overrides style.labels.mode
+  curve?: Curve;                           // overrides style.edges.curve
   parentRule?: ParentRule;                 // overrides style.grid.parentRule
   tags: Record<NodeKey, string>;
 }
@@ -33,33 +45,50 @@ export interface ViewDoc {
   name: string;
   view: ViewSpec;
   graph: Subgraph;                         // last build
-  baseline: Record<NodeKey, string>;       // key -> body hash at baseline
-  ghosts: Subgraph;                        // definitions removed since baseline, with their last edges
   truncated?: boolean;                     // build stopped at maxNodes
   updated?: string;                        // ISO time of last build
 }
 
 export function defaultView(): ViewSpec {
   return {
-    seeds: [], direction: 'out', depth: 4, expanded: {}, collapsed: [], hidden: [], order: {},
-    orientation: 'down', tags: {},
+    seeds: [], direction: 'out', depth: 4, expanded: {}, collapsed: [], hidden: [], folded: [], order: 'callers',
+    sibling: {}, offset: {}, lock: {}, exclude: [], include: [], tags: {},
   };
 }
 
 export function emptyDoc(name: string, view: Partial<ViewSpec> = {}): ViewDoc {
-  return { gaffy: 1, name, view: { ...defaultView(), ...view }, graph: emptyGraph(), baseline: {}, ghosts: emptyGraph() };
+  return { gaffy: 1, name, view: { ...defaultView(), ...view }, graph: emptyGraph() };
 }
 
-/** Parses a `.gaffy` text; missing fields take defaults; an empty text yields an empty view. */
+/** Parses a `.gaffy` text; missing fields take defaults; unknown fields are dropped; empty text yields an empty view. */
 export function parseDoc(text: string, fallbackName = 'view'): ViewDoc {
   if (!text.trim()) return emptyDoc(fallbackName);
   const raw = JSON.parse(text) as Partial<ViewDoc>;
-  const doc = emptyDoc(raw.name ?? fallbackName, raw.view ?? {});
+  const v = (raw.view ?? {}) as Partial<ViewSpec> & Record<string, unknown>;
+  const view: ViewSpec = {
+    seeds: v.seeds ?? [],
+    direction: v.direction ?? 'out',
+    depth: v.depth ?? 4,
+    expanded: v.expanded ?? {},
+    collapsed: v.collapsed ?? [],
+    hidden: v.hidden ?? [],
+    folded: v.folded ?? [],
+    order: v.order === 'callees' ? 'callees' : 'callers',
+    sibling: v.sibling ?? {},
+    offset: v.offset ?? {},
+    lock: v.lock ?? {},
+    exclude: v.exclude ?? [],
+    include: v.include ?? [],
+    tags: v.tags ?? {},
+  };
+  if (v.boxes !== undefined) view.boxes = v.boxes;
+  if (v.edges) view.edges = v.edges;
+  if (v.curve) view.curve = v.curve;
+  if (v.parentRule) view.parentRule = v.parentRule;
+  const doc = emptyDoc(raw.name ?? fallbackName, view);
   doc.graph = { nodes: raw.graph?.nodes ?? {}, edges: raw.graph?.edges ?? [] };
-  doc.ghosts = { nodes: raw.ghosts?.nodes ?? {}, edges: raw.ghosts?.edges ?? [] };
-  doc.baseline = raw.baseline ?? {};
-  doc.truncated = raw.truncated;
-  doc.updated = raw.updated;
+  if (raw.truncated) doc.truncated = true;
+  if (raw.updated) doc.updated = raw.updated;
   return doc;
 }
 
@@ -67,12 +96,29 @@ export function serializeDoc(doc: ViewDoc): string {
   return JSON.stringify(doc, null, 1) + '\n';
 }
 
-/** ADD: absent from baseline; MOD: hash differs from baseline; REMOVE: ghost. */
-export function statusOf(doc: ViewDoc, key: NodeKey, node: GNode | undefined): Status | undefined {
-  if (doc.ghosts.nodes[key] && !doc.graph.nodes[key]) return 'REMOVE';
-  if (!node || !Object.keys(doc.baseline).length) return undefined;
-  const base = doc.baseline[key];
-  if (base === undefined) return 'ADD';
-  if (node.hash && base && node.hash !== base) return 'MOD';
-  return undefined;
+/** Workspace-relative folder filter: `view.exclude` always applies; a glob from `gaffy.exclude` applies unless `view.include` covers the path. */
+export function excludedBy(view: ViewSpec, globs: readonly RegExp[]) {
+  const under = (path: string, dir: string) => path === dir || path.startsWith(dir.endsWith('/') ? dir : dir + '/');
+  return (path: string | undefined): boolean => {
+    if (!path) return false;
+    if (view.exclude.some((d) => under(path, d))) return true;
+    if (view.include.some((d) => under(path, d))) return false;
+    return globs.some((g) => g.test(path));
+  };
+}
+
+/** Glob to RegExp over `/`-separated paths: `**` any depth, `*` one segment part, `?` one character. */
+export function globToRegExp(glob: string): RegExp {
+  let re = '';
+  for (let i = 0; i < glob.length; i++) {
+    const c = glob[i];
+    if (c === '*') {
+      if (glob[i + 1] === '*') {
+        i++;
+        if (glob[i + 1] === '/') { i++; re += '(?:.*/)?'; } else re += '.*';
+      } else re += '[^/]*';
+    } else if (c === '?') re += '[^/]';
+    else re += c.replace(/[.+^${}()|[\]\\]/g, '\\$&');
+  }
+  return new RegExp(`^${re}$`);
 }

@@ -102,3 +102,53 @@ export function quotient(
   for (const e of edges) { out.get(e.from)!.push(e); inc.get(e.to)!.push(e); }
   return { nodes, edges, out, inc, selfLoops };
 }
+
+/** Same vertices, every edge reversed: layout of callers under their callees (order `callees`). */
+export function reversed(vg: VGraph): VGraph {
+  const edges = vg.edges.map((e) => ({ ...e, from: e.to, to: e.from }));
+  const out = new Map<NodeKey, VEdge[]>();
+  const inc = new Map<NodeKey, VEdge[]>();
+  for (const k of vg.nodes.keys()) { out.set(k, []); inc.set(k, []); }
+  for (const e of edges) { out.get(e.from)!.push(e); inc.get(e.to)!.push(e); }
+  return { nodes: vg.nodes, edges, out, inc, selfLoops: vg.selfLoops };
+}
+
+/** Subgraph on the vertices in `keys`. */
+export function induced(vg: VGraph, keys: ReadonlySet<NodeKey>): VGraph {
+  const nodes = new Map([...vg.nodes].filter(([k]) => keys.has(k)));
+  const edges = vg.edges.filter((e) => keys.has(e.from) && keys.has(e.to));
+  const out = new Map<NodeKey, VEdge[]>();
+  const inc = new Map<NodeKey, VEdge[]>();
+  for (const k of nodes.keys()) { out.set(k, []); inc.set(k, []); }
+  for (const e of edges) { out.get(e.from)!.push(e); inc.get(e.to)!.push(e); }
+  return { nodes, edges, out, inc, selfLoops: new Set([...vg.selfLoops].filter((k) => keys.has(k))) };
+}
+
+/**
+ * Fold: a folded vertex f hides the vertices it dominates in g, those reachable from the roots only
+ * through f: reach(roots) \ reach(roots without f) \ {f}. Roots: sources, seeds, and one vertex per
+ * cycle left unreached. Shared callees stay visible. O(F · (V + E)) for F folded vertices.
+ */
+export function foldOut(g: VGraph, folded: readonly NodeKey[], seeds: readonly NodeKey[]): Map<NodeKey, NodeKey[]> {
+  const reach = (starts: NodeKey[], skip?: NodeKey) => {
+    const seen = new Set<NodeKey>();
+    const stack = starts.filter((s) => s !== skip);
+    for (const s of stack) seen.add(s);
+    while (stack.length) {
+      const k = stack.pop()!;
+      for (const e of g.out.get(k) ?? []) if (e.to !== skip && !seen.has(e.to)) { seen.add(e.to); stack.push(e.to); }
+    }
+    return seen;
+  };
+  const roots = [...g.nodes.keys()].filter((k) => !(g.inc.get(k) ?? []).length);
+  for (const s of seeds) if (g.nodes.has(s) && !roots.includes(s)) roots.push(s);
+  let all = reach(roots);
+  for (const k of g.nodes.keys()) if (!all.has(k)) { roots.push(k); all = reach(roots); }
+  const out = new Map<NodeKey, NodeKey[]>();
+  for (const f of folded) {
+    if (!g.nodes.has(f)) continue;
+    const without = reach(roots, f);
+    out.set(f, [...all].filter((k) => k !== f && !without.has(k)));
+  }
+  return out;
+}

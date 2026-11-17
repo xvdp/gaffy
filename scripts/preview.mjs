@@ -25,18 +25,39 @@ const theme = `
 
 const mock = `
 const DATA = ${data};
+DATA.style = JSON.parse(JSON.stringify(DATA.style));
 const params = new URLSearchParams(location.search);
 const which = params.get('doc') || 'exp4';
 let state = {};
 const initial = JSON.parse(DATA.docs[which]);
-for (const p of ['edges', 'orientation', 'labels', 'parentRule']) if (params.get(p)) initial.view[p] = params.get(p);
+for (const p of ['edges', 'order', 'parentRule', 'curve']) if (params.get(p)) initial.view[p] = params.get(p);
+if (params.get('boxes')) initial.view.boxes = params.get('boxes') === 'on';
+if (params.get('fill')) DATA.style.boxes.fill = params.get('fill');
 let text = JSON.stringify(initial, null, 1) + '\\n';
 const log = (m) => { const el = document.getElementById('log'); if (el) el.textContent = JSON.stringify(m).slice(0, 300); };
+// simulated drag (sim=drag&label=<text>&dx=&dy=): runs synchronously after the first render
+const simulate = () => {
+  if (params.get('sim') !== 'drag') return;
+  const want = params.get('label') || '';
+  const scope = params.get('box') ? '.heads g' : '.labels g';
+  const g = [...document.querySelectorAll(scope)].find((x) => (x.querySelector('text')?.textContent ?? '').includes(want));
+  if (!g) { log({ sim: 'no label ' + want }); return; }
+  const r = g.getBoundingClientRect();
+  const x = r.left + 5, y = r.top + r.height / 2;
+  const dx = +(params.get('dx') || 0), dy = +(params.get('dy') || 0);
+  const ev = (type, cx, cy, target) => target.dispatchEvent(new MouseEvent(type, { clientX: cx, clientY: cy, bubbles: true, cancelable: true, view: window, button: 0 }));
+  if (params.get('dbl')) { g.dispatchEvent(new MouseEvent('dblclick', { clientX: x, clientY: y, bubbles: true, view: window })); return; }
+  ev('mousedown', x, y, g);
+  for (let i = 1; i <= 10; i++) ev('mousemove', x + (dx * i) / 10, y + (dy * i) / 10, window);
+  ev('mouseup', x + dx, y + dy, window);
+};
+// messages to the webview are delivered synchronously, so the page is final when it finishes loading
+const deliver = () => window.dispatchEvent(new MessageEvent('message', { data: { type: 'state', text, name: which, style: DATA.style } }));
 window.acquireVsCodeApi = () => ({
   postMessage(m) {
     log(m);
-    if (m.type === 'ready') setTimeout(() => window.postMessage({ type: 'state', text, name: which, style: DATA.style }, '*'));
-    if (m.type === 'edit') { text = m.text; setTimeout(() => window.postMessage({ type: 'state', text, name: which, style: DATA.style }, '*')); }
+    if (m.type === 'ready') queueMicrotask(() => { deliver(); simulate(); });
+    if (m.type === 'edit') { text = m.text; deliver(); }
   },
   getState() { return state; },
   setState(s) { state = s; },

@@ -1,16 +1,17 @@
 /**
  * Node label text. One string per vertex; its length sets the grid width of the label.
  *
- * full:     `<module>.<qual>()`, e.g. `render.harmonics.projector()`
- * relative: common dotted prefix with the tree parent's module removed, keeping the last module
- *           component, e.g. parent `render.harmonics` → `.harmonics.projector()` (giddy experiment 2)
+ * definition:          `<module>.<qual>()`, e.g. `render.harmonics.projector()`
+ * module-level code:   `<module>.<module>`
  * collapsed container: `[<container label>] (<members>)`
+ * Inside a namespace box the module part is relative to the box namespace `ns`:
+ * `projector()` in box `render.harmonics`, `interop.to_drjit()` in box `runtime`.
+ * `strip` removes leading module prefixes when no box applies, e.g. "gutai.".
  */
+import { relativeName } from './boxes';
 import { GNode, isContainer } from './model';
-import type { LabelMode } from './viewdoc';
 
 export interface LabelOptions {
-  mode: LabelMode;
   strip: string[];
   parens: boolean;
 }
@@ -20,26 +21,16 @@ export function stripModule(module: string, strip: readonly string[]): string {
   return module;
 }
 
-export function containerLabel(n: GNode, strip: readonly string[]): string {
-  if (n.kind === 'class') return `${stripModule(n.module, strip)}.${n.qual}`;
-  return stripModule(n.module, strip) || n.name;
+export function containerLabel(n: GNode, strip: readonly string[], ns = ''): string {
+  const full = n.kind === 'class' ? `${n.module}.${n.qual}` : n.module || n.name;
+  return ns ? relativeName(full, ns) || n.name : stripModule(full, strip);
 }
 
-const split = (m: string) => m.split(/[./]/).filter(Boolean);
-
-export function nodeLabel(n: GNode, opts: LabelOptions, parent?: GNode, members = 0, collapsed = false): string {
-  if (collapsed || isContainer(n) && n.kind !== 'class') {
-    return collapsed ? `[${containerLabel(n, opts.strip)}] (${members})` : containerLabel(n, opts.strip);
-  }
+export function nodeLabel(n: GNode, opts: LabelOptions, ns = '', members = 0, collapsed = false): string {
+  if (collapsed) return `[${containerLabel(n, opts.strip, ns)}] (${members})`;
+  if (isContainer(n) && n.kind !== 'class') return containerLabel(n, opts.strip, ns);
   const call = opts.parens && n.qual !== '<module>' ? '()' : '';
-  const qual = n.qual;
-  let module = stripModule(n.module, opts.strip);
-  if (opts.mode === 'relative' && parent && !isContainer(parent)) {
-    const a = split(stripModule(parent.module, opts.strip));
-    const b = split(module);
-    let k = 0;
-    while (k < a.length && k < b.length && a[k] === b[k]) k++;
-    if (k > 0) module = '.' + b.slice(Math.min(k, b.length - 1)).join('.');
-  }
-  return qual ? `${module}.${qual}${call}` : module;
+  const module = ns ? relativeName(n.module, ns) : stripModule(n.module, opts.strip);
+  if (!n.qual) return module;
+  return module ? `${module}.${n.qual}${call}` : `${n.qual}${call}`;
 }

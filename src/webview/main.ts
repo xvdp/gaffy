@@ -1,18 +1,20 @@
 /**
- * Webview renderer. Receives the view text and style from the host, runs the core pipeline
- * (quotient, layout, grid) and draws the grid with D3:
- *   glyph mode:  one <text> per edge cell (box-drawing glyphs at exact cell positions)
- *   vector mode: one <path> per net from the same direction masks, joints as dots, arrowheads
- * Local changes (collapse, hide, reorder, flip, modes) commit a new document text to the host.
+ * Webview renderer. Receives the view text, style and exclude globs from the host, runs the core
+ * pipeline (quotient, boxes, placement, routing) and draws the grid with D3:
+ *   glyph mode:  one <text> per edge or frame cell (box-drawing glyphs at exact cell positions)
+ *   vector mode: frames as rectangles; calls as paths, orthogonal from the grid masks or curved
+ *                through each call's polyline (`edges.curve`: rounded, sigmoid, spline)
+ * Local changes (moves, locks, collapse, hide, order, modes) commit a new document text to the host.
  */
 import { drag } from 'd3-drag';
 import { select } from 'd3-selection';
+import { curveBasis, line } from 'd3-shape';
 import { zoom, zoomIdentity } from 'd3-zoom';
-import { cellRC, charRows, Grid, LabelSpan } from '../core/grid';
-import { ancestors, isContainer, mergeGraphs, NodeKey } from '../core/model';
-import { buildScene, Scene, siblingsOf } from '../core/scene';
-import { E, glyphSet, N, S, Style, W } from '../core/style';
-import { Direction, parseDoc, ROOTS, serializeDoc, ViewDoc } from '../core/viewdoc';
+import { cellRC, charRows, EdgePath, Grid, LabelSpan } from '../core/grid';
+import { ancestors, isContainer, NodeKey } from '../core/model';
+import { buildScene, Scene, siblingsOf, unitAnchor, unitMembers } from '../core/scene';
+import { Curve, E, glyphSet, N, S, Style, W } from '../core/style';
+import { Direction, excludedBy, globToRegExp, Order, parseDoc, ROOTS, serializeDoc, ViewDoc } from '../core/viewdoc';
 
 interface VsApi { postMessage(m: unknown): void; getState(): any; setState(s: unknown): void }
 declare function acquireVsCodeApi(): VsApi;
@@ -23,9 +25,10 @@ let name = 'view';
 let doc: ViewDoc | undefined;
 let style: Style | undefined;
 let styleText = '';
+let excludeGlobs: string[] = [];
 let scene: Scene | undefined;
-let netPaths = new Map<string, string>();
 let focusKey: NodeKey | undefined = api.getState()?.focus;
+let selected = new Set<NodeKey>();
 let busy = false;
 let cw = 8;
 let ch = 16;
@@ -35,6 +38,8 @@ const svg = select<SVGSVGElement, unknown>('#graph');
 const root = svg.append('g').attr('class', 'root');
 const zoomer = zoom<SVGSVGElement, unknown>()
   .scaleExtent([0.08, 8])
+  // wheel zooms anywhere; dragging pans only from the background (labels and headers drag units)
+  .filter((ev: Event) => ev.type === 'wheel' || (!(ev as MouseEvent).button && !(ev.target as Element).closest?.('.labels g, .heads g')))
   .on('zoom', (ev) => {
     root.attr('transform', ev.transform.toString());
     saveState({ t: [ev.transform.x, ev.transform.y, ev.transform.k] });
@@ -50,8 +55,9 @@ window.addEventListener('message', (ev) => {
   const m = ev.data;
   if (m.type === 'state') {
     busy = !!m.busy;
+    excludeGlobs = m.exclude ?? excludeGlobs;
     const st = JSON.stringify(m.style);
-    if (m.text === text && st === styleText && doc) { status(); return; }
+    if (m.text === text && st === styleText && doc) { status(); toolbar(); return; }
     text = m.text;
     name = m.name ?? name;
     styleText = st;
@@ -66,9 +72,10 @@ window.addEventListener('message', (ev) => {
   } else if (m.type === 'busy') {
     busy = !!m.busy;
     status();
+  } else if (m.type === 'cmd') {
+    runCmd(m.cmd, m.key, m.unit);
   }
 });
-api.postMessage({ type: 'ready' });
 
 function commit(mut: (d: ViewDoc) => void, rebuild = false) {
   if (!doc) return;
@@ -94,12 +101,14 @@ function applyColors(st: Style) {
   s.setProperty('--g-ew', String(st.edges.width));
 }
 
-function vectorPaths(g: Grid): Map<string, string> {
+const X = (x: number) => x * cw;
+const Y = (y: number) => y * ch;
+
+function maskPaths(g: Grid): Map<string, string> {
   const segs = new Map<string, string[]>();
   for (const [id, nets] of g.cells) {
     const [r, c] = cellRC(id);
-    const x = (c + 0.5) * cw;
-    const y = (r + 0.5) * ch;
+    const x = (c + 0.5) * cw, y = (r + 0.5) * ch;
     for (const [net, m] of nets) {
       let a = segs.get(net);
       if (!a) segs.set(net, (a = []));
@@ -112,7 +121,40 @@ function vectorPaths(g: Grid): Map<string, string> {
   return new Map([...segs].map(([k, v]) => [k, v.join('')]));
 }
 
-const gridRow = (r: number) => (doc?.view.orientation === 'up' && scene ? scene.grid.height - 1 - r : r);
+/** One call as an SVG path: polyline with rounded corners, sigmoid S-curves, or a B-spline. */
+function curvePath(p: EdgePath, curve: Curve): string {
+  const pts = p.pts.map(([x, y]) => [X(x), Y(y)] as [number, number]);
+  if (curve === 'spline') return line().curve(curveBasis)(pts) ?? '';
+  if (curve === 'sigmoid') {
+    const [x0, y0] = pts[0], [x1, y1] = pts[pts.length - 1];
+    if (p.start === 'S') {
+      // from under the caller: vertical start, horizontal end
+      return `M${x0},${y0}C${x0},${y1} ${x0},${y1} ${x1},${y1}`;
+    }
+    const dx = Math.max(cw * 2, Math.abs(x1 - x0) / 2);
+    const c2 = p.arrive === 'E' ? x1 - dx : x1 + dx;
+    return `M${x0},${y0}C${x0 + dx},${y0} ${c2},${y1} ${x1},${y1}`;
+  }
+  // rounded corners
+  const r = Math.min(cw, ch) * 0.9;
+  let d = `M${pts[0][0]},${pts[0][1]}`;
+  for (let i = 1; i < pts.length - 1; i++) {
+    const [ax, ay] = pts[i - 1], [bx, by] = pts[i], [cx, cy] = pts[i + 1];
+    const l1 = Math.hypot(bx - ax, by - ay), l2 = Math.hypot(cx - bx, cy - by);
+    const k = Math.min(r, l1 / 2, l2 / 2);
+    const p1 = [bx - ((bx - ax) / (l1 || 1)) * k, by - ((by - ay) / (l1 || 1)) * k];
+    const p2 = [bx + ((cx - bx) / (l2 || 1)) * k, by + ((cy - by) / (l2 || 1)) * k];
+    d += `L${p1[0]},${p1[1]}Q${bx},${by} ${p2[0]},${p2[1]}`;
+  }
+  const last = pts[pts.length - 1];
+  return d + `L${last[0]},${last[1]}`;
+}
+
+function hue(key: string): number {
+  let h = 0;
+  for (let i = 0; i < key.length; i++) h = (h * 31 + key.charCodeAt(i)) >>> 0;
+  return h % 360;
+}
 
 // ---- render -------------------------------------------------------------------------------------
 function render() {
@@ -128,133 +170,143 @@ function render() {
   const sc = scene;
   const g = sc.grid;
   const mode = doc.view.edges ?? style.edges.mode;
+  const curve = doc.view.curve ?? style.edges.curve;
   const gs = glyphSet(style);
-  netPaths = vectorPaths(g);
+  for (const k of [...selected]) if (!sc.vg.nodes.has(k)) selected.delete(k);
 
   root.selectAll('*').remove();
-  root.attr('class', `root mode-${mode}`)
-    .style('font-family', style.font.family)
-    .style('font-size', `${style.font.size}px`);
+  root.attr('class', `root mode-${mode}`).style('font-family', style.font.family).style('font-size', `${style.font.size}px`);
 
   if (!g.labels.length) {
     root.append('text').attr('class', 'empty').attr('x', 0).attr('y', ch)
-      .text(doc.view.seeds.length ? 'building…' : 'empty view: run "gaffy: Graph Callers / Callees" from an editor context menu');
+      .text(doc.view.seeds.length ? 'building…' : 'empty view: right click a function > gaffy > New View…');
   }
 
-  // container boxes behind everything
-  if (style.container.boxes) {
-    const gb = root.append('g').attr('class', 'boxes');
-    for (const b of sc.layout.brackets) {
-      let c0 = Infinity, c1 = 0;
-      for (let r = b.lo; r <= b.hi; r++) {
-        const row = sc.layout.rows[r];
-        if (row.kind !== 'node') continue;
-        c0 = Math.min(c0, row.col);
-        c1 = Math.max(c1, row.end);
-      }
-      const r0 = Math.min(gridRow(b.lo), gridRow(b.hi));
-      const r1 = Math.max(gridRow(b.lo), gridRow(b.hi));
-      gb.append('rect').attr('x', (c0 - 0.5) * cw).attr('y', r0 * ch + 1)
-        .attr('width', (c1 - c0 + 1) * cw).attr('height', (r1 - r0 + 1) * ch - 2).attr('rx', 3);
+  // frames: hue fill (optional), vector rectangles
+  const gf = root.append('g').attr('class', 'frames');
+  for (const f of g.frames) {
+    const x = X(f.c0 + 0.5), y = Y(f.r0 + 0.5), w = X(f.c1 - f.c0), h = Y(f.r1 - f.r0);
+    if (style.boxes.fill === 'hue') {
+      gf.append('rect').attr('class', 'fill').attr('x', x).attr('y', y).attr('width', w).attr('height', h).attr('rx', 4)
+        .style('fill', `hsl(${hue(f.box.key)}, 55%, 50%)`).style('fill-opacity', style.boxes.alpha);
     }
+    if (mode === 'vector') gf.append('rect').attr('class', 'frame').attr('x', x).attr('y', y).attr('width', w).attr('height', h).attr('rx', 4);
   }
 
   const ge = root.append('g').attr('class', 'edges');
   if (mode === 'glyph') {
-    // box-drawing glyphs span about 1.15 em; rows taller than that would leave gaps in vertical strokes,
-    // so glyphs with a vertical stroke stretch vertically to the row height
     const sy = Math.max(1, style.font.lineHeight / 1.15);
     const cells: { r: number; c: number; t: string }[] = [];
     charRows(g, gs, true).forEach((row, r) => row.forEach((t, c) => { if (t !== ' ') cells.push({ r, c, t }); }));
     ge.selectAll('text').data(cells).join('text')
       .attr('transform', (d) => `translate(${d.c * cw},${(d.r + 0.5) * ch})${VERTICAL.has(d.t) ? ` scale(1,${sy})` : ''}`)
       .text((d) => d.t);
-  } else {
-    for (const [net, d] of netPaths) {
-      ge.append('path').attr('class', `net ${net[0] === 't' ? 'tree' : 'lane'}`).attr('data-net', net).attr('d', d);
-    }
+  } else if (curve === 'orthogonal') {
+    for (const [net, d] of maskPaths(g)) ge.append('path').attr('class', 'net').attr('data-net', net).attr('d', d);
     for (const [id, nets] of g.cells) {
-      if (nets.size < 2 && popcount(nets.values().next().value!) < 3) continue;
-      let u = 0, pure = true;
+      let u = 0, pure = nets.size > 1;
       for (const m of nets.values()) { u |= m; if (m !== (N | S) && m !== (E | W)) pure = false; }
-      if (popcount(u) >= 3 && !(pure && nets.size > 1)) {
+      if (popcount(u) >= 3 && !pure) {
         const [r, c] = cellRC(id);
         ge.append('circle').attr('class', 'joint').attr('cx', (c + 0.5) * cw).attr('cy', (r + 0.5) * ch).attr('r', 1.8);
       }
     }
-    for (const m of g.marks) {
-      const x = (m.col + 0.5) * cw, y = (m.row + 0.5) * ch, a = ch * 0.22;
-      if (m.role === 'arrowE') ge.append('path').attr('class', 'arrow').attr('d', `M${x - a},${y - a}L${x + a},${y}L${x - a},${y + a}Z`);
-      else if (m.role === 'arrowW') ge.append('path').attr('class', 'arrow').attr('d', `M${x + a},${y - a}L${x - a},${y}L${x + a},${y + a}Z`);
-      else ge.append('text').attr('x', m.col * cw).attr('y', y)
-        .text(m.role === 'top' ? gs.bracket.top : m.role === 'bot' ? gs.bracket.bot : m.role === 'mid' ? gs.bracket.mid : gs.bracket.one);
+    for (const m of g.marks) arrowhead(ge, m.col + 0.5, m.row + 0.5, m.role === 'arrowE' ? 1 : m.role === 'arrowW' ? -1 : 0);
+  } else {
+    for (const p of g.paths) {
+      ge.append('path').attr('class', 'net').attr('data-from', p.from).attr('data-to', p.to).attr('d', curvePath(p, curve));
+      if (style.edges.arrow && doc.view.order !== 'callees') {
+        const [x, y] = p.pts[p.pts.length - 1];
+        arrowhead(ge, x - (p.arrive === 'E' ? 0.5 : -0.5), y, p.arrive === 'E' ? 1 : -1);
+      }
     }
   }
   root.append('g').attr('class', 'overlay');
 
+  // labels
   const gl = root.append('g').attr('class', 'labels');
-  const labels = gl.selectAll<SVGGElement, LabelSpan>('g').data(g.labels).join('g')
+  const nodes = gl.selectAll<SVGGElement, LabelSpan>('g').data(g.labels.filter((l) => l.kind === 'node')).join('g')
     .attr('class', (d) => labelClass(d))
     .attr('transform', (d) => `translate(${d.col * cw},${d.row * ch})`)
     .attr('data-vscode-context', (d) => JSON.stringify({
-      webviewSection: d.kind === 'container' ? 'container' : sc.vg.nodes.get(d.key)?.collapsed ? 'collapsed' : 'node',
-      key: d.key,
-      preventDefaultContextMenuItems: true,
+      webviewSection: sc.vg.nodes.get(d.key)?.collapsed ? 'collapsed' : 'node',
+      key: d.key, unit: d.key, preventDefaultContextMenuItems: true,
     }));
-  labels.append('rect').attr('class', 'hit').attr('x', -2).attr('y', 0)
-    .attr('width', (d) => d.text.length * cw + 4).attr('height', ch).attr('rx', 2);
-  labels.append('text').attr('y', ch / 2).text((d) => d.text);
-  labels.append('title').text((d) => tooltip(d));
-
-  labels
+  nodes.append('rect').attr('class', 'hit').attr('x', -2).attr('y', 0).attr('width', (d) => d.text.length * cw + 4).attr('height', ch).attr('rx', 2);
+  nodes.append('text').attr('y', ch / 2).each(function (d) {
+    const hid = sc.hiddenOf.get(d.key);
+    const badge = hid ? ` +${hid.length}` : '';
+    const t = select(this);
+    t.append('tspan').text(badge ? d.text.slice(0, d.text.length - badge.length) : d.text);
+    if (badge) {
+      t.append('tspan').attr('class', 'badge').text(badge)
+        .on('click', (ev: MouseEvent) => { ev.stopPropagation(); api.postMessage({ type: 'hiddenNeighbors', key: d.key, keys: hid }); });
+    }
+  });
+  nodes.append('title').text((d) => tooltip(d));
+  nodes
     .on('click', (ev: MouseEvent, d) => {
       ev.stopPropagation();
+      if (ev.shiftKey) { selected.has(d.key) ? selected.delete(d.key) : selected.add(d.key); }
+      else { selected = new Set([d.key]); api.postMessage({ type: 'open', key: d.key }); }
       setFocus(d.key);
-      if (d.kind === 'container') commit((x) => { if (!x.view.collapsed.includes(d.key)) x.view.collapsed.push(d.key); });
-      else api.postMessage({ type: 'open', key: d.key });
     })
     .on('dblclick', (ev: MouseEvent, d) => {
       ev.stopPropagation();
-      if (d.kind !== 'node') return;
       if (sc.vg.nodes.get(d.key)?.collapsed) commit((x) => { x.view.collapsed = x.view.collapsed.filter((c) => c !== d.key); });
-      else api.postMessage({ type: 'expand', key: d.key, dir: ev.shiftKey ? 'both' : undefined });
+      else if (ev.shiftKey) api.postMessage({ type: 'expand', key: d.key, dir: 'both' });
+      else toggleFold(d.key);
     })
     .on('mouseenter', (_ev, d) => highlight(d.key))
     .on('mouseleave', () => highlight(focusKey));
+  nodes.call(dragUnit((d) => d.key) as any);
 
-  labels.filter((d) => d.kind === 'node').call(
-    drag<SVGGElement, LabelSpan>()
-      .clickDistance(4)
-      .on('drag', function (ev, d) {
-        select(this).attr('transform', `translate(${d.col * cw},${d.row * ch + ev.y - ev.subject.y})`);
-      })
-      .on('end', function (ev, d) {
-        const rows = Math.round((ev.y - ev.subject.y) / ch);
-        if (rows) reorder(d.key, d.row + rows);
-        else select(this).attr('transform', `translate(${d.col * cw},${d.row * ch})`);
-      }) as any,
-  );
+  // frame headers
+  const gh = root.append('g').attr('class', 'heads');
+  const heads = gh.selectAll<SVGGElement, LabelSpan>('g').data(g.labels.filter((l) => l.kind === 'box')).join('g')
+    .attr('class', (d) => `head${doc!.view.lock[d.key] ? ' locked' : ''}`)
+    .attr('transform', (d) => `translate(${d.col * cw},${d.row * ch})`)
+    .attr('data-vscode-context', (d) => JSON.stringify({
+      webviewSection: 'box', key: d.key.slice(4), unit: d.key, preventDefaultContextMenuItems: true,
+    }));
+  heads.append('rect').attr('class', 'hit').attr('x', -cw).attr('y', 0).attr('width', (d) => (d.text.length + 2) * cw).attr('height', ch);
+  heads.append('text').attr('y', ch / 2).text((d) => d.text);
+  heads.append('title').text((d) => `${d.text}\ndrag to move · double click to collapse${doc!.view.lock[d.key] ? ' · locked' : ''}`);
+  heads.on('dblclick', (ev: MouseEvent, d) => {
+    ev.stopPropagation();
+    commit((x) => { if (!x.view.collapsed.includes(d.key.slice(4))) x.view.collapsed.push(d.key.slice(4)); });
+  });
+  heads.call(dragUnit((d) => d.key) as any);
 
-  svg.on('click', () => setFocus(undefined));
+  root.append('g').attr('class', 'drag');
+  svg.on('click', () => { selected.clear(); setFocus(undefined); });
   if (!placed) placeView();
   highlight(focusKey);
   toolbar();
   status();
 }
 
-const VERTICAL = new Set('│├┤┌┐└┘┬┴┼⌉⌋|+`');
+const VERTICAL = new Set('│├┤┌┐└┘┬┴┼|+`');
 
 function popcount(m: number) { let n = 0; while (m) { n += m & 1; m >>= 1; } return n; }
+
+function arrowhead(gr: { append: (name: string) => any }, cx: number, cy: number, dir: number) {
+  if (!dir) return;
+  const x = cx * cw, y = cy * ch, a = ch * 0.22;
+  gr.append('path').attr('class', 'arrow')
+    .attr('d', dir > 0 ? `M${x - a},${y - a}L${x + a},${y}L${x - a},${y + a}Z` : `M${x + a},${y - a}L${x - a},${y}L${x + a},${y + a}Z`);
+}
 
 function labelClass(d: LabelSpan): string {
   const sc = scene!;
   const v = sc.vg.nodes.get(d.key);
-  const cls = ['label', d.kind];
+  const cls = ['label'];
   if (sc.seeds.has(d.key)) cls.push('seed');
   if (v?.collapsed) cls.push('collapsed');
   if (v?.node?.external) cls.push('external');
-  const s = sc.status.get(d.key);
-  if (s) cls.push(`st-${s}`);
+  if (doc!.view.lock[d.key]) cls.push('locked');
+  if (sc.folds.has(d.key)) cls.push('folded');
+  if (selected.has(d.key)) cls.push('sel');
   if (d.key === focusKey) cls.push('focus');
   return cls.join(' ');
 }
@@ -267,11 +319,150 @@ function tooltip(d: LabelSpan): string {
   if (n.path) lines.push(`${n.path}${n.line !== undefined ? `:${n.line + 1}` : ''}`);
   if (n.detail) lines.push(n.detail);
   if (v?.collapsed) lines.push(`${v.members} definitions, ${v.internal} internal calls`);
-  const s = scene!.status.get(d.key);
-  if (s) lines.push(s);
+  const hid = scene!.hiddenOf.get(d.key);
+  if (hid) lines.push(`hidden: ${hid.map((k) => scene!.graph.nodes[k]?.name ?? k).join(', ')} (click +${hid.length} to unhide)`);
+  const fold = scene!.folds.get(d.key);
+  if (fold) lines.push(`folded: ${fold.length} below (double click to unfold)`);
+  else if ((scene!.drawn.out.get(d.key) ?? []).length) lines.push('double click to fold what lies below');
+  else lines.push('double click to expand through the language server');
+  if (doc!.view.lock[d.key]) lines.push('locked');
   return lines.join('\n');
 }
 
+// ---- dragging units ------------------------------------------------------------------------------
+function dragUnit(unitOf: (d: LabelSpan) => string) {
+  let box: { x: number; y: number; w: number; h: number } | undefined;
+  return drag<SVGGElement, LabelSpan>()
+    // the default subject is the datum, which has no x, y: pointer position instead
+    .subject((ev) => ({ x: ev.x, y: ev.y }))
+    .clickDistance(4)
+    .on('start', (_ev, d) => {
+      const sc = scene!;
+      const unit = unitOf(d);
+      if (unit.startsWith('box:')) {
+        const f = sc.placement.frames.find((x) => x.unit === unit)!;
+        box = { x: X(f.c0), y: Y(f.r0), w: X(f.c1 - f.c0 + 1), h: Y(f.r1 - f.r0 + 1) };
+      } else {
+        let c0 = Infinity, r0 = Infinity, c1 = -Infinity, r1 = -Infinity;
+        for (const k of unitMembers(sc, unit)) {
+          const p = sc.placement.pos.get(k);
+          if (!p) continue;
+          c0 = Math.min(c0, p.col); r0 = Math.min(r0, p.row);
+          c1 = Math.max(c1, sc.placement.end.get(k)!); r1 = Math.max(r1, p.row);
+        }
+        box = { x: X(c0), y: Y(r0), w: X(c1 - c0), h: Y(r1 - r0 + 1) };
+      }
+    })
+    .on('drag', (ev) => {
+      if (!box) return;
+      const o = root.select('.drag');
+      o.selectAll('*').remove();
+      o.append('rect').attr('x', box.x + ev.x - ev.subject.x).attr('y', box.y + ev.y - ev.subject.y)
+        .attr('width', box.w).attr('height', box.h).attr('rx', 3);
+    })
+    .on('end', (ev, d) => {
+      root.select('.drag').selectAll('*').remove();
+      const dc = Math.round((ev.x - ev.subject.x) / cw), dr = Math.round((ev.y - ev.subject.y) / ch);
+      box = undefined;
+      if (!dc && !dr) return;
+      const unit = unitOf(d);
+      commit((x) => {
+        const lock = x.view.lock[unit];
+        if (lock) x.view.lock[unit] = [lock[0] + dc, lock[1] + dr];
+        else {
+          const o = x.view.offset[unit] ?? [0, 0];
+          x.view.offset[unit] = [o[0] + dc, o[1] + dr];
+        }
+      });
+    });
+}
+
+/** Fold or unfold a vertex; a vertex with nothing below it expands through the language server instead. */
+function toggleFold(key: NodeKey) {
+  if (!scene || !doc) return;
+  if (doc.view.folded.includes(key)) { commit((x) => { x.view.folded = x.view.folded.filter((f) => f !== key); }); return; }
+  if ((scene.drawn.out.get(key) ?? []).length) { commit((x) => { x.view.folded.push(key); }); return; }
+  api.postMessage({ type: 'expand', key });
+}
+
+function lockUnit(unit: string) {
+  if (!scene || !doc) return;
+  const at = unitAnchor(scene, unit);
+  if (!at) return;
+  commit((x) => { x.view.lock[unit] = at; delete x.view.offset[unit]; });
+}
+
+function unlockUnit(unit: string) {
+  if (!scene || !doc || !doc.view.lock[unit]) return;
+  const here = unitAnchor(scene, unit)!;
+  // keep the unit where it is: its offset becomes the distance to its computed place
+  const probe = structuredClone(doc);
+  delete probe.view.lock[unit];
+  delete probe.view.offset[unit];
+  const auto = unitAnchor(buildScene(probe, style!), unit);
+  commit((x) => {
+    delete x.view.lock[unit];
+    if (auto && (here[0] !== auto[0] || here[1] !== auto[1])) x.view.offset[unit] = [here[0] - auto[0], here[1] - auto[1]];
+  });
+}
+
+// ---- selection and paths ------------------------------------------------------------------------
+function reach(start: NodeKey, dir: 'up' | 'down'): Set<NodeKey> {
+  const sc = scene!;
+  const out = new Set([start]);
+  const q = [start];
+  while (q.length) {
+    const k = q.pop()!;
+    const next = dir === 'down' ? (sc.vg.out.get(k) ?? []).map((e) => e.to) : (sc.vg.inc.get(k) ?? []).map((e) => e.from);
+    for (const n of next) if (!out.has(n)) { out.add(n); q.push(n); }
+  }
+  return out;
+}
+
+function runCmd(cmd: string, key?: NodeKey, unit?: string) {
+  if (!scene || !doc) return;
+  const k = key ?? focusKey;
+  switch (cmd) {
+    case 'lock': if (unit ?? k) lockUnit(unit ?? k!); return;
+    case 'fold': if (k) toggleFold(k); return;
+    case 'unlock': if (unit ?? k) unlockUnit(unit ?? k!); return;
+    case 'upstream': if (k) selected = reach(k, 'up'); break;
+    case 'downstream': if (k) selected = reach(k, 'down'); break;
+    case 'through': if (k) selected = new Set([...reach(k, 'up'), ...reach(k, 'down')]); break;
+    case 'between': {
+      const [a, b] = [...selected];
+      if (a && b) {
+        const ab = [...reach(a, 'down')].filter((x) => reach(b, 'up').has(x));
+        const ba = [...reach(b, 'down')].filter((x) => reach(a, 'up').has(x));
+        selected = new Set([...ab, ...ba, a, b]);
+      }
+      break;
+    }
+    case 'hideSelection': {
+      const sel = selected.size ? [...selected] : k ? [k] : [];
+      selected.clear();
+      commit((x) => { for (const s of sel) if (!x.view.hidden.includes(s)) x.view.hidden.push(s); });
+      return;
+    }
+    case 'isolate': {
+      const keep = selected.size ? selected : new Set(k ? [k] : []);
+      const drop = [...scene.vg.nodes.keys()].filter((x) => !keep.has(x));
+      commit((x) => { for (const s of drop) if (!x.view.hidden.includes(s)) x.view.hidden.push(s); });
+      return;
+    }
+    case 'clearSelection': selected.clear(); break;
+    case 'showHidden': {
+      const hid = k ? scene.hiddenOf.get(k) : undefined;
+      if (k && hid) api.postMessage({ type: 'hiddenNeighbors', key: k, keys: hid });
+      return;
+    }
+    case 'rearrange': commit((x) => { x.view.offset = {}; }); return;
+    case 'unlockAll': commit((x) => { x.view.lock = {}; }); return;
+  }
+  render();
+}
+
+// ---- view placement ------------------------------------------------------------------------------
 function placeView() {
   const t = api.getState()?.t as [number, number, number] | undefined;
   if (t) svg.call(zoomer.transform, zoomIdentity.translate(t[0], t[1]).scale(t[2]));
@@ -291,90 +482,63 @@ function fit() {
 function setFocus(key: NodeKey | undefined) {
   focusKey = key;
   saveState({ focus: key });
-  root.selectAll<SVGGElement, LabelSpan>('.labels g').classed('focus', (d) => d.key === key);
+  root.selectAll<SVGGElement, LabelSpan>('.labels g')
+    .classed('focus', (d) => d.key === key)
+    .classed('sel', (d) => selected.has(d.key));
   highlight(key);
 }
 
 function highlight(key: NodeKey | undefined) {
-  root.selectAll('.labels g').classed('hl-in', false).classed('hl-out', false);
-  root.selectAll('.edges path.net').classed('hl', false);
   const ov = root.select('.overlay');
   ov.selectAll('*').remove();
-  if (!key || !scene) return;
-  const L = scene.layout;
-  const nets = new Set([`t:${key}`, `l:${key}`]);
-  const p = L.parent.get(key);
-  if (p) nets.add(`t:${p}`);
-  for (const lane of L.lanes) if (lane.sources.some((s) => s.key === key)) nets.add(`l:${lane.target}`);
+  root.selectAll('.labels g').classed('hl-in', false).classed('hl-out', false);
+  if (!scene) return;
+  const curve = doc!.view.curve ?? style!.edges.curve;
+  const draw = (p: EdgePath, cls: string) => ov.append('path').attr('class', cls)
+    .attr('d', curve === 'orthogonal' || (doc!.view.edges ?? style!.edges.mode) === 'glyph'
+      ? `M${p.pts.map(([x, y]) => `${X(x)},${Y(y)}`).join('L')}` : curvePath(p, curve));
+  // selection: calls with both ends selected
+  if (selected.size > 1) for (const p of scene.grid.paths) if (selected.has(p.from) && selected.has(p.to)) draw(p, 'sel');
+  if (!key) return;
+  for (const p of scene.grid.paths) if (p.from === key || p.to === key) draw(p, 'hl');
   const callers = new Set((scene.vg.inc.get(key) ?? []).map((e) => e.from));
   const callees = new Set((scene.vg.out.get(key) ?? []).map((e) => e.to));
   root.selectAll<SVGGElement, LabelSpan>('.labels g')
-    .classed('hl-in', (d) => d.kind === 'node' && callers.has(d.key))
-    .classed('hl-out', (d) => d.kind === 'node' && callees.has(d.key));
-  if ((doc?.view.edges ?? style?.edges.mode) === 'vector') {
-    root.selectAll<SVGPathElement, unknown>('.edges path.net').classed('hl', function () {
-      return nets.has(this.getAttribute('data-net') ?? '');
-    });
-  } else {
-    // glyph mode: only the stems and lanes of the hovered vertex, drawn over the glyphs
-    for (const n of nets) {
-      const d = netPaths.get(n);
-      if (d) ov.append('path').attr('d', d);
-    }
-  }
+    .classed('hl-in', (d) => callers.has(d.key))
+    .classed('hl-out', (d) => callees.has(d.key));
 }
 
-// ---- edits --------------------------------------------------------------------------------------
-function reorder(key: NodeKey, targetRow: number) {
-  if (!scene) return;
-  const L = scene.layout;
-  const { slot, list } = siblingsOf(L, key);
-  const display = list.map((k) => ({ k, r: gridRow(L.rowOf.get(k)!) })).filter((x) => x.k !== key).sort((a, b) => a.r - b.r);
-  const i = display.filter((x) => x.r < targetRow).length;
-  display.splice(i, 0, { k: key, r: targetRow });
-  let next = display.map((x) => x.k);
-  if (doc!.view.orientation === 'up') next = next.reverse();
-  if (next.join('\n') === list.join('\n')) { render(); return; }
-  commit((d) => { d.view.order[slot ?? ROOTS] = next; });
-}
-
-function collapseInnermost(key: NodeKey) {
-  if (!doc || !scene) return;
-  const nodes = mergeGraphs(doc.ghosts, doc.graph).nodes;
-  const c = ancestors(nodes, key).find((a) => isContainer(nodes[a]) && !doc!.view.collapsed.includes(a));
-  if (c) commit((d) => { d.view.collapsed.push(c); });
-}
-
+// ---- keyboard -----------------------------------------------------------------------------------
 function moveFocus(delta: number) {
   if (!scene) return;
-  const nodes = scene.grid.labels.filter((l) => l.kind === 'node').sort((a, b) => a.row - b.row);
+  const nodes = scene.grid.labels.filter((l) => l.kind === 'node').sort((a, b) => a.row - b.row || a.col - b.col);
   if (!nodes.length) return;
   const i = nodes.findIndex((l) => l.key === focusKey);
   const j = i < 0 ? 0 : Math.max(0, Math.min(nodes.length - 1, i + delta));
+  selected = new Set([nodes[j].key]);
   setFocus(nodes[j].key);
-  // keep the focused row in view
-  const el = svg.node()!;
-  const t = (api.getState()?.t ?? [12, 12, 1]) as number[];
-  const y = nodes[j].row * ch * t[2] + t[1];
-  if (y < 0 || y > el.clientHeight - ch * t[2]) {
-    svg.call(zoomer.translateBy, 0, (el.clientHeight / 2 - y) / t[2]);
-  }
 }
 
 function moveSibling(delta: -1 | 1) {
   if (!scene || !focusKey) return;
-  const r = gridRow(scene.layout.rowOf.get(focusKey) ?? -1);
-  if (r < 0) return;
-  const { list } = siblingsOf(scene.layout, focusKey);
-  const rows = list.map((k) => gridRow(scene!.layout.rowOf.get(k)!)).sort((a, b) => a - b);
-  const i = rows.indexOf(r);
+  const { slot, list } = siblingsOf(scene, focusKey);
+  const i = list.indexOf(focusKey);
   const j = i + delta;
-  if (j < 0 || j >= rows.length) return;
-  reorder(focusKey, delta < 0 ? rows[j] : rows[j] + 1);
+  if (i < 0 || j < 0 || j >= list.length) return;
+  const next = [...list];
+  [next[i], next[j]] = [next[j], next[i]];
+  commit((d) => { d.view.sibling[slot ?? ROOTS] = next; });
+}
+
+function collapseInnermost(key: NodeKey) {
+  if (!doc) return;
+  const nodes = doc.graph.nodes;
+  const c = ancestors(nodes, key).find((a) => isContainer(nodes[a]) && !doc!.view.collapsed.includes(a));
+  if (c) commit((d) => { d.view.collapsed.push(c); });
 }
 
 svg.on('keydown', (ev: KeyboardEvent) => {
-  if (!doc) return;
+  if (!doc || !style) return;
   const k = focusKey;
   const key = ev.key;
   if (ev.altKey && (key === 'ArrowUp' || key === 'ArrowDown')) { moveSibling(key === 'ArrowUp' ? -1 : 1); ev.preventDefault(); return; }
@@ -385,11 +549,15 @@ svg.on('keydown', (ev: KeyboardEvent) => {
     case 'e': case ' ': if (k) api.postMessage({ type: 'expand', key: k, dir: ev.shiftKey ? 'both' : undefined }); break;
     case 'ArrowLeft': case 'c': if (k) collapseInnermost(k); break;
     case 'ArrowRight': if (k && scene?.vg.nodes.get(k)?.collapsed) commit((d) => { d.view.collapsed = d.view.collapsed.filter((x) => x !== k); }); break;
-    case 'h': if (k) commit((d) => { d.view.hidden.push(k); }); break;
+    case 'h': case 'Delete': runCmd('hideSelection'); break;
+    case 'i': runCmd('isolate'); break;
+    case 'Escape': runCmd('clearSelection'); break;
+    case 'k': if (k) runCmd(doc.view.lock[k] ? 'unlock' : 'lock', k, k); break;
+    case 'f': if (k) toggleFold(k); break;
     case 'u': commit((d) => { d.view.hidden = []; }); break;
-    case 'f': commit((d) => { d.view.orientation = d.view.orientation === 'up' ? 'down' : 'up'; }); break;
+    case 'o': commit((d) => { d.view.order = d.view.order === 'callees' ? 'callers' : 'callees'; }); break;
     case 'g': commit((d) => { d.view.edges = (d.view.edges ?? style!.edges.mode) === 'glyph' ? 'vector' : 'glyph'; }); break;
-    case 'l': commit((d) => { d.view.labels = (d.view.labels ?? style!.labels.mode) === 'full' ? 'relative' : 'full'; }); break;
+    case 'b': commit((d) => { d.view.boxes = !(d.view.boxes ?? style!.boxes.enabled); }); break;
     case 'r': api.postMessage({ type: 'refresh' }); break;
     case '0': fit(); break;
     case 'x': api.postMessage({ type: 'export' }); break;
@@ -400,66 +568,99 @@ svg.on('keydown', (ev: KeyboardEvent) => {
 
 // ---- toolbar and status -------------------------------------------------------------------------
 type Btn = { label: string; title: string; on?: boolean; act: () => void };
+type Group = { caption?: string; items: Btn[] };
+
+function folders(): { path: string; label: string; excluded: boolean }[] {
+  if (!doc) return [];
+  const ex = excludedBy(doc.view, excludeGlobs.map(globToRegExp));
+  const dirs = Object.values(doc.graph.nodes).filter((n) => n.path && !isContainer(n)).map((n) => n.path!.split('/').slice(0, -1));
+  if (!dirs.length && !doc.view.exclude.length && !doc.view.include.length) return [];
+  let prefix = dirs[0] ?? [];
+  for (const d of dirs) { let i = 0; while (i < prefix.length && i < d.length && prefix[i] === d[i]) i++; prefix = prefix.slice(0, i); }
+  const set = new Set<string>();
+  for (const d of dirs) if (d.length > prefix.length) set.add([...prefix, d[prefix.length]].join('/'));
+  for (const p of [...doc.view.exclude, ...doc.view.include]) set.add(p);
+  return [...set].sort().map((p) => ({ path: p, label: p.split('/').pop()!, excluded: ex(`${p}/x`) }));
+}
 
 function toolbar() {
   if (!doc || !style) return;
   const v = doc.view;
   const mode = v.edges ?? style.edges.mode;
-  const labels = v.labels ?? style.labels.mode;
+  const curve = v.curve ?? style.edges.curve;
   const rule = v.parentRule ?? style.grid.parentRule;
-  const groups: Btn[][] = [
-    [{ label: '⟳', title: 'rebuild from the language server (r)', act: () => api.postMessage({ type: 'refresh' }) }],
-    (['in', 'out', 'both'] as Direction[]).map((d) => ({
-      label: d === 'in' ? 'callers' : d === 'out' ? 'callees' : 'both', title: `traverse ${d} from the seeds`,
+  const boxes = v.boxes ?? style.boxes.enabled;
+  const groups: Group[] = [
+    { items: [{ label: '⟳ rebuild', title: 'rebuild from the language server (r)', act: () => api.postMessage({ type: 'refresh' }) }] },
+    { caption: 'traverse', items: (['in', 'out', 'both'] as Direction[]).map((d) => ({
+      label: d === 'in' ? 'callers' : d === 'out' ? 'callees' : 'both', title: `follow ${d === 'in' ? 'incoming' : d === 'out' ? 'outgoing' : 'incoming and outgoing'} calls from the seeds`,
       on: v.direction === d, act: () => commit((x) => { x.view.direction = d; }, true),
-    })),
-    [
+    })) },
+    { caption: 'depth', items: [
       { label: '−', title: 'depth − 1', act: () => commit((x) => { x.view.depth = Math.max(1, x.view.depth - 1); }, true) },
-      { label: `depth ${v.depth}`, title: 'hop limit from the seeds', act: () => {} },
+      { label: String(v.depth), title: 'hop limit from the seeds', act: () => {} },
       { label: '+', title: 'depth + 1', act: () => commit((x) => { x.view.depth += 1; }, true) },
-    ],
-    [{ label: v.orientation === 'up' ? '⇡ callees top' : '⇣ callers top', title: 'flip orientation (f)',
-      act: () => commit((x) => { x.view.orientation = x.view.orientation === 'up' ? 'down' : 'up'; }) }],
-    (['glyph', 'vector'] as const).map((m) => ({ label: m, title: 'edge rendering (g)', on: mode === m,
-      act: () => commit((x) => { x.view.edges = m; }) })),
-    (['full', 'relative'] as const).map((m) => ({ label: m, title: 'label mode (l)', on: labels === m,
-      act: () => commit((x) => { x.view.labels = m; }) })),
-    (['dfs', 'nearest'] as const).map((m) => ({ label: m, title: 'tree parent rule', on: rule === m,
-      act: () => commit((x) => { x.view.parentRule = m; }) })),
-    [
+    ] },
+    { caption: 'order', items: (['callers', 'callees'] as Order[]).map((o) => ({
+      label: o === 'callers' ? 'callers on top' : 'callees on top',
+      title: o === 'callers' ? 'caller above, └─> to the callee (o)' : 'callee above, └── to its callers, as VS Code call hierarchy (o)',
+      on: v.order === o, act: () => commit((x) => { x.view.order = o; }),
+    })) },
+    { caption: 'namespaces', items: [{ label: boxes ? 'boxes on' : 'boxes off', title: 'namespace boxes (b)', on: boxes,
+      act: () => commit((x) => { x.view.boxes = !boxes; }) }] },
+    { caption: 'edges', items: [
+      ...(['glyph', 'vector'] as const).map((m) => ({ label: m, title: 'glyph: UTF box drawing; vector: SVG lines (g)', on: mode === m,
+        act: () => commit((x) => { x.view.edges = m; }) })),
+      ...(mode === 'vector' ? (['orthogonal', 'rounded', 'sigmoid', 'spline'] as Curve[]).map((c) => ({ label: c, title: 'curve style', on: curve === c,
+        act: () => commit((x) => { x.view.curve = c; }) })) : []),
+    ] },
+    { caption: 'tree', items: (['dfs', 'nearest'] as const).map((m) => ({ label: m, title: 'tree parent rule', on: rule === m,
+      act: () => commit((x) => { x.view.parentRule = m; }) })) },
+    { caption: 'arrange', items: [
       { label: 'fit', title: 'fit to window (0)', act: fit },
+      { label: `re-arrange ${Object.keys(v.offset).length}`, title: 'drop the moves of unlocked nodes and boxes', act: () => runCmd('rearrange') },
+      { label: `unlock ${Object.keys(v.lock).length}`, title: 'unlock every locked node and box', act: () => runCmd('unlockAll') },
       { label: `unhide ${v.hidden.length}`, title: 'unhide all (u)', act: () => commit((x) => { x.view.hidden = []; }) },
       { label: `expand ${v.collapsed.length}`, title: 'expand all collapsed containers', act: () => commit((x) => { x.view.collapsed = []; }) },
-      { label: 'export', title: 'ASCII export to .gaffy/export (x)', act: () => api.postMessage({ type: 'export' }) },
-      { label: 'style', title: 'edit .gaffy/style.json', act: () => api.postMessage({ type: 'editStyle' }) },
-    ],
+    ] },
   ];
+  const fl = folders();
+  if (fl.length) {
+    groups.push({ caption: 'folders', items: fl.map((f) => ({ label: f.label, title: `${f.path}: ${f.excluded ? 'excluded, click to include' : 'included, click to exclude'}`,
+      on: !f.excluded, act: () => commit((x) => {
+        if (f.excluded) {
+          if (x.view.exclude.includes(f.path)) x.view.exclude = x.view.exclude.filter((p) => p !== f.path);
+          else x.view.include.push(f.path);
+        } else {
+          x.view.include = x.view.include.filter((p) => p !== f.path);
+          x.view.exclude.push(f.path);
+        }
+      }, true) })) });
+  }
+  groups.push({ items: [
+    { label: 'export', title: 'ASCII export to .gaffy/export (x)', act: () => api.postMessage({ type: 'export' }) },
+    { label: 'style', title: 'edit .gaffy/style.json', act: () => api.postMessage({ type: 'editStyle' }) },
+  ] });
+
   const bar = select('#toolbar');
   bar.selectAll('*').remove();
   groups.forEach((grp, i) => {
     if (i) bar.append('span').attr('class', 'sep');
-    for (const b of grp) {
-      bar.append('button').attr('class', b.on ? 'on' : null).attr('title', b.title).text(b.label)
-        .on('click', () => b.act());
-    }
+    if (grp.caption) bar.append('span').attr('class', 'caption').text(`${grp.caption}:`);
+    for (const b of grp.items) bar.append('button').attr('class', b.on ? 'on' : null).attr('title', b.title).text(b.label).on('click', () => b.act());
   });
 }
 
 function status() {
   const el = select('#status');
   if (!scene || !doc) { el.text(busy ? 'building…' : ''); return; }
-  const parts = [
-    `${scene.vg.nodes.size} nodes`, `${scene.vg.edges.length} edges`, `${scene.layout.lanes.length} lanes`,
-  ];
-  const st = [...scene.status.values()];
-  for (const s of ['ADD', 'MOD', 'REMOVE']) {
-    const n = st.filter((x) => x === s).length;
-    if (n) parts.push(`${n} ${s}`);
-  }
+  const parts = [`${scene.vg.nodes.size} nodes`, `${scene.vg.edges.length} calls`];
+  if (selected.size) parts.push(`${selected.size} selected`);
+  if (scene.grid.unrouted) parts.push(`${scene.grid.unrouted} calls unrouted`);
   if (doc.truncated) parts.push('truncated at gaffy.maxNodes');
   if (busy) parts.push('building…');
   else if (doc.updated) parts.push(`built ${new Date(doc.updated).toLocaleString()}`);
-  parts.push('click open · dblclick expand · drag reorder · right-click menu · keys ↑↓ Enter e c h u f g l r 0 x');
+  parts.push('click open · shift+click select · dblclick fold or expand · drag move · right-click menu · keys ↑↓ Enter e f c h i k u o g b r 0 x Esc');
   el.text(parts.join(' · '));
 }
 
@@ -468,3 +669,5 @@ function showError(msg: string) {
   root.append('text').attr('class', 'empty').attr('x', 0).attr('y', 16).text(msg);
 }
 
+// last statement: every module-level binding exists before the host answers
+api.postMessage({ type: 'ready' });

@@ -5,8 +5,8 @@
  */
 import * as path from 'node:path';
 import * as vscode from 'vscode';
-import { parseDoc, serializeDoc, ViewDoc } from '../core/viewdoc';
-import { buildGraph, reconcile } from './build';
+import { globToRegExp, parseDoc, serializeDoc, ViewDoc } from '../core/viewdoc';
+import { applyBuild, buildGraph } from './build';
 import { LspProvider } from './lsp';
 import { folderOf, StyleService } from './style';
 
@@ -42,7 +42,8 @@ export class Session {
 
   async post(): Promise<void> {
     const style = await this.host.styles.get(this.folder);
-    void this.panel.webview.postMessage({ type: 'state', text: this.document.getText(), name: this.name, style, busy: this.busy });
+    const exclude = vscode.workspace.getConfiguration('gaffy', this.document.uri).get<string[]>('exclude') ?? [];
+    void this.panel.webview.postMessage({ type: 'state', text: this.document.getText(), name: this.name, style, exclude, busy: this.busy });
   }
 
   async refresh(mutate?: (d: ViewDoc) => void): Promise<void> {
@@ -56,11 +57,12 @@ export class Session {
           const doc = this.doc();
           mutate?.(doc);
           const max = vscode.workspace.getConfiguration('gaffy').get<number>('maxNodes') ?? 400;
-          const r = await buildGraph(this.host.provider, doc, { maxNodes: max });
+          const globs = vscode.workspace.getConfiguration('gaffy', this.document.uri).get<string[]>('exclude') ?? [];
+          const r = await buildGraph(this.host.provider, doc, { maxNodes: max, exclude: globs.map(globToRegExp) });
           if (r.missing.length) {
             void vscode.window.showWarningMessage(`gaffy: seeds not resolved: ${r.missing.map((k) => k.split('#').pop()).join(', ')}`);
           }
-          await this.write(reconcile(doc, r));
+          await this.write(applyBuild(doc, r));
         });
     } catch (e) {
       void vscode.window.showErrorMessage(`gaffy: ${(e as Error).message}`);

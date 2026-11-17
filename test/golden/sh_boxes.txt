@@ -1,0 +1,28 @@
+┌─ gutai ───────────────────────────────────────────────────────────────────────────────┐
+│  ┌─ render.harmonics ────────────┐         ┌─ runtime ──────────────────────────────┐ │
+│  │  sh_eval() ───────────────────┼──┬─────┬┼> interop.to_drjit() ↻                  │ │
+│  │  ├─> resolve_backend() ──┐    │  │     ││  ├─> interop._device_of()              │ │
+│  │  ├─> _in_type() <────────┘    │  │     ││  ├─> interop._on_device()              │ │
+│  │  ├─> sh_eval_torch_compiled() │  │     ││  └─> interop._shape()                  │ │
+│  │  │   ├─> _torch_order()       │  │     ││                                        │ │
+│  │  │   ├─> _poly_table()        │  │     ││                                        │ │
+│  │  │   └─> _compiled()          │  │     ││                                        │ │
+│  │  ├─> _from_tensor() ──────────┼──┘     ││                                        │ │
+│  │  ├─> _from_columns() ────┐    │        ││                                        │ │
+│  │  │   └─> _stacked() ─────│────┼────────┴┼> interop.to_torch()                    │ │
+│  │  ├─> _wrapped_mi() ────┬─│────┼─────────┼> interop.unravel()                     │ │
+│  │  │   └─> _tensorxf() <─│─┘    │         │                                        │ │
+│  │  └─> sh_eval_mi() <────┘      │         │                                        │ │
+│  │      ├────────────────────────┼────────┬┼> variant.pick_parallel() ──────┬─────┐ │ │
+│  │      └─> _order_check()       │        ││  ├─> variant._host_process()   │     │ │ │
+│  └───────────────────────────────┘        ││  │   ├─> device._mask()        │     │ │ │
+│                                           ││  │   └─> device.has_cards()    │     │ │ │
+│                                           ││  │       └─> device._nvml()    │     │ │ │
+│                                           ││  └─> variant.backend()         │     │ │ │
+│                                           └┼> variant.assert_variant()      │     │ │ │
+│                                            │  ├─> variant._validate()       │     │ │ │
+│                                            │  │   └─> variant.available() <─┘     │ │ │
+│                                            │  │       └─> variant._build_list()   │ │ │
+│                                            │  └─> variant.current() <─────────────┘ │ │
+│                                            └────────────────────────────────────────┘ │
+└───────────────────────────────────────────────────────────────────────────────────────┘

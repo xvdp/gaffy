@@ -13,16 +13,12 @@ import { Direction, emptyDoc, ROOTS, serializeDoc, ViewDoc } from '../core/viewd
 import { GaffyEditor, Session } from './editor';
 import { folderOf, gaffyDir } from './style';
 
-interface NodeArg { key?: NodeKey; webviewSection?: string }
+interface NodeArg { key?: NodeKey; unit?: string; webviewSection?: string }
 
 const cfg = () => vscode.workspace.getConfiguration('gaffy');
 
 function nodeOf(doc: ViewDoc, key: NodeKey): GNode | undefined {
-  return doc.graph.nodes[key] ?? doc.ghosts.nodes[key];
-}
-
-function allNodes(doc: ViewDoc): Record<NodeKey, GNode> {
-  return { ...doc.ghosts.nodes, ...doc.graph.nodes };
+  return doc.graph.nodes[key];
 }
 
 async function uniqueUri(dir: vscode.Uri, stem: string, ext: string): Promise<vscode.Uri> {
@@ -51,7 +47,7 @@ async function openNode(n: GNode | undefined, focus: boolean): Promise<vscode.Te
 
 /** Innermost container of `key` (or `key` itself) whose kind is in `kinds`. */
 function containerOfKind(doc: ViewDoc, key: NodeKey, kinds: string[]): NodeKey | undefined {
-  const nodes = allNodes(doc);
+  const nodes = doc.graph.nodes;
   for (const k of [key, ...ancestors(nodes, key)]) if (kinds.includes(nodes[k]?.kind)) return k;
   return undefined;
 }
@@ -136,22 +132,37 @@ export function registerCommands(ctx: vscode.ExtensionContext, editor: GaffyEdit
 
   // ---- view commands ------------------------------------------------------------------------------
   reg('gaffy.refresh', () => active().refresh());
-  reg('gaffy.flip', () => active().update((d) => { d.view.orientation = d.view.orientation === 'up' ? 'down' : 'up'; }));
+  reg('gaffy.toggleOrder', () => active().update((d) => { d.view.order = d.view.order === 'callees' ? 'callers' : 'callees'; }));
   reg('gaffy.toggleEdges', async () => {
     const s = active();
     const st = await editor.styles.get(s.folder);
     await s.update((d) => { d.view.edges = (d.view.edges ?? st.edges.mode) === 'glyph' ? 'vector' : 'glyph'; });
   });
-  reg('gaffy.toggleLabels', async () => {
+  reg('gaffy.unhideAll', () => active().update((d) => { d.view.hidden = []; }));
+  reg('gaffy.toggleBoxes', async () => {
     const s = active();
     const st = await editor.styles.get(s.folder);
-    await s.update((d) => { d.view.labels = (d.view.labels ?? st.labels.mode) === 'full' ? 'relative' : 'full'; });
+    await s.update((d) => { d.view.boxes = !(d.view.boxes ?? st.boxes.enabled); });
   });
-  reg('gaffy.unhideAll', () => active().update((d) => { d.view.hidden = []; }));
-  reg('gaffy.acceptChanges', () => active().update((d) => {
-    d.baseline = Object.fromEntries(Object.values(d.graph.nodes).map((n) => [n.key, n.hash ?? '']));
-    d.ghosts = { nodes: {}, edges: [] };
-  }));
+  reg('gaffy.rearrange', () => active().update((d) => { d.view.offset = {}; }));
+  reg('gaffy.unlockAll', () => active().update((d) => { d.view.lock = {}; }));
+
+  // commands that need the layout or the selection run in the webview
+  const forward = (cmd: string) => (arg?: NodeArg) => {
+    const s = active();
+    void s.panel.webview.postMessage({ type: 'cmd', cmd, key: arg?.key, unit: arg?.unit });
+  };
+  reg('gaffy.node.fold', forward('fold'));
+  reg('gaffy.node.lock', forward('lock'));
+  reg('gaffy.node.unlock', forward('unlock'));
+  reg('gaffy.node.showHidden', forward('showHidden'));
+  reg('gaffy.sel.upstream', forward('upstream'));
+  reg('gaffy.sel.downstream', forward('downstream'));
+  reg('gaffy.sel.through', forward('through'));
+  reg('gaffy.sel.between', forward('between'));
+  reg('gaffy.sel.hide', forward('hideSelection'));
+  reg('gaffy.sel.isolate', forward('isolate'));
+  reg('gaffy.sel.clear', forward('clearSelection'));
 
   const exportView = async (s: Session) => {
     const doc = s.doc();
@@ -232,15 +243,13 @@ export function registerCommands(ctx: vscode.ExtensionContext, editor: GaffyEdit
 
   const move = (delta: -1 | 1) => node(async (s, d, k) => {
     const sc = buildScene(d, await editor.styles.get(s.folder));
-    const { slot, list } = siblingsOf(sc.layout, k);
+    const { slot, list } = siblingsOf(sc, k);
     const i = list.indexOf(k);
-    // orientation `up` mirrors rows: "up" on screen is later in the list
-    const step = d.view.orientation === 'up' ? -delta : delta;
-    const j = i + step;
+    const j = i + delta;
     if (i < 0 || j < 0 || j >= list.length) return;
     const next = [...list];
     [next[i], next[j]] = [next[j], next[i]];
-    await s.update((doc) => { doc.view.order[slot ?? ROOTS] = next; });
+    await s.update((doc) => { doc.view.sibling[slot ?? ROOTS] = next; });
   });
   reg('gaffy.node.moveUp', move(-1));
   reg('gaffy.node.moveDown', move(1));
@@ -271,6 +280,21 @@ export function registerCommands(ctx: vscode.ExtensionContext, editor: GaffyEdit
       case 'refresh': await s.refresh(); break;
       case 'export': await exportView(s); break;
       case 'editStyle': await vscode.commands.executeCommand('gaffy.editStyle'); break;
+      case 'hiddenNeighbors': {
+        const doc = s.doc();
+        const keys = (m.keys as NodeKey[] | undefined) ?? [];
+        const items = keys.map((k) => {
+          const n = nodeOf(doc, k);
+          return { label: n ? (n.qual ? `${n.module}.${n.qual}` : n.module) : k, description: n?.path, key: k, picked: true };
+        });
+        const pick = await vscode.window.showQuickPick(items, { canPickMany: true, title: 'Unhide neighbors', placeHolder: 'selected entries become visible' });
+        if (!pick?.length) break;
+        // a neighbor can be hidden itself or through a hidden container
+        const unhide = new Set<NodeKey>();
+        for (const p of pick) { unhide.add(p.key); for (const a of ancestors(doc.graph.nodes, p.key)) unhide.add(a); }
+        await s.update((d) => { d.view.hidden = d.view.hidden.filter((h) => !unhide.has(h)); });
+        break;
+      }
     }
   };
 }
