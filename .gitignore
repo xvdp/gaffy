@@ -1,0 +1,9 @@
+node_modules/
+dist/
+*.vsix
+.preview/
+.claude/
+..*
+..*/**
+plan.md
+.gaffy/

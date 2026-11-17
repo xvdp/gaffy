@@ -1,0 +1,27 @@
+scripts/mote_paths.traverse()
+|-> scripts/mote_paths.speckle()
+|   `-> analysis.speckle.treatments() --------------------------------+
+|-> scripts/mote_paths.stack()                                        |
+|   `-> gett.render.render_fitted() ----------------------------------+
+|-> scripts/mote_paths.texel()                                        |
+|   `-> gett.convert.Converter.texel()                                |
+|       `-> gett.site_harmonics.harmonics() ------+                   |
+|-> scripts/mote_paths.plenoptic()                |                   |
+|   `-> gett.convert.Converter.plenoptic()        |                   |
+|       `-> gett.surfel_fit.plenoptic_moteset()   |                   |
+|           `-> fit.surfel.linear_harmonics() <---+                   |
+|               `-------------------------------------+               |
+|-> scripts/mote_paths.streamed()                     |               |
+|   `-> render.harmonics.project_streamed()           |               |
+|       `-> render.harmonics.projector()              |               |
+|           `-> render.harmonics._projector_solve()   |               |
+|               `-> render.harmonics.sh_eval() <------+               |
+|                   `-> render.harmonics.sh_eval_torch_compiled()     |
+|                       `-> render.harmonics._compiled()              |
+|                           `-> gett.render.Pass.compile()            |
+|                               `-> render.mi_render.compile_aovs() --+
+`-> scripts/mote_paths.layers()                                       |
+    `-> render.mi_scene.load() <--------------------------------------+
+        `-> render.mi_sensor.register_plugins()
+            |-> render.mi_emitters.register_twosided_area()
+            `-> render.mi_emitters.register_sphere_spot()

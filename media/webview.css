@@ -1,0 +1,92 @@
+:root {
+  --g-fg: var(--vscode-editor-foreground);
+  --g-bg: var(--vscode-editor-background);
+  --g-edge: var(--vscode-editorLineNumber-foreground);
+  --g-highlight: var(--vscode-focusBorder);
+  --g-seed: var(--vscode-textLink-foreground);
+  --g-container: var(--vscode-descriptionForeground);
+  --g-box: var(--vscode-editorWidget-border);
+  --g-external: var(--vscode-disabledForeground);
+  --g-ADD: #3fb950;
+  --g-MOD: #d29922;
+  --g-REMOVE: #f85149;
+  --g-ew: 1;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  overflow: hidden;
+  background: var(--g-bg);
+  color: var(--g-fg);
+  font-family: var(--vscode-font-family);
+}
+
+body { display: flex; flex-direction: column; }
+
+#toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--vscode-panel-border);
+  font-size: 12px;
+}
+
+#toolbar button {
+  background: var(--vscode-button-secondaryBackground);
+  color: var(--vscode-button-secondaryForeground);
+  border: none;
+  border-radius: 2px;
+  padding: 2px 8px;
+  font: inherit;
+  cursor: pointer;
+}
+
+#toolbar button.on {
+  background: var(--vscode-button-background);
+  color: var(--vscode-button-foreground);
+}
+
+#toolbar .sep { width: 1px; height: 16px; margin: 0 4px; background: var(--vscode-panel-border); }
+
+#graph { flex: 1; width: 100%; outline: none; cursor: grab; user-select: none; }
+#graph:active { cursor: grabbing; }
+
+#status {
+  padding: 2px 8px;
+  font-size: 11px;
+  color: var(--vscode-descriptionForeground);
+  border-top: 1px solid var(--vscode-panel-border);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+text { dominant-baseline: central; white-space: pre; }
+
+.edges text { fill: var(--g-edge); }
+.edges path.net { fill: none; stroke: var(--g-edge); stroke-width: var(--g-ew); }
+.edges path.arrow, .edges circle.joint { fill: var(--g-edge); }
+.edges path.net.hl, .overlay path { stroke: var(--g-highlight); stroke-width: 2; fill: none; }
+
+.boxes rect { fill: var(--g-box); fill-opacity: 0.07; stroke: var(--g-box); stroke-opacity: 0.6; }
+
+.labels g { cursor: pointer; }
+.labels .hit { fill: transparent; }
+.labels g:hover .hit { fill: var(--vscode-list-hoverBackground); }
+.labels g.hl-in .hit, .labels g.hl-out .hit { fill: var(--vscode-editor-selectionHighlightBackground); }
+.labels g.focus .hit { fill: var(--vscode-list-activeSelectionBackground); stroke: var(--g-highlight); }
+.labels text { fill: var(--g-fg); }
+.labels g.focus text { fill: var(--vscode-list-activeSelectionForeground, var(--g-fg)); }
+.labels g.seed text { fill: var(--g-seed); font-weight: 600; }
+.labels g.container text { fill: var(--g-container); font-style: italic; }
+.labels g.collapsed text { font-weight: 600; }
+.labels g.external text { fill: var(--g-external); font-style: italic; }
+.labels g.st-ADD text { fill: var(--g-ADD); }
+.labels g.st-MOD text { fill: var(--g-MOD); }
+.labels g.st-REMOVE text { fill: var(--g-REMOVE); text-decoration: line-through; }
+
+.empty { fill: var(--vscode-descriptionForeground); }

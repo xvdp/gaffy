@@ -1,0 +1,60 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "gaffy style",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "font": {
+      "type": "object",
+      "properties": {
+        "family": { "type": "string", "description": "CSS font-family; a monospace font keeps glyphs on the grid." },
+        "size": { "type": "number", "minimum": 6 },
+        "lineHeight": { "type": "number", "minimum": 1, "description": "Row height as a multiple of the font size." }
+      }
+    },
+    "grid": {
+      "type": "object",
+      "properties": {
+        "indent": { "type": "integer", "minimum": 3, "description": "Columns per tree level; the elbow `└─> ` takes 4." },
+        "laneGap": { "type": "integer", "minimum": 1, "description": "Minimum column distance between lanes sharing rows." },
+        "parentRule": { "enum": ["dfs", "nearest"], "description": "Tree parent: DFS discoverer, or the caller closest above that passes the stem check." }
+      }
+    },
+    "edges": {
+      "type": "object",
+      "properties": {
+        "mode": { "enum": ["glyph", "vector"], "description": "glyph: box-drawing characters; vector: SVG paths from the same grid." },
+        "glyphs": { "enum": ["unicode", "ascii"] },
+        "arrow": { "type": "boolean", "description": "`└─>` when true, `└──` when false." },
+        "cross": { "type": "string", "maxLength": 1, "description": "Glyph where a lane crosses a horizontal of another net without joining." },
+        "width": { "type": "number", "minimum": 0.5, "description": "Stroke width in vector mode." }
+      }
+    },
+    "labels": {
+      "type": "object",
+      "properties": {
+        "mode": { "enum": ["full", "relative"] },
+        "strip": { "type": "array", "items": { "type": "string" }, "description": "Module prefixes removed from labels, e.g. \"gutai.\"." },
+        "parens": { "type": "boolean", "description": "Append () to callables." },
+        "status": { "type": "boolean", "description": "Append ADD / MOD / REMOVE to labels." }
+      }
+    },
+    "container": {
+      "type": "object",
+      "properties": {
+        "kinds": {
+          "type": "array",
+          "items": { "enum": ["class", "module", "file", "package", "folder"] },
+          "description": "Container kinds drawn as brackets; empty disables brackets."
+        },
+        "minRun": { "type": "integer", "minimum": 1, "description": "Minimum consecutive member rows for a bracket." },
+        "boxes": { "type": "boolean", "description": "Shade bracket runs as boxes." }
+      }
+    },
+    "colors": {
+      "type": "object",
+      "description": "CSS colors; keys fg, bg, edge, highlight, seed, container, box, external, ADD, MOD, REMOVE.",
+      "additionalProperties": { "type": "string" }
+    }
+  }
+}

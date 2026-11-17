@@ -1,0 +1,27 @@
+            ┌─> render.mi_emitters.register_sphere_spot()
+            ├─> render.mi_emitters.register_twosided_area()
+        ┌─> render.mi_sensor.register_plugins()
+    ┌─> render.mi_scene.load() <──────────────────────────────────────┐
+┌─> scripts/mote_paths.layers()                                       │
+│                               ┌─> render.mi_render.compile_aovs() ──┤
+│                           ┌─> gett.render.Pass.compile()            │
+│                       ┌─> render.harmonics._compiled()              │
+│                   ┌─> render.harmonics.sh_eval_torch_compiled()     │
+│               ┌─> render.harmonics.sh_eval() <──────┐               │
+│           ┌─> render.harmonics._projector_solve()   │               │
+│       ┌─> render.harmonics.projector()              │               │
+│   ┌─> render.harmonics.project_streamed()           │               │
+├─> scripts/mote_paths.streamed()                     │               │
+│               ┌─────────────────────────────────────┘               │
+│           ┌─> fit.surfel.linear_harmonics() <───┐                   │
+│       ┌─> gett.surfel_fit.plenoptic_moteset()   │                   │
+│   ┌─> gett.convert.Converter.plenoptic()        │                   │
+├─> scripts/mote_paths.plenoptic()                │                   │
+│       ┌─> gett.site_harmonics.harmonics() ──────┘                   │
+│   ┌─> gett.convert.Converter.texel()                                │
+├─> scripts/mote_paths.texel()                                        │
+│   ┌─> gett.render.render_fitted() ──────────────────────────────────┤
+├─> scripts/mote_paths.stack()                                        │
+│   ┌─> analysis.speckle.treatments() ────────────────────────────────┘
+├─> scripts/mote_paths.speckle()
+scripts/mote_paths.traverse()

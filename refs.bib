@@ -1,0 +1,380 @@
+% refs.bib : bibliography for gaffy
+% Fields verified 2026-11-16 against Crossref, publisher/DOI pages, Dagstuhl DROPS, arXiv,
+% GitHub, npm, PyPI, Zenodo/DataCite and the VS Code Marketplace.
+% Software versions and dates reflect state on 2026-11-16.
+
+% ---------------------------------------------------------------------------
+% Layered graph drawing, compound graphs, edge bundling
+% ---------------------------------------------------------------------------
+
+@article{sugiyama1981,
+  author    = {Sugiyama, Kozo and Tagawa, Shojiro and Toda, Mitsuhiko},
+  title     = {Methods for Visual Understanding of Hierarchical System Structures},
+  journal   = {IEEE Transactions on Systems, Man, and Cybernetics},
+  volume    = {11},
+  number    = {2},
+  pages     = {109--125},
+  year      = {1981},
+  publisher = {IEEE},
+  doi       = {10.1109/TSMC.1981.4308636},
+  url       = {https://doi.org/10.1109/TSMC.1981.4308636}
+}
+
+@article{sugiyama1991compound,
+  author    = {Sugiyama, Kozo and Misue, Kazuo},
+  title     = {Visualization of Structural Information: Automatic Drawing of Compound Digraphs},
+  journal   = {IEEE Transactions on Systems, Man, and Cybernetics},
+  volume    = {21},
+  number    = {4},
+  pages     = {876--892},
+  year      = {1991},
+  publisher = {IEEE},
+  doi       = {10.1109/21.108304},
+  url       = {https://doi.org/10.1109/21.108304}
+}
+
+@article{holten2006,
+  author    = {Holten, Danny},
+  title     = {Hierarchical Edge Bundles: Visualization of Adjacency Relations in Hierarchical Data},
+  journal   = {IEEE Transactions on Visualization and Computer Graphics},
+  volume    = {12},
+  number    = {5},
+  pages     = {741--748},
+  year      = {2006},
+  publisher = {IEEE},
+  doi       = {10.1109/TVCG.2006.147},
+  url       = {https://doi.org/10.1109/TVCG.2006.147}
+}
+
+@article{schulze2014ports,
+  author    = {Schulze, Christoph Daniel and Sp{\"o}nemann, Miro and von Hanxleden, Reinhard},
+  title     = {Drawing Layered Graphs with Port Constraints},
+  journal   = {Journal of Visual Languages \& Computing},
+  volume    = {25},
+  number    = {2},
+  pages     = {89--106},
+  year      = {2014},
+  publisher = {Elsevier},
+  doi       = {10.1016/j.jvlc.2013.11.005},
+  url       = {https://doi.org/10.1016/j.jvlc.2013.11.005},
+  preprint  = {https://rtsys.informatik.uni-kiel.de/~biblio/downloads/papers/jvlc13.pdf},
+  project   = {https://eclipse.dev/elk/},
+  code      = {https://github.com/eclipse-elk/elk},
+  note      = {Special Issue on Diagram Aesthetics and Layout. Introduces KLay Layered, the predecessor of the ELK Layered algorithm; see Domr{\"o}s et al., The Eclipse Layout Kernel, arXiv:2311.00533, Sec. 1 and ref. 53}
+}
+
+% ---------------------------------------------------------------------------
+% Focus+context and large-graph exploration
+% ---------------------------------------------------------------------------
+
+@inproceedings{furnas1986,
+  author    = {Furnas, George W.},
+  title     = {Generalized Fisheye Views},
+  booktitle = {Proceedings of the SIGCHI Conference on Human Factors in Computing Systems (CHI '86)},
+  pages     = {16--23},
+  year      = {1986},
+  publisher = {ACM},
+  address   = {New York, NY, USA},
+  doi       = {10.1145/22627.22342},
+  url       = {https://doi.org/10.1145/22627.22342},
+  note      = {Conference held in Boston, Massachusetts, USA, April 1986. Also published in ACM SIGCHI Bulletin 17(4):16--23, doi:10.1145/22339.22342}
+}
+
+@article{vanham2009doi,
+  author    = {van Ham, Frank and Perer, Adam},
+  title     = {``{Search, Show Context, Expand on Demand}'': Supporting Large Graph Exploration with Degree-of-Interest},
+  journal   = {IEEE Transactions on Visualization and Computer Graphics},
+  volume    = {15},
+  number    = {6},
+  pages     = {953--960},
+  year      = {2009},
+  publisher = {IEEE},
+  doi       = {10.1109/TVCG.2009.108},
+  url       = {https://doi.org/10.1109/TVCG.2009.108},
+  preprint  = {https://perer.org/papers/adamPerer-DOIGraphs-InfoVis2009.pdf}
+}
+
+% ---------------------------------------------------------------------------
+% Visualization toolkits
+% ---------------------------------------------------------------------------
+
+@article{bostock2011d3,
+  author    = {Bostock, Michael and Ogievetsky, Vadim and Heer, Jeffrey},
+  title     = {{D3}: Data-Driven Documents},
+  journal   = {IEEE Transactions on Visualization and Computer Graphics},
+  volume    = {17},
+  number    = {12},
+  pages     = {2301--2309},
+  year      = {2011},
+  publisher = {IEEE},
+  doi       = {10.1109/TVCG.2011.185},
+  url       = {https://doi.org/10.1109/TVCG.2011.185},
+  preprint  = {https://idl.cs.washington.edu/files/2011-D3-InfoVis.pdf},
+  project   = {https://d3js.org},
+  code      = {https://github.com/d3/d3},
+  note      = {Proc. IEEE InfoVis 2011. Paper page: https://idl.uw.edu/papers/d3. Current d3 release v7.9.2 (2026-11-03)}
+}
+
+% ---------------------------------------------------------------------------
+% Code-navigation user interfaces
+% ---------------------------------------------------------------------------
+
+@inproceedings{bragdon2010codebubbles,
+  author    = {Bragdon, Andrew and Zeleznik, Robert and Reiss, Steven P. and Karumuri, Suman and Cheung, William and Kaplan, Joshua and Coleman, Christopher and Adeputra, Ferdi and LaViola, Jr., Joseph J.},
+  title     = {Code Bubbles: A Working Set-based Interface for Code Understanding and Maintenance},
+  booktitle = {Proceedings of the SIGCHI Conference on Human Factors in Computing Systems (CHI '10)},
+  pages     = {2503--2512},
+  year      = {2010},
+  publisher = {ACM},
+  address   = {New York, NY, USA},
+  doi       = {10.1145/1753326.1753706},
+  url       = {https://doi.org/10.1145/1753326.1753706},
+  preprint  = {https://www.cs.ucf.edu/~jjl/pubs/p2503-bragdon.pdf},
+  project   = {https://cs.brown.edu/people/spr/codebubbles/},
+  code      = {https://github.com/StevenReiss/bubbles},
+  note      = {Conference held in Atlanta, Georgia, USA, April 2010}
+}
+
+@inproceedings{deline2012debuggercanvas,
+  author    = {DeLine, Robert and Bragdon, Andrew and Rowan, Kael and Jacobsen, Jens and Reiss, Steven P.},
+  title     = {Debugger Canvas: Industrial Experience with the Code Bubbles Paradigm},
+  booktitle = {2012 34th International Conference on Software Engineering (ICSE)},
+  pages     = {1064--1073},
+  year      = {2012},
+  publisher = {IEEE},
+  address   = {Zurich, Switzerland},
+  doi       = {10.1109/ICSE.2012.6227113},
+  url       = {https://doi.org/10.1109/ICSE.2012.6227113},
+  preprint  = {https://www.microsoft.com/en-us/research/wp-content/uploads/2016/02/p1064-213-deline.pdf},
+  project   = {https://www.microsoft.com/en-us/research/project/debugger-canvas/}
+}
+
+% ---------------------------------------------------------------------------
+% Call-graph construction and name resolution
+% ---------------------------------------------------------------------------
+
+@inproceedings{salis2021pycg,
+  author    = {Salis, Vitalis and Sotiropoulos, Thodoris and Louridas, Panos and Spinellis, Diomidis and Mitropoulos, Dimitris},
+  title     = {{PyCG}: Practical Call Graph Generation in {Python}},
+  booktitle = {2021 IEEE/ACM 43rd International Conference on Software Engineering (ICSE)},
+  pages     = {1646--1657},
+  year      = {2021},
+  publisher = {IEEE},
+  address   = {Madrid, Spain},
+  doi       = {10.1109/ICSE43902.2021.00146},
+  url       = {https://doi.org/10.1109/ICSE43902.2021.00146},
+  preprint  = {https://arxiv.org/abs/2103.00587},
+  code      = {https://github.com/vitsalis/PyCG},
+  data      = {https://github.com/vitsalis/pycg-evaluation},
+  note      = {Repository archived November 2023 and reactivated in 2026 with a redesigned analysis for Python 3.12+; the 2021 engine is tag baseline-original-engine. PyPI package pycg 0.0.8 (2023-11-26) is the 2021 line}
+}
+
+@inproceedings{feldthaus2013,
+  author    = {Feldthaus, Asger and Sch{\"a}fer, Max and Sridharan, Manu and Dolby, Julian and Tip, Frank},
+  title     = {Efficient Construction of Approximate Call Graphs for {JavaScript} {IDE} Services},
+  booktitle = {2013 35th International Conference on Software Engineering (ICSE)},
+  pages     = {752--761},
+  year      = {2013},
+  publisher = {IEEE},
+  address   = {San Francisco, CA, USA},
+  doi       = {10.1109/ICSE.2013.6606621},
+  url       = {https://doi.org/10.1109/ICSE.2013.6606621},
+  code      = {https://github.com/xiemaisi/acg.js},
+  note      = {acg.js README cites this paper; repository archived 2018-10-10. Maintained derivative: https://github.com/Persper/js-callgraph}
+}
+
+@inproceedings{creager2023stackgraphs,
+  author    = {Creager, Douglas A. and van Antwerpen, Hendrik},
+  title     = {Stack Graphs: Name Resolution at Scale},
+  booktitle = {Eelco Visser Commemorative Symposium (EVCS 2023)},
+  editor    = {L{\"a}mmel, Ralf and Mosses, Peter D. and Steimann, Friedrich},
+  series    = {Open Access Series in Informatics (OASIcs)},
+  volume    = {109},
+  pages     = {8:1--8:12},
+  year      = {2023},
+  publisher = {Schloss Dagstuhl -- Leibniz-Zentrum f{\"u}r Informatik},
+  address   = {Dagstuhl, Germany},
+  isbn      = {978-3-95977-267-9},
+  issn      = {2190-6807},
+  doi       = {10.4230/OASIcs.EVCS.2023.8},
+  url       = {https://drops.dagstuhl.de/entities/document/10.4230/OASIcs.EVCS.2023.8},
+  code      = {https://github.com/github/stack-graphs},
+  note      = {Open access. Also arXiv:2211.01224. GitHub repository github/stack-graphs is archived (read-only)}
+}
+
+% ---------------------------------------------------------------------------
+% Graph algorithms
+% ---------------------------------------------------------------------------
+
+@article{tarjan1972,
+  author    = {Tarjan, Robert},
+  title     = {Depth-First Search and Linear Graph Algorithms},
+  journal   = {SIAM Journal on Computing},
+  volume    = {1},
+  number    = {2},
+  pages     = {146--160},
+  year      = {1972},
+  publisher = {SIAM},
+  doi       = {10.1137/0201010},
+  url       = {https://doi.org/10.1137/0201010}
+}
+
+@book{kleinberg2005,
+  author    = {Kleinberg, Jon and Tardos, {\'E}va},
+  title     = {Algorithm Design},
+  edition   = {First},
+  publisher = {Pearson/Addison-Wesley},
+  address   = {Boston},
+  year      = {2005},
+  isbn      = {978-0-321-29535-4},
+  note      = {Copyright 2006 Pearson Education; LCCN 2005000401. Interval partitioning: Section 4.1, subsection A Related Problem: Scheduling All Intervals}
+}
+
+% ---------------------------------------------------------------------------
+% Protocols and indexing formats
+% ---------------------------------------------------------------------------
+
+@misc{lsp316,
+  author    = {{Microsoft}},
+  title     = {Language Server Protocol Specification, Version 3.16},
+  year      = {2020},
+  url       = {https://microsoft.github.io/language-server-protocol/specifications/specification-3-16/#textDocument_prepareCallHierarchy},
+  code      = {https://github.com/microsoft/language-server-protocol},
+  note      = {Version 3.16.0 dated 2020-12-14. textDocument/prepareCallHierarchy, callHierarchy/incomingCalls and callHierarchy/outgoingCalls are marked Since version 3.16.0}
+}
+
+@software{scip,
+  author    = {{Sourcegraph}},
+  title     = {{SCIP}: {SCIP} Code Intelligence Protocol},
+  year      = {2026},
+  version   = {0.10.0},
+  url       = {https://scip-code.org},
+  code      = {https://github.com/scip-code/scip},
+  license   = {Apache-2.0},
+  note      = {v0.10.0 released 2026-09-03. Repository moved from github.com/sourcegraph/scip (redirects) to github.com/scip-code/scip. Indexers: scip-python 0.6.8 (https://github.com/sourcegraph/scip-python, npm @sourcegraph/scip-python, 2026-10-22); scip-typescript 0.6.2 (https://github.com/sourcegraph/scip-typescript, npm @sourcegraph/scip-typescript, 2026-11-10)}
+}
+
+% ---------------------------------------------------------------------------
+% Software: graph layout libraries
+% ---------------------------------------------------------------------------
+
+@software{elkjs,
+  author    = {R{\"u}egg, Ulf and others},
+  title     = {elkjs: {ELK}'s Layout Algorithms for {JavaScript}},
+  year      = {2026},
+  version   = {0.12.1},
+  url       = {https://www.npmjs.com/package/elkjs},
+  code      = {https://github.com/kieler/elkjs},
+  project   = {https://eclipse.dev/elk/},
+  license   = {EPL-2.0 OR GPL-3.0-or-later},
+  note      = {GWT-transpiled JavaScript build of the layout part of the Eclipse Layout Kernel (ELK). v0.12.1 released 2026-10-28; matches ELK v0.12.1 (https://github.com/eclipse-elk/elk). Successor of klayjs}
+}
+
+@software{d3dag,
+  author    = {Brinkman, Erik},
+  title     = {d3-dag: Layout Algorithms for Visualizing Directed Acyclic Graphs},
+  year      = {2026},
+  version   = {1.3.0},
+  url       = {https://erikbrinkman.github.io/d3-dag/},
+  code      = {https://github.com/erikbrinkman/d3-dag},
+  license   = {MIT},
+  note      = {v1.3.0 released 2026-11-01. README (2026-11-16) contains no maintenance-status notice and documents a dagre-compatible API}
+}
+
+@software{dagre,
+  author    = {Pettitt, Chris and others},
+  title     = {dagre: Directed Graph Layout for {JavaScript}},
+  year      = {2026},
+  version   = {3.1.3},
+  url       = {https://www.npmjs.com/package/@dagrejs/dagre},
+  code      = {https://github.com/dagrejs/dagre},
+  license   = {MIT},
+  note      = {npm @dagrejs/dagre 3.1.3 published 2026-10-24. README: only the @dagrejs/dagre npm package receives updates; the legacy unscoped npm package dagre stopped at 0.8.5 (2019-12-03)}
+}
+
+% ---------------------------------------------------------------------------
+% Software: call-graph tools
+% ---------------------------------------------------------------------------
+
+@software{crabviz,
+  author    = {{chanhx}},
+  title     = {Crabviz: {LSP}-based Interactive Call Graph Generator},
+  year      = {2025},
+  version   = {0.5.0},
+  url       = {https://marketplace.visualstudio.com/items?itemName=chanhx.crabviz},
+  code      = {https://github.com/chanhx/crabviz},
+  license   = {AGPL-3.0},
+  note      = {VS Code extension chanhx.crabviz; v0.5.0 released 2025-08-24. Uses the Language Server Protocol to build call graphs}
+}
+
+@software{callgraphnavi,
+  author    = {{D-grid375}},
+  title     = {Call Graph Navi: Visualize and Explore Call Graphs Interactively in {VS Code}},
+  year      = {2026},
+  version   = {0.5.0},
+  url       = {https://marketplace.visualstudio.com/items?itemName=D-grid375.call-graph-navi},
+  code      = {https://github.com/D-grid375/call-graph-navi},
+  license   = {MIT},
+  note      = {VS Code extension D-grid375.call-graph-navi; v0.5.0 released 2026-08-16. Builds incoming and outgoing call graphs from the VS Code Call Hierarchy provider; package.json depends on the legacy npm package dagre ^0.8.5}
+}
+
+@software{pyan,
+  author    = {Horner, Edmund and Jeronen, Juha and others},
+  title     = {Pyan3: Offline Call Graph Generator for {Python} 3},
+  year      = {2026},
+  version   = {2.9.0},
+  url       = {https://pypi.org/project/pyan3/},
+  code      = {https://github.com/Technologicat/pyan},
+  license   = {GPL-2.0-or-later},
+  note      = {v2.9.0 released 2026-10-06. README: Technologicat/pyan is the sole official repository; the former stable repository https://github.com/davidfraser/pyan is archived}
+}
+
+@software{code2flow,
+  author    = {Rogowski, Scott},
+  title     = {code2flow: Pretty Good Call Graphs for Dynamic Languages},
+  year      = {2023},
+  version   = {2.5.1},
+  url       = {https://pypi.org/project/code2flow/},
+  code      = {https://github.com/scottrogowski/code2flow},
+  license   = {MIT},
+  note      = {v2.5.1 uploaded to PyPI 2023-01-08; last repository push 2025-07-27. Supports Python, JavaScript, Ruby and PHP}
+}
+
+% ---------------------------------------------------------------------------
+% Software: parsing
+% ---------------------------------------------------------------------------
+
+@software{treesitter,
+  author    = {Brunsfeld, Max and others},
+  title     = {Tree-sitter: An Incremental Parsing System for Programming Tools},
+  year      = {2026},
+  version   = {0.27.2},
+  doi       = {10.5281/zenodo.24033942},
+  url       = {https://tree-sitter.github.io/tree-sitter/},
+  code      = {https://github.com/tree-sitter/tree-sitter},
+  license   = {MIT},
+  note      = {v0.27.2 released 2026-11-07. Zenodo concept DOI (all versions): 10.5281/zenodo.4619183. WebAssembly binding web-tree-sitter 0.27.2 on npm, source lib/binding_web}
+}
+
+@article{garey1983crossing,
+  author    = {Garey, Michael R. and Johnson, David S.},
+  title     = {Crossing Number is NP-Complete},
+  journal   = {SIAM Journal on Algebraic Discrete Methods},
+  volume    = {4},
+  number    = {3},
+  pages     = {312--316},
+  year      = {1983},
+  publisher = {SIAM},
+  doi       = {10.1137/0604033},
+  url       = {https://doi.org/10.1137/0604033}
+}
+
+@book{cormen2009clrs,
+  author    = {Cormen, Thomas H. and Leiserson, Charles E. and Rivest, Ronald L. and Stein, Clifford},
+  title     = {Introduction to Algorithms},
+  edition   = {3},
+  publisher = {MIT Press},
+  year      = {2009},
+  isbn      = {978-0-262-03384-8},
+  note      = {Sec. 22.3 depth-first search, parenthesis theorem (Thm. 22.7); Sec. 22.4 topological sort. Section numbers refer to the 3rd edition}
+}
