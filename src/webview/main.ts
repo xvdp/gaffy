@@ -29,6 +29,7 @@ let excludeGlobs: string[] = [];
 let scene: Scene | undefined;
 let focusKey: NodeKey | undefined = api.getState()?.focus;
 let selected = new Set<NodeKey>();
+let selectedCall: { from: NodeKey; to: NodeKey } | undefined;   // drawn direction
 let busy = false;
 let cw = 8;
 let ch = 16;
@@ -73,7 +74,7 @@ window.addEventListener('message', (ev) => {
     busy = !!m.busy;
     status();
   } else if (m.type === 'cmd') {
-    runCmd(m.cmd, m.key, m.unit);
+    runCmd(m.cmd, m.key, m.unit, m.to);
   }
 });
 
@@ -223,6 +224,16 @@ function render() {
   }
   root.append('g').attr('class', 'overlay');
 
+  // calls: wide transparent hit paths; hover highlights, click selects, double click shows only what lies below
+  root.append('g').attr('class', 'hits').selectAll('path').data(g.paths).join('path')
+    .attr('d', (p) => callD(p))
+    .attr('data-vscode-context', (p) => JSON.stringify({ webviewSection: 'edge', key: p.from, to: p.to, preventDefaultContextMenuItems: true }))
+    .on('mouseenter', (_ev, p) => highlightCall(p))
+    .on('mouseleave', () => highlight(focusKey))
+    .on('click', (ev: MouseEvent, p) => { ev.stopPropagation(); selectedCall = { from: p.from, to: p.to }; highlight(focusKey); status(); })
+    .on('dblclick', (ev: MouseEvent, p) => { ev.stopPropagation(); runCmd('callSubtree', p.from, undefined, p.to); })
+    .append('title').text((p) => callTitle(p));
+
   // labels
   const gl = root.append('g').attr('class', 'labels');
   const nodes = gl.selectAll<SVGGElement, LabelSpan>('g').data(g.labels.filter((l) => l.kind === 'node')).join('g')
@@ -279,7 +290,7 @@ function render() {
   heads.call(dragUnit((d) => d.key) as any);
 
   root.append('g').attr('class', 'drag');
-  svg.on('click', () => { selected.clear(); setFocus(undefined); });
+  svg.on('click', () => { selected.clear(); selectedCall = undefined; setFocus(undefined); });
   if (!placed) placeView();
   highlight(focusKey);
   toolbar();
@@ -287,6 +298,48 @@ function render() {
 }
 
 const VERTICAL = new Set('│├┤┌┐└┘┬┴┼|+`');
+
+/** Path data of one call in the current edge style. */
+function callD(p: EdgePath): string {
+  const curve = doc!.view.curve ?? style!.edges.curve;
+  const vector = (doc!.view.edges ?? style!.edges.mode) === 'vector';
+  return vector && curve !== 'orthogonal' ? curvePath(p, curve) : `M${p.pts.map(([x, y]) => `${X(x)},${Y(y)}`).join('L')}`;
+}
+
+/** Call direction of a drawn connection: under order `callees` the drawn graph is reversed. */
+function asCall(p: { from: NodeKey; to: NodeKey }): { caller: NodeKey; callee: NodeKey } {
+  return doc!.view.order === 'callees' ? { caller: p.to, callee: p.from } : { caller: p.from, callee: p.to };
+}
+
+function callTitle(p: EdgePath): string {
+  const { caller, callee } = asCall(p);
+  const name = (k: NodeKey) => scene!.graph.nodes[k]?.name ?? k;
+  return `${name(caller)}() → ${name(callee)}()\nclick select · double click: show only what lies below · right click: more`;
+}
+
+function highlightCall(p: { from: NodeKey; to: NodeKey }) {
+  const ov = root.select('.overlay');
+  ov.selectAll('path.hl').remove();
+  for (const q of scene!.grid.paths) if (q.from === p.from && q.to === p.to) ov.append('path').attr('class', 'hl').attr('d', callD(q));
+}
+
+/** Vertices reachable along the drawn graph: down = what lies below, up = what lies above. */
+function reachDrawn(start: NodeKey, dir: 'up' | 'down'): Set<NodeKey> {
+  const sc = scene!;
+  const out = new Set([start]);
+  const q = [start];
+  while (q.length) {
+    const k = q.pop()!;
+    const next = dir === 'down' ? (sc.drawn.out.get(k) ?? []).map((e) => e.to) : (sc.drawn.inc.get(k) ?? []).map((e) => e.from);
+    for (const n of next) if (!out.has(n)) { out.add(n); q.push(n); }
+  }
+  return out;
+}
+
+function isolate(keep: Set<NodeKey>) {
+  const drop = [...scene!.vg.nodes.keys()].filter((x) => !keep.has(x));
+  commit((x) => { for (const s of drop) if (!x.view.hidden.includes(s)) x.view.hidden.push(s); });
+}
 
 function popcount(m: number) { let n = 0; while (m) { n += m & 1; m >>= 1; } return n; }
 
@@ -419,10 +472,23 @@ function reach(start: NodeKey, dir: 'up' | 'down'): Set<NodeKey> {
   return out;
 }
 
-function runCmd(cmd: string, key?: NodeKey, unit?: string) {
+function runCmd(cmd: string, key?: NodeKey, unit?: string, to?: NodeKey) {
   if (!scene || !doc) return;
   const k = key ?? focusKey;
+  const call = key && to ? { from: key, to } : selectedCall;
   switch (cmd) {
+    case 'callSubtree': if (call) isolate(new Set([call.from, ...reachDrawn(call.to, 'down')])); return;
+    case 'callPath': if (call) isolate(new Set([...reachDrawn(call.from, 'up'), ...reachDrawn(call.to, 'down')])); return;
+    case 'callSite': {
+      if (!call) return;
+      const { caller, callee } = asCall(call);
+      const e = scene.vg.edges.find((x) => x.from === caller && x.to === callee);
+      api.postMessage({ type: 'openAt', key: caller, line: e && e.line < Number.MAX_SAFE_INTEGER ? e.line : undefined });
+      return;
+    }
+    case 'callee': if (call) api.postMessage({ type: 'open', key: asCall(call).callee }); return;
+    case 'resetLayout': commit((x) => { x.view.offset = {}; x.view.lock = {}; x.view.sibling = {}; }); fit(); return;
+    case 'showAll': commit((x) => { x.view.hidden = []; x.view.folded = []; x.view.collapsed = []; }); return;
     case 'lock': if (unit ?? k) lockUnit(unit ?? k!); return;
     case 'fold': if (k) toggleFold(k); return;
     case 'unlock': if (unit ?? k) unlockUnit(unit ?? k!); return;
@@ -450,7 +516,7 @@ function runCmd(cmd: string, key?: NodeKey, unit?: string) {
       commit((x) => { for (const s of drop) if (!x.view.hidden.includes(s)) x.view.hidden.push(s); });
       return;
     }
-    case 'clearSelection': selected.clear(); break;
+    case 'clearSelection': selected.clear(); selectedCall = undefined; break;
     case 'showHidden': {
       const hid = k ? scene.hiddenOf.get(k) : undefined;
       if (k && hid) api.postMessage({ type: 'hiddenNeighbors', key: k, keys: hid });
@@ -497,8 +563,9 @@ function highlight(key: NodeKey | undefined) {
   const draw = (p: EdgePath, cls: string) => ov.append('path').attr('class', cls)
     .attr('d', curve === 'orthogonal' || (doc!.view.edges ?? style!.edges.mode) === 'glyph'
       ? `M${p.pts.map(([x, y]) => `${X(x)},${Y(y)}`).join('L')}` : curvePath(p, curve));
-  // selection: calls with both ends selected
+  // selection: calls with both ends selected, and the selected call
   if (selected.size > 1) for (const p of scene.grid.paths) if (selected.has(p.from) && selected.has(p.to)) draw(p, 'sel');
+  if (selectedCall) for (const p of scene.grid.paths) if (p.from === selectedCall.from && p.to === selectedCall.to) draw(p, 'call');
   if (!key) return;
   for (const p of scene.grid.paths) if (p.from === key || p.to === key) draw(p, 'hl');
   const callers = new Set((scene.vg.inc.get(key) ?? []).map((e) => e.from));
@@ -618,10 +685,10 @@ function toolbar() {
       act: () => commit((x) => { x.view.parentRule = m; }) })) },
     { caption: 'arrange', items: [
       { label: 'fit', title: 'fit to window (0)', act: fit },
-      { label: `re-arrange ${Object.keys(v.offset).length}`, title: 'drop the moves of unlocked nodes and boxes', act: () => runCmd('rearrange') },
+      { label: 'reset layout', title: 'drop every move, lock and sibling order', act: () => runCmd('resetLayout') },
+      { label: `re-arrange ${Object.keys(v.offset).length}`, title: 'drop the moves of unlocked nodes and boxes; locked ones stay', act: () => runCmd('rearrange') },
       { label: `unlock ${Object.keys(v.lock).length}`, title: 'unlock every locked node and box', act: () => runCmd('unlockAll') },
-      { label: `unhide ${v.hidden.length}`, title: 'unhide all (u)', act: () => commit((x) => { x.view.hidden = []; }) },
-      { label: `expand ${v.collapsed.length}`, title: 'expand all collapsed containers', act: () => commit((x) => { x.view.collapsed = []; }) },
+      { label: `show all ${v.hidden.length + v.folded.length + v.collapsed.length}`, title: 'unhide, unfold, and expand collapsed containers', act: () => runCmd('showAll') },
     ] },
   ];
   const fl = folders();
@@ -656,6 +723,10 @@ function status() {
   if (!scene || !doc) { el.text(busy ? 'building…' : ''); return; }
   const parts = [`${scene.vg.nodes.size} nodes`, `${scene.vg.edges.length} calls`];
   if (selected.size) parts.push(`${selected.size} selected`);
+  if (selectedCall) {
+    const { caller, callee } = asCall(selectedCall);
+    parts.push(`call ${scene.graph.nodes[caller]?.name ?? caller}() → ${scene.graph.nodes[callee]?.name ?? callee}()`);
+  }
   if (scene.grid.unrouted) parts.push(`${scene.grid.unrouted} calls unrouted`);
   if (doc.truncated) parts.push('truncated at gaffy.maxNodes');
   if (busy) parts.push('building…');

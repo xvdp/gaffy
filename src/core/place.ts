@@ -264,10 +264,12 @@ export function place(inp: PlaceInput): Placement {
     }
 
     if (box.frame) {
-      const c1 = Math.max(rect.c1 + 2, c0 + box.label.length + 5);
+      // the frame encloses its content in every direction, also content moved up or left
+      const f0 = Math.min(c0, rect.c0 - 3), g0 = Math.min(r0, rect.r0 - 1);
+      const c1 = Math.max(rect.c1 + 2, f0 + box.label.length + 5);
       const r1 = rect.r1 + 1;
-      P.frames.push({ box, unit: boxUnit(box.key), c0, r0, c1, r1 });
-      return { c0, r0, c1, r1 };
+      P.frames.push({ box, unit: boxUnit(box.key), c0: f0, r0: g0, c1, r1 });
+      return { c0: f0, r0: g0, c1, r1 };
     }
     return rect;
   };

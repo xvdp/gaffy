@@ -13,7 +13,7 @@ import { Direction, emptyDoc, ROOTS, serializeDoc, ViewDoc } from '../core/viewd
 import { GaffyEditor, Session } from './editor';
 import { folderOf, gaffyDir } from './style';
 
-interface NodeArg { key?: NodeKey; unit?: string; webviewSection?: string }
+interface NodeArg { key?: NodeKey; unit?: string; to?: NodeKey; webviewSection?: string }
 
 const cfg = () => vscode.workspace.getConfiguration('gaffy');
 
@@ -150,9 +150,15 @@ export function registerCommands(ctx: vscode.ExtensionContext, editor: GaffyEdit
   // commands that need the layout or the selection run in the webview
   const forward = (cmd: string) => (arg?: NodeArg) => {
     const s = active();
-    void s.panel.webview.postMessage({ type: 'cmd', cmd, key: arg?.key, unit: arg?.unit });
+    void s.panel.webview.postMessage({ type: 'cmd', cmd, key: arg?.key, unit: arg?.unit, to: arg?.to });
   };
   reg('gaffy.node.fold', forward('fold'));
+  reg('gaffy.edge.subtree', forward('callSubtree'));
+  reg('gaffy.edge.path', forward('callPath'));
+  reg('gaffy.edge.callSite', forward('callSite'));
+  reg('gaffy.edge.callee', forward('callee'));
+  reg('gaffy.resetLayout', forward('resetLayout'));
+  reg('gaffy.showAll', forward('showAll'));
   reg('gaffy.node.lock', forward('lock'));
   reg('gaffy.node.unlock', forward('unlock'));
   reg('gaffy.node.showHidden', forward('showHidden'));
@@ -272,6 +278,12 @@ export function registerCommands(ctx: vscode.ExtensionContext, editor: GaffyEdit
     const key = m.key as NodeKey | undefined;
     switch (m.type) {
       case 'open': await openNode(key ? nodeOf(s.doc(), key) : undefined, false); break;
+      case 'openAt': {
+        const n = key ? nodeOf(s.doc(), key) : undefined;
+        const line = m.line as number | undefined;
+        await openNode(n && line !== undefined ? { ...n, line, character: 0 } : n, false);
+        break;
+      }
       case 'expand': if (key) await s.refresh((doc) => {
         const dir = (m.dir as Direction | undefined) ?? doc.view.direction;
         const prev = doc.view.expanded[key];

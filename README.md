@@ -7,7 +7,7 @@ VS Code extension: persistent, manipulable call graphs laid out on a character g
 ```bash
 npm install
 npm run package                              # typecheck, tests, bundles, gaffy-<version>.vsix
-code --install-extension gaffy-0.2.1.vsix
+code --install-extension gaffy-0.2.2.vsix
 ```
 
 Development: open `gaffy/` in VS Code and press F5 (Extension Development Host). `npm run watch` rebuilds on change.
@@ -57,9 +57,11 @@ Algorithms: [src/core/layout.ts](src/core/layout.ts) (rows and lanes in a block)
 | Shift+click | add to or remove from the selection |
 | double click a function | fold what lies below it (` ▸n` marks the folded count); again to unfold; a function with nothing below expands through the language server; Shift: expand both directions |
 | double click a collapsed container; a box header | expand it; collapse the box |
-| drag a function | move it with its tree children; calls re-route |
+| drag a function | move it with its tree children; calls re-route; the namespace box grows to enclose it; a callee moved above its caller gets `┌─>` from over the caller |
 | drag a box header | move the box with its content |
 | `+n` badge | pick hidden neighbors to unhide |
+| hover an arrow; click; double click | highlight that call; select it; show only its caller and what lies below it |
+| right click an arrow | show only what lies below this call; show only the path through this call; go to call site; go to callee |
 | hover | highlight its calls, callers and callees |
 | right click a function | go to definition, editor context menu, peek references, VS Code call hierarchy; fold or unfold; expand callers or callees; make or remove seed; select all callers, all callees, through, paths between two; hide selection, show only selection; hide, show hidden neighbors; collapse class, module, package; lock or unlock position; move among siblings; tag; reveal in explorer; copy path or qualified name |
 | right click a box header | collapse, lock or unlock, reveal, copy path |
@@ -70,7 +72,7 @@ Algorithms: [src/core/layout.ts](src/core/layout.ts) (rows and lanes in a block)
 | u, o, g, b | unhide all; toggle order; glyph or vector edges; namespace boxes |
 | r, 0, x | rebuild; fit; export |
 
-Toolbar: traverse (callers, callees, both), depth, order, namespace boxes, edges (glyph, vector, and in vector mode the curve: orthogonal, rounded, sigmoid, spline), tree parent rule, re-arrange (drop the moves of unlocked items), unlock all, unhide, expand, folders (per top-level folder: included or excluded), export, style.
+Toolbar: traverse (callers, callees, both), depth, order, namespace boxes, edges (glyph, vector, and in vector mode the curve: orthogonal, rounded, sigmoid, spline), tree parent rule, fit, reset layout (drop every move, lock and sibling order), re-arrange (drop the moves of unlocked items), unlock all, show all (unhide, unfold, expand collapsed), folders (per top-level folder: included or excluded), export, style.
 
 Locks: a locked function or box keeps its absolute position; re-arrange and rebuilds place every unlocked item around it.
 

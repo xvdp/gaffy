@@ -159,7 +159,8 @@ describe('addendum 1a: sh_eval and its callees', () => {
     invariants(sc);
     const d = (x: string, s: Scene) => s.placement.pos.get(k(x))!;
     expect(d('gutai.render.harmonics:_compiled', sc).col - d('gutai.render.harmonics:_compiled', base).col).toBe(12);
-    expect(sc.grid.paths.some((p) => p.to === key && p.start === 'E')).toBe(true);
+    // the broken elbow becomes a routed call (net `l:`), not a tree elbow (net `t:`)
+    expect(sc.grid.paths.some((p) => p.to === key && p.net.startsWith('l:'))).toBe(true);
   });
 
   it('hidden vertices leave a +n badge on their neighbors', () => {
@@ -236,6 +237,29 @@ describe('parent rules', () => {
     invariants(sc);
     expect(sc.placement.blocks[0].L.parent.get(k('m:v'))).toBe(k('m:u'));
     golden('rule_nearest', text(sc, flat()));
+  });
+});
+
+describe('moves', () => {
+  it('callee dragged above its caller: arrow leaves over the caller, ┌─>', () => {
+    const doc = fixtureDoc([['m:func', 'm:nextfunc'], ['m:func', 'm:other']], { seeds: [k('m:func')], offset: { [k('m:nextfunc')]: [0, -3] } });
+    const sc = buildScene(doc, flat());
+    invariants(sc);
+    const p = sc.grid.paths.find((x) => x.to === k('m:nextfunc'))!;
+    expect(p.start).toBe('N');
+    expect(sc.placement.pos.get(k('m:nextfunc'))!.row).toBeLessThan(sc.placement.pos.get(k('m:func'))!.row);
+    golden('move_above', text(sc, flat()));
+  });
+
+  it('a frame grows to enclose content moved up and left', () => {
+    const doc = fixtureDoc(SH, { seeds: [k('gutai.render.harmonics:sh_eval')], direction: 'out',
+      offset: { [k('gutai.runtime.variant:pick_parallel')]: [-30, -4] } });
+    const sc = buildScene(doc, boxed());
+    invariants(sc);
+    const p = sc.placement.pos.get(k('gutai.runtime.variant:pick_parallel'))!;
+    const rt = sc.placement.frames.find((f) => f.box.label === 'runtime')!;
+    expect(rt.c0).toBeLessThan(p.col);
+    expect(rt.r0).toBeLessThan(p.row);
   });
 });
 

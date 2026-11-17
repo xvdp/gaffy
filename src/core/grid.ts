@@ -12,7 +12,9 @@
  *    border at right angle `border`. Labels, headers, frame corners, arrowheads, and segments of other
  *    nets running along the same axis are blocked; a turn on a cell of another net is blocked. Cells of
  *    the same net, or of calls from the same caller, cost 0.3: calls into one target merge into one trunk.
- *    Arrival from the left (`──> f()`) for vertices without a drawn tree elbow, else at the right (`f() <──`).
+ *    Departure from the label end (`f() ──`), or at a cost of 2 from under or over the label's first
+ *    character (`├─>`, `┌─>`), which keeps a callee moved above its caller readable. Arrival from the left
+ *    (`──> f()`) for vertices without a drawn tree elbow, else at the right (`f() <──`).
  *
  * Glyph per cell: one net → box glyph of its mask; several nets → union mask, except a pure crossing
  * (each mask exactly N|S or exactly E|W, both present), which renders `GlyphSet.cross`.
@@ -48,7 +50,7 @@ export interface EdgePath {
   to: NodeKey;
   net: string;
   pts: [number, number][];  // [x, y] in cell units: x = column, y = row; centers at +0.5
-  start: 'E' | 'S';          // initial heading
+  start: 'E' | 'S' | 'N';    // initial heading: from the label end, or from under or over its first character
   arrive: 'E' | 'W';         // final heading
 }
 
@@ -318,7 +320,18 @@ export function buildGrid(P: Placement, vg: VGraph, opts: { arrow: boolean; cost
     const h = (r: number, c: number) => Math.abs(r - gr) + Math.abs(c - gc);
 
     if (sr < 0 || sr >= RH || sc >= RW || blocked.has(cellId(sr, sc))) { unrouted++; failed.push([u, v]); continue; }
-    const s0 = sid(sr, sc, 2);
+    // start states: label end heading E; under and over the first character heading S and N
+    const starts: { id: number; r: number; c: number; d: number; cost: number }[] = [{ id: sid(sr, sc, 2), r: sr, c: sc, d: 2, cost: 0 }];
+    if (!port) {
+      for (const [r, d] of [[pu.row + 1, 1], [pu.row - 1, 0]] as const) {
+        const id = cellId(r, pu.col);
+        const rsv = reserved.get(id);
+        if (r >= 0 && r < RH && !blocked.has(id) && !pad.has(id) && !markAt.has(id) && !border.has(id) && (rsv === undefined || rsv === `src:${u}`)) {
+          starts.push({ id: sid(r, pu.col, d), r, c: pu.col, d, cost: 2 });
+        }
+      }
+    }
+    const startDir = new Map(starts.map((s) => [s.id, s.d] as const));
     let goal = -1;
     // pass 0 strict; pass 1 relaxed: running along or turning on another net costs RELAX instead of being blocked
     for (let pass = 0; pass < 2 && goal < 0; pass++) {
@@ -326,8 +339,7 @@ export function buildGrid(P: Placement, vg: VGraph, opts: { arrow: boolean; cost
     for (const t of touched) { g[t] = Infinity; came[t] = -1; }
     touched.length = 0;
     hf.length = 0; hi.length = 0;
-    g[s0] = 0; touched.push(s0);
-    push(h(sr, sc), s0);
+    for (const s of starts) { g[s.id] = s.cost; touched.push(s.id); push(s.cost + h(s.r, s.c), s.id); }
     let expansions = 0;
     while (hf.length && expansions < 400000) {
       const id = pop();
@@ -337,10 +349,11 @@ export function buildGrid(P: Placement, vg: VGraph, opts: { arrow: boolean; cost
       const gcur = g[id];
       if (r === gr && c === gc && d === gdir) { goal = id; break; }
       // merge into an existing trunk of the same net
-      if (id !== s0 && cells.get(cellId(r, c))?.has(net) && !(r === gr && c === gc)) { goal = id; break; }
+      if (!startDir.has(id) && cells.get(cellId(r, c))?.has(net) && !(r === gr && c === gc)) { goal = id; break; }
       const here = otherNets(cellId(r, c));
       for (let nd = 0; nd < 4; nd++) {
-        if (id === s0 && nd !== 2) continue;            // leave the caller heading east
+        const sd = startDir.get(id);
+        if (sd !== undefined && nd !== sd) continue;    // leave the caller in the start heading
         let turnPenalty = 0;
         if (nd !== d && here && !('sameNet' in here) && here.other) {  // no turn on another net
           if (!relaxed) continue;
@@ -394,12 +407,15 @@ export function buildGrid(P: Placement, vg: VGraph, opts: { arrow: boolean; cost
       for (let id = goal; id >= 0; id = came[id]) {
         const d = id % 4, cellIx = (id - d) / 4;
         seq.push({ r: Math.floor(cellIx / RW), c: cellIx % RW, d });
-        if (id === s0) break;
+        if (startDir.has(id) && came[id] < 0) break;
       }
       seq.reverse();
+      const startKind = seq[0].d === 2 ? 'E' : seq[0].d === 1 ? 'S' : 'N';
       const merged = !(seq[seq.length - 1].r === gr && seq[seq.length - 1].c === gc);
-      add(sr, sc, net, port ? W : W | E, u);
-      if (port) add(port.row, port.col, net, N | E, u);
+      if (startKind === 'E') {
+        add(sr, sc, net, port ? W : W | E, u);
+        if (port) add(port.row, port.col, net, N | E, u);
+      } else add(seq[0].r, seq[0].c, net, startKind === 'S' ? N : S, u);   // touch the label edge
       for (let i = 1; i < seq.length; i++) {
         const a = seq[i - 1], b = seq[i];
         const nd = b.d;
@@ -411,12 +427,14 @@ export function buildGrid(P: Placement, vg: VGraph, opts: { arrow: boolean; cost
       } else if (!merged) add(gr, gc, net, left ? E : W);
       // polyline through bends
       const pts: [number, number][] = [];
-      pts.push(port ? [port.col + 0.5, port.row] : [sc, sr + 0.5]);
-      if (port) pts.push([port.col + 0.5, port.row + 0.5]);
+      if (startKind === 'E') {
+        pts.push(port ? [port.col + 0.5, port.row] : [sc, sr + 0.5]);
+        if (port) pts.push([port.col + 0.5, port.row + 0.5]);
+      } else pts.push([pu.col + 0.5, startKind === 'S' ? pu.row + 1 : pu.row]);
       for (let i = 1; i < seq.length - 1; i++) if (seq[i + 1].d !== seq[i].d) pts.push([seq[i].c + 0.5, seq[i].r + 0.5]);
       const lastC = seq[seq.length - 1];
       pts.push(merged ? [lastC.c + 0.5, lastC.r + 0.5] : [left ? gc + 1 : gc, gr + 0.5]);
-      paths.push({ from: u, to: v, net, pts, start: port ? 'S' : 'E', arrive: left ? 'E' : 'W' });
+      paths.push({ from: u, to: v, net, pts, start: startKind === 'E' ? (port ? 'S' : 'E') : startKind, arrive: left ? 'E' : 'W' });
       for (const s of seq) { width = Math.max(width, s.c + 1); height = Math.max(height, s.r + 1); }
     }
     for (const t of touched) { g[t] = Infinity; came[t] = -1; }

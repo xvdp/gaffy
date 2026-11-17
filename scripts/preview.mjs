@@ -37,6 +37,14 @@ let text = JSON.stringify(initial, null, 1) + '\\n';
 const log = (m) => { const el = document.getElementById('log'); if (el) el.textContent = JSON.stringify(m).slice(0, 300); };
 // simulated drag (sim=drag&label=<text>&dx=&dy=): runs synchronously after the first render
 const simulate = () => {
+  if (params.get('call')) {
+    // double click a call: call=<caller>,<callee>
+    const [a, b] = params.get('call').split(',');
+    const p = [...document.querySelectorAll('.hits path')].find((x) => (x.querySelector('title')?.textContent ?? '').startsWith(a + '() → ' + b + '()'));
+    if (!p) { log({ sim: 'no call ' + a + ' → ' + b }); return; }
+    p.dispatchEvent(new MouseEvent('dblclick', { bubbles: true, view: window }));
+    return;
+  }
   if (params.get('sim') !== 'drag') return;
   const want = params.get('label') || '';
   const scope = params.get('box') ? '.heads g' : '.labels g';

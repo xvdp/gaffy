@@ -2,7 +2,7 @@
   "name": "gaffy",
   "displayName": "gaffy",
   "description": "Persistent, manipulable call graphs on a character grid, rendered with D3",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "publisher": "xvdp",
   "license": "UNLICENSED",
   "private": true,
@@ -288,6 +288,32 @@
       {
         "command": "gaffy.node.copyQualname",
         "title": "Copy Qualified Name"
+      },
+      {
+        "command": "gaffy.edge.subtree",
+        "title": "Show Only What Lies Below This Call"
+      },
+      {
+        "command": "gaffy.edge.path",
+        "title": "Show Only the Path Through This Call"
+      },
+      {
+        "command": "gaffy.edge.callSite",
+        "title": "Go to Call Site"
+      },
+      {
+        "command": "gaffy.edge.callee",
+        "title": "Go to Callee"
+      },
+      {
+        "command": "gaffy.resetLayout",
+        "title": "Reset Layout (moves, locks, sibling order)",
+        "category": "gaffy"
+      },
+      {
+        "command": "gaffy.showAll",
+        "title": "Show All (unhide, unfold, expand)",
+        "category": "gaffy"
       }
     ],
     "menus": {
@@ -519,6 +545,36 @@
           "command": "gaffy.export",
           "when": "webviewId == 'gaffy.view'",
           "group": "9_view@8"
+        },
+        {
+          "command": "gaffy.edge.subtree",
+          "when": "webviewId == 'gaffy.view' && webviewSection == 'edge'",
+          "group": "1_call@1"
+        },
+        {
+          "command": "gaffy.edge.path",
+          "when": "webviewId == 'gaffy.view' && webviewSection == 'edge'",
+          "group": "1_call@2"
+        },
+        {
+          "command": "gaffy.edge.callSite",
+          "when": "webviewId == 'gaffy.view' && webviewSection == 'edge'",
+          "group": "2_go@1"
+        },
+        {
+          "command": "gaffy.edge.callee",
+          "when": "webviewId == 'gaffy.view' && webviewSection == 'edge'",
+          "group": "2_go@2"
+        },
+        {
+          "command": "gaffy.showAll",
+          "when": "webviewId == 'gaffy.view'",
+          "group": "9_view@8"
+        },
+        {
+          "command": "gaffy.resetLayout",
+          "when": "webviewId == 'gaffy.view'",
+          "group": "9_view@9"
         }
       ],
       "commandPalette": [
@@ -644,6 +700,22 @@
         },
         {
           "command": "gaffy.node.fold",
+          "when": "false"
+        },
+        {
+          "command": "gaffy.edge.subtree",
+          "when": "false"
+        },
+        {
+          "command": "gaffy.edge.path",
+          "when": "false"
+        },
+        {
+          "command": "gaffy.edge.callSite",
+          "when": "false"
+        },
+        {
+          "command": "gaffy.edge.callee",
           "when": "false"
         }
       ]

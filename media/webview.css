@@ -72,6 +72,8 @@ text { dominant-baseline: central; white-space: pre; }
 .overlay path { fill: none; stroke-width: 2; }
 .overlay path.hl { stroke: var(--g-highlight); }
 .overlay path.sel { stroke: var(--g-seed); stroke-opacity: 0.7; }
+.overlay path.call { stroke: var(--g-seed); stroke-width: 3; }
+.hits path { fill: none; stroke: transparent; stroke-width: 9; cursor: pointer; pointer-events: stroke; }
 
 .frames rect.frame { fill: none; stroke: var(--g-frame); }
 .mode-glyph .frames rect.frame { display: none; }

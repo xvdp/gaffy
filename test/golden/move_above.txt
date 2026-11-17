@@ -1,0 +1,5 @@
+┌─> m.nextfunc()
+│
+m.func()
+│
+└─> m.other()
