@@ -68,7 +68,9 @@ export function registerCommands(ctx: vscode.ExtensionContext, editor: GaffyEdit
   const seedAtCursor = async () => {
     const ed = vscode.window.activeTextEditor;
     if (!ed) throw new Error('no active editor');
-    const items = await provider.prepare(ed.document.uri, ed.selection.active);
+    const items = await vscode.window.withProgress(
+      { location: vscode.ProgressLocation.Notification, title: 'gaffy: asking the language server about the symbol at the cursor…' },
+      () => provider.prepare(ed.document.uri, ed.selection.active));
     if (!items.length) throw new Error('no call hierarchy item at the cursor (language server without call hierarchy?)');
     const acc: Record<NodeKey, GNode> = {};
     const key = await provider.describe(items[0], acc);
@@ -131,7 +133,8 @@ export function registerCommands(ctx: vscode.ExtensionContext, editor: GaffyEdit
   });
 
   // ---- view commands ------------------------------------------------------------------------------
-  reg('gaffy.refresh', () => active().refresh());
+  reg('gaffy.refresh', () => active().refresh(undefined, 'revalidate'));
+  reg('gaffy.clearCache', () => { for (const c of editor.allCaches()) c.clear(); void vscode.window.showInformationMessage('gaffy: call cache cleared'); });
   reg('gaffy.toggleOrder', () => active().update((d) => { d.view.order = d.view.order === 'callees' ? 'callers' : 'callees'; }));
   reg('gaffy.toggleEdges', async () => {
     const s = active();
@@ -289,7 +292,7 @@ export function registerCommands(ctx: vscode.ExtensionContext, editor: GaffyEdit
         const prev = doc.view.expanded[key];
         doc.view.expanded[key] = prev && prev !== dir ? 'both' : dir;
       }); break;
-      case 'refresh': await s.refresh(); break;
+      case 'refresh': await s.refresh(undefined, 'revalidate'); break;
       case 'export': await exportView(s); break;
       case 'editStyle': await vscode.commands.executeCommand('gaffy.editStyle'); break;
       case 'hiddenNeighbors': {

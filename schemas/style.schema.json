@@ -135,6 +135,16 @@
           "minimum": 0,
           "maximum": 1,
           "description": "Opacity of the box background."
+        },
+        "line": {
+          "enum": [
+            "solid",
+            "rounded",
+            "dashed",
+            "dotted",
+            "double"
+          ],
+          "description": "Frame line: dashed (default) and dotted frames read apart from solid call lines."
         }
       }
     },

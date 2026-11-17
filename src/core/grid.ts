@@ -50,6 +50,7 @@ export interface EdgePath {
   to: NodeKey;
   net: string;
   pts: [number, number][];  // [x, y] in cell units: x = column, y = row; centers at +0.5
+  cells: number[];           // cell ids from caller to callee, through merged trunks
   start: 'E' | 'S' | 'N';    // initial heading: from the label end, or from under or over its first character
   arrive: 'E' | 'W';         // final heading
 }
@@ -63,6 +64,7 @@ export interface Grid {
   nets: Map<string, Net>;
   paths: EdgePath[];
   frames: Frame[];
+  roots: Map<string, number>; // per net: lane arrival cell, or top cell of a tree stem (flow direction)
   conflicts: number;         // edge cells inside label spans; 0 by construction
   unrouted: number;          // calls without a route
   failed: [NodeKey, NodeKey][];
@@ -79,7 +81,18 @@ const DC = [0, 0, 1, -1];
 const BIT = [N, S, E, W];
 const OPP = [S, N, W, E];
 const AXIS_V = N | S, AXIS_H = E | W;
-const RELAX = 40;
+const RELAX_TURN = 40;     // relaxed pass: turning on another net
+const RELAX_ALONG = 400;   // relaxed pass: running along another net (ambiguous, last resort)
+
+/** Bend points of a cell path: centers of cells where the direction changes. */
+function bends(cells: number[]): [number, number][] {
+  const out: [number, number][] = [];
+  for (let i = 1; i < cells.length - 1; i++) {
+    const [r0, c0] = cellRC(cells[i - 1]), [r1, c1] = cellRC(cells[i]), [r2, c2] = cellRC(cells[i + 1]);
+    if ((r1 - r0 !== r2 - r1) || (c1 - c0 !== c2 - c1)) out.push([c1 + 0.5, r1 + 0.5]);
+  }
+  return out;
+}
 
 export function buildGrid(P: Placement, vg: VGraph, opts: { arrow: boolean; cost: RouteCost }): Grid {
   const cells = new Map<number, Map<string, number>>();
@@ -105,6 +118,9 @@ export function buildGrid(P: Placement, vg: VGraph, opts: { arrow: boolean; cost
   const mark = (m: Mark) => { marks.push(m); if (m.role !== 'frame') markAt.add(cellId(m.row, m.col)); };
   const tree = (p: NodeKey) => { const n = `t:${p}`; if (!nets.has(n)) nets.set(n, { kind: 'tree', key: p }); return n; };
   const lane = (t: NodeKey) => { const n = `l:${t}`; if (!nets.has(n)) nets.set(n, { kind: 'lane', key: t }); return n; };
+  const roots = new Map<string, number>();
+  const row = (r: number, c0: number, c1: number) => { const o: number[] = []; for (let c = c0; c1 >= c0 ? c <= c1 : c >= c1; c += c1 >= c0 ? 1 : -1) o.push(cellId(r, c)); return o; };
+  const colCells = (c: number, r0: number, r1: number) => { const o: number[] = []; for (let r = r0; r1 >= r0 ? r <= r1 : r >= r1; r += r1 >= r0 ? 1 : -1) o.push(cellId(r, c)); return o; };
 
   // ---- 1. labels and frames -------------------------------------------------------------------------
   const labels: LabelSpan[] = [];
@@ -156,6 +172,7 @@ export function buildGrid(P: Placement, vg: VGraph, opts: { arrow: boolean; cost
       });
       if (!ok.length) continue;
       const net = tree(p);
+      roots.set(net, cellId(pp.row + 1, pp.col));
       const rows = ok.map((c) => P.pos.get(c)!.row);
       const last = Math.max(...rows);
       const childRows = new Set(rows);
@@ -168,7 +185,8 @@ export function buildGrid(P: Placement, vg: VGraph, opts: { arrow: boolean; cost
         drawn.add(eid(p, c));
         elbowInto.add(c);
         paths.push({ from: p, to: c, net, start: 'S', arrive: 'E',
-          pts: [[pp.col + 0.5, pp.row + 1], [pp.col + 0.5, pc.row + 0.5], [pc.col - 1, pc.row + 0.5]] });
+          pts: [[pp.col + 0.5, pp.row + 1], [pp.col + 0.5, pc.row + 0.5], [pc.col - 1, pc.row + 0.5]],
+          cells: [...colCells(pp.col, pp.row + 1, pc.row), ...row(pc.row, pp.col + 1, pc.col - 2)] });
       }
     }
     for (const ln of L.lanes) {
@@ -190,6 +208,8 @@ export function buildGrid(P: Placement, vg: VGraph, opts: { arrow: boolean; cost
       for (let c = tEnd + 1; c < col && clear; c++) if (blocked.has(cellId(hi, c))) clear = false;
       if (!clear) continue;
       const net = lane(ln.target);
+      roots.set(net, cellId(hi, tEnd + 1));
+      const tail = (r: number) => [...colCells(col, r, hi), ...row(hi, col - 1, tEnd + 1)];
       const srcAt = new Map(ln.sources.map((s, i) => [srcRows[i], s.key] as const));
       for (let r = lo; r <= hi; r++) add(r, col, net, (r > lo ? N : 0) | (r < hi ? S : 0) | (srcAt.has(r) || r === hi ? W : 0), srcAt.get(r));
       for (const s of ln.sources) {
@@ -199,12 +219,14 @@ export function buildGrid(P: Placement, vg: VGraph, opts: { arrow: boolean; cost
           add(pr.row, pr.col, net, N | E, s.key);
           hline(pr.row, pr.col + 1, col - 1, net, s.key);
           paths.push({ from: s.key, to: ln.target, net, start: 'S', arrive: 'W',
-            pts: [[pr.col + 0.5, pr.row], [pr.col + 0.5, pr.row + 0.5], [col + 0.5, pr.row + 0.5], [col + 0.5, hi + 0.5], [tEnd + 1, hi + 0.5]] });
+            pts: [[pr.col + 0.5, pr.row], [pr.col + 0.5, pr.row + 0.5], [col + 0.5, pr.row + 0.5], [col + 0.5, hi + 0.5], [tEnd + 1, hi + 0.5]],
+            cells: [...row(pr.row, pr.col, col - 1), ...tail(pr.row)] });
         } else {
           const se = P.end.get(s.key)!;
           hline(sp.row, se + 1, col - 1, net, s.key);
           paths.push({ from: s.key, to: ln.target, net, start: 'E', arrive: 'W',
-            pts: [[se + 1, sp.row + 0.5], [col + 0.5, sp.row + 0.5], [col + 0.5, hi + 0.5], [tEnd + 1, hi + 0.5]] });
+            pts: [[se + 1, sp.row + 0.5], [col + 0.5, sp.row + 0.5], [col + 0.5, hi + 0.5], [tEnd + 1, hi + 0.5]],
+            cells: [...row(sp.row, se + 1, col - 1), ...tail(sp.row)] });
         }
         drawn.add(eid(s.key, ln.target));
       }
@@ -230,14 +252,17 @@ export function buildGrid(P: Placement, vg: VGraph, opts: { arrow: boolean; cost
     || (a.from + a.to < b.from + b.to ? -1 : 1));
 
   // arrival side per target, decided before routing; left arrival cells reserved for the target's net
+  // callers mostly left of the target arrive from the left (`──> f()`), callers right of it at its end (`f() <──`)
   const leftArrival = new Map<NodeKey, boolean>();
   const reserved = new Map<number, string>();
+  const votes = new Map<NodeKey, number>();
+  for (const e of todo) votes.set(e.to, (votes.get(e.to) ?? 0) + (P.pos.get(e.from)!.col < P.pos.get(e.to)!.col ? 1 : -1));
   for (const e of todo) {
     const v = e.to;
     if (leftArrival.has(v)) continue;
     const pv = P.pos.get(v)!;
     const free = (r: number, c: number) => c >= 0 && !blocked.has(cellId(r, c)) && !border.has(cellId(r, c)) && !cells.has(cellId(r, c)) && !reserved.has(cellId(r, c));
-    const left = !elbowInto.has(v) && pv.col >= 2 && free(pv.row, pv.col - 2) && free(pv.row, pv.col - 1);
+    const left = !elbowInto.has(v) && votes.get(v)! >= 0 && pv.col >= 2 && free(pv.row, pv.col - 2) && free(pv.row, pv.col - 1);
     leftArrival.set(v, left);
     if (left) { reserved.set(cellId(pv.row, pv.col - 2), `l:${v}`); reserved.set(cellId(pv.row, pv.col - 1), `l:${v}`); }
   }
@@ -250,7 +275,7 @@ export function buildGrid(P: Placement, vg: VGraph, opts: { arrow: boolean; cost
   }
 
   let width = P.width, height = P.height;
-  const RW = P.width + 16, RH = P.height + 6;
+  const RW = P.width + 16, RH = P.height + 12;
   const size = RW * RH * 4;
   const g = new Float64Array(size).fill(Infinity);
   const came = new Int32Array(size).fill(-1);
@@ -357,7 +382,7 @@ export function buildGrid(P: Placement, vg: VGraph, opts: { arrow: boolean; cost
         let turnPenalty = 0;
         if (nd !== d && here && !('sameNet' in here) && here.other) {  // no turn on another net
           if (!relaxed) continue;
-          turnPenalty = RELAX;
+          turnPenalty = RELAX_TURN;
         }
         if ((d === 0 && nd === 1) || (d === 1 && nd === 0) || (d === 2 && nd === 3) || (d === 3 && nd === 2)) continue;
         const nr = r + DR[nd], nc = c + DC[nd];
@@ -381,7 +406,7 @@ export function buildGrid(P: Placement, vg: VGraph, opts: { arrow: boolean; cost
             const along = nd < 2 ? AXIS_V : AXIS_H;
             if (o.both || (o.other & along)) {
               if (!relaxed) continue;
-              step += RELAX;
+              step += RELAX_ALONG;
             } else step += opts.cost.cross;
           }
         }
@@ -434,7 +459,19 @@ export function buildGrid(P: Placement, vg: VGraph, opts: { arrow: boolean; cost
       for (let i = 1; i < seq.length - 1; i++) if (seq[i + 1].d !== seq[i].d) pts.push([seq[i].c + 0.5, seq[i].r + 0.5]);
       const lastC = seq[seq.length - 1];
       pts.push(merged ? [lastC.c + 0.5, lastC.r + 0.5] : [left ? gc + 1 : gc, gr + 0.5]);
-      paths.push({ from: u, to: v, net, pts, start: startKind === 'E' ? (port ? 'S' : 'E') : startKind, arrive: left ? 'E' : 'W' });
+      let own = (port && startKind === 'E' ? [cellId(port.row, port.col)] : []).concat(seq.map((x) => cellId(x.r, x.c)));
+      let end = pts[pts.length - 1];
+      if (merged) {
+        // continue along the trunk this call joined, to the callee
+        const j = own[own.length - 1];
+        const host = paths.find((q) => q.to === v && q.net === net && q.cells.includes(j));
+        if (host) {
+          own = own.concat(host.cells.slice(host.cells.indexOf(j) + 1));
+          end = host.pts[host.pts.length - 1];
+        }
+      } else if (!roots.has(net)) roots.set(net, cellId(gr, gc));
+      const full: [number, number][] = [pts[0], ...(startKind === 'E' && port ? [pts[1]] : []), ...bends(own), end];
+      paths.push({ from: u, to: v, net, pts: full, cells: own, start: startKind === 'E' ? (port ? 'S' : 'E') : startKind, arrive: left ? 'E' : 'W' });
       for (const s of seq) { width = Math.max(width, s.c + 1); height = Math.max(height, s.r + 1); }
     }
     for (const t of touched) { g[t] = Infinity; came[t] = -1; }
@@ -446,7 +483,7 @@ export function buildGrid(P: Placement, vg: VGraph, opts: { arrow: boolean; cost
     if (l.kind !== 'node') continue;
     for (let c = l.col; c < l.col + l.text.length; c++) if (cells.has(cellId(l.row, c))) conflicts++;
   }
-  return { width, height, cells, marks, labels, nets, paths, frames: P.frames, conflicts, unrouted, failed };
+  return { width, height, cells, marks, labels, nets, paths, frames: P.frames, roots, conflicts, unrouted, failed };
 }
 
 export function cellGlyph(nets: Map<string, number>, gs: GlyphSet): string {
@@ -489,15 +526,8 @@ export function charRows(g: Grid, gs: GlyphSet, blankLabels = false): string[][]
     put(r, c, cellGlyph(nets, gs));
   }
   for (const m of g.marks) {
-    if (m.role === 'frame') {
-      // an edge crossing a border: border glyph joins the edge
-      const nets = g.cells.get(cellId(m.row, m.col));
-      if (nets) {
-        let u = 0;
-        for (const x of nets.values()) u |= x;
-        put(m.row, m.col, gs.mask(u | (m.ch === 'v' ? N | S : E | W)));
-      }
-    } else put(m.row, m.col, markGlyph(m, gs));
+    // a call crossing a frame border keeps its own glyph: the frame breaks, the call stays continuous
+    if (m.role !== 'frame') put(m.row, m.col, markGlyph(m, gs));
   }
   for (const l of g.labels) {
     const text = l.kind === 'box' ? ` ${l.text} ` : l.text;

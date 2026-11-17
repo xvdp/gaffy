@@ -10,7 +10,7 @@ import { drag } from 'd3-drag';
 import { select } from 'd3-selection';
 import { curveBasis, line } from 'd3-shape';
 import { zoom, zoomIdentity } from 'd3-zoom';
-import { cellRC, charRows, EdgePath, Grid, LabelSpan } from '../core/grid';
+import { cellId, cellRC, charRows, EdgePath, Grid, LabelSpan } from '../core/grid';
 import { ancestors, isContainer, NodeKey } from '../core/model';
 import { buildScene, Scene, siblingsOf, unitAnchor, unitMembers } from '../core/scene';
 import { Curve, E, glyphSet, N, S, Style, W } from '../core/style';
@@ -72,7 +72,10 @@ window.addEventListener('message', (ev) => {
     render();
   } else if (m.type === 'busy') {
     busy = !!m.busy;
+    banner(busy ? 'building' : undefined);
     status();
+  } else if (m.type === 'progress') {
+    banner(m.text);
   } else if (m.type === 'cmd') {
     runCmd(m.cmd, m.key, m.unit, m.to);
   }
@@ -105,21 +108,86 @@ function applyColors(st: Style) {
 const X = (x: number) => x * cw;
 const Y = (y: number) => y * ch;
 
+const DIRS = [[-1, 0, N], [1, 0, S], [0, 1, E], [0, -1, W]] as const;   // dr, dc, bit
+const OPPOSITE: Record<number, number> = { [N]: S, [S]: N, [E]: W, [W]: E };
+
+/**
+ * Orthogonal vector paths per net from the grid masks.
+ * Crossing of two calls (one cell, one net running N|S, another E|W): the horizontal line hops over
+ * the vertical one with a half circle. Junction (three or more directions within one net): each branch
+ * bends into the root-side direction with a quarter curve, the flow direction (towards the callee for
+ * call nets, away from the caller for tree stems); the straight-through branch stays straight.
+ */
 function maskPaths(g: Grid): Map<string, string> {
-  const segs = new Map<string, string[]>();
-  for (const [id, nets] of g.cells) {
-    const [r, c] = cellRC(id);
-    const x = (c + 0.5) * cw, y = (r + 0.5) * ch;
-    for (const [net, m] of nets) {
-      let a = segs.get(net);
-      if (!a) segs.set(net, (a = []));
-      if (m & N) a.push(`M${x},${y}V${r * ch}`);
-      if (m & S) a.push(`M${x},${y}V${(r + 1) * ch}`);
-      if (m & E) a.push(`M${x},${y}H${(c + 1) * cw}`);
-      if (m & W) a.push(`M${x},${y}H${c * cw}`);
-    }
+  const byNet = new Map<string, Map<number, number>>();
+  for (const [id, nets] of g.cells) for (const [net, m] of nets) {
+    let c = byNet.get(net);
+    if (!c) byNet.set(net, (c = new Map()));
+    c.set(id, m);
   }
-  return new Map([...segs].map(([k, v]) => [k, v.join('')]));
+  const out = new Map<string, string>();
+  const hop = Math.min(cw, ch) * 0.35;
+  for (const [net, cells] of byNet) {
+    // distance from the root along connected masks
+    const dist = new Map<number, number>();
+    const root = g.roots.get(net);
+    if (root !== undefined && cells.has(root)) {
+      dist.set(root, 0);
+      const q = [root];
+      while (q.length) {
+        const id = q.shift()!;
+        const [r, c] = cellRC(id);
+        const m = cells.get(id)!;
+        for (const [dr, dc, bit] of DIRS) {
+          if (!(m & bit)) continue;
+          const nid = cellId(r + dr, c + dc);
+          const nm = cells.get(nid);
+          if (nm === undefined || !(nm & OPPOSITE[bit]) || dist.has(nid)) continue;
+          dist.set(nid, dist.get(id)! + 1);
+          q.push(nid);
+        }
+      }
+    }
+    const segs: string[] = [];
+    for (const [id, m] of cells) {
+      const [r, c] = cellRC(id);
+      const x = (c + 0.5) * cw, y = (r + 0.5) * ch;
+      const edge = (bit: number): [number, number] =>
+        bit === N ? [x, r * ch] : bit === S ? [x, (r + 1) * ch] : bit === E ? [(c + 1) * cw, y] : [c * cw, y];
+      // a crossing: some net runs N|S, another E|W, none turns or joins here
+      const others = g.cells.get(id)!;
+      let hasV = false, hasH = false, plain = true;
+      for (const om of others.values()) {
+        if (om === (N | S)) hasV = true;
+        else if (om === (E | W)) hasH = true;
+        else plain = false;
+      }
+      if (hasV && hasH && plain && m === (E | W)) {
+        segs.push(`M${c * cw},${y}H${x - hop}A${hop},${hop} 0 0 1 ${x + hop},${y}H${(c + 1) * cw}`);
+        continue;
+      }
+      if (popcount(m) >= 3 && dist.has(id)) {
+        const d0 = dist.get(id)!;
+        let rootSide = 0;
+        for (const [dr, dc, bit] of DIRS) {
+          const nd = dist.get(cellId(r + dr, c + dc));
+          if ((m & bit) && nd !== undefined && nd < d0) rootSide = bit;
+        }
+        if (rootSide) {
+          const [rx, ry] = edge(rootSide);
+          for (const [, , bit] of DIRS) {
+            if (!(m & bit) || bit === rootSide) continue;
+            const [ex, ey] = edge(bit);
+            segs.push(bit === OPPOSITE[rootSide] ? `M${ex},${ey}L${rx},${ry}` : `M${ex},${ey}Q${x},${y} ${rx},${ry}`);
+          }
+          continue;
+        }
+      }
+      for (const [, , bit] of DIRS) if (m & bit) { const [ex, ey] = edge(bit); segs.push(`M${x},${y}L${ex},${ey}`); }
+    }
+    out.set(net, segs.join(''));
+  }
+  return out;
 }
 
 /** One call as an SVG path: polyline with rounded corners, sigmoid S-curves, or a B-spline. */
@@ -191,7 +259,13 @@ function render() {
       gf.append('rect').attr('class', 'fill').attr('x', x).attr('y', y).attr('width', w).attr('height', h).attr('rx', 4)
         .style('fill', `hsl(${hue(f.box.key)}, 55%, 50%)`).style('fill-opacity', style.boxes.alpha);
     }
-    if (mode === 'vector') gf.append('rect').attr('class', 'frame').attr('x', x).attr('y', y).attr('width', w).attr('height', h).attr('rx', 4);
+    if (mode === 'vector') {
+      const line = style.boxes.line;
+      const dash = line === 'dashed' ? '6 4' : line === 'dotted' ? '1.5 3' : null;
+      const rx = line === 'solid' || line === 'double' ? 2 : 6;
+      gf.append('rect').attr('class', 'frame').attr('x', x).attr('y', y).attr('width', w).attr('height', h).attr('rx', rx).attr('stroke-dasharray', dash);
+      if (line === 'double') gf.append('rect').attr('class', 'frame').attr('x', x + 3).attr('y', y + 3).attr('width', w - 6).attr('height', h - 6).attr('rx', rx);
+    }
   }
 
   const ge = root.append('g').attr('class', 'edges');
@@ -204,14 +278,6 @@ function render() {
       .text((d) => d.t);
   } else if (curve === 'orthogonal') {
     for (const [net, d] of maskPaths(g)) ge.append('path').attr('class', 'net').attr('data-net', net).attr('d', d);
-    for (const [id, nets] of g.cells) {
-      let u = 0, pure = nets.size > 1;
-      for (const m of nets.values()) { u |= m; if (m !== (N | S) && m !== (E | W)) pure = false; }
-      if (popcount(u) >= 3 && !pure) {
-        const [r, c] = cellRC(id);
-        ge.append('circle').attr('class', 'joint').attr('cx', (c + 0.5) * cw).attr('cy', (r + 0.5) * ch).attr('r', 1.8);
-      }
-    }
     for (const m of g.marks) arrowhead(ge, m.col + 0.5, m.row + 0.5, m.role === 'arrowE' ? 1 : m.role === 'arrowW' ? -1 : 0);
   } else {
     for (const p of g.paths) {
@@ -733,6 +799,12 @@ function status() {
   else if (doc.updated) parts.push(`built ${new Date(doc.updated).toLocaleString()}`);
   parts.push('click open · shift+click select · dblclick fold or expand · drag move · right-click menu · keys ↑↓ Enter e f c h i k u o g b r 0 x Esc');
   el.text(parts.join(' · '));
+}
+
+/** Progress line over the graph while a build runs. */
+function banner(text: string | undefined) {
+  const b = select('#banner');
+  b.classed('on', !!text && busy).text(text ? `⟳ ${text}` : '');
 }
 
 function showError(msg: string) {

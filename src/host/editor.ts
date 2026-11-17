@@ -6,9 +6,10 @@
 import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { globToRegExp, parseDoc, serializeDoc, ViewDoc } from '../core/viewdoc';
-import { applyBuild, buildGraph } from './build';
+import { applyBuild, buildGraph, BuildMode, BuildProgress } from './build';
+import { CallCache } from './cache';
 import { LspProvider } from './lsp';
-import { folderOf, StyleService } from './style';
+import { folderOf, gaffyDir, StyleService } from './style';
 
 export class Session {
   private busy = false;
@@ -46,27 +47,68 @@ export class Session {
     void this.panel.webview.postMessage({ type: 'state', text: this.document.getText(), name: this.name, style, exclude, busy: this.busy });
   }
 
-  async refresh(mutate?: (d: ViewDoc) => void): Promise<void> {
+  /**
+   * Rebuild from the seeds. `cached` (default): cached answers, the language server for the rest.
+   * `revalidate`: first from the cache alone (instant), then every definition again from the language server.
+   * Progress: banner in the graph, and after 400 ms a notification with a cancel button.
+   */
+  async refresh(mutate?: (d: ViewDoc) => void, how: 'cached' | 'revalidate' = 'cached'): Promise<void> {
     if (this.busy) return;
     this.busy = true;
+    const cts = new vscode.CancellationTokenSource();
+    let text = 'starting';
+    let notify: ((t: string) => void) | undefined;
+    const show = (t: string) => {
+      text = t;
+      void this.panel.webview.postMessage({ type: 'progress', text: t });
+      notify?.(t);
+    };
+    let done!: () => void;
+    const finished = new Promise<void>((r) => { done = r; });
+    const timer = setTimeout(() => {
+      void vscode.window.withProgress(
+        { location: vscode.ProgressLocation.Notification, title: `gaffy: ${this.name}`, cancellable: true },
+        async (progress, token) => {
+          token.onCancellationRequested(() => cts.cancel());
+          notify = (t) => progress.report({ message: t });
+          notify(text);
+          await finished;
+        });
+    }, 400);
     void this.panel.webview.postMessage({ type: 'busy', busy: true });
     try {
-      await vscode.window.withProgress(
-        { location: vscode.ProgressLocation.Window, title: `gaffy: building ${this.name}`, cancellable: false },
-        async () => {
-          const doc = this.doc();
-          mutate?.(doc);
-          const max = vscode.workspace.getConfiguration('gaffy').get<number>('maxNodes') ?? 400;
-          const globs = vscode.workspace.getConfiguration('gaffy', this.document.uri).get<string[]>('exclude') ?? [];
-          const r = await buildGraph(this.host.provider, doc, { maxNodes: max, exclude: globs.map(globToRegExp) });
-          if (r.missing.length) {
-            void vscode.window.showWarningMessage(`gaffy: seeds not resolved: ${r.missing.map((k) => k.split('#').pop()).join(', ')}`);
-          }
-          await this.write(applyBuild(doc, r));
-        });
+      const doc = this.doc();
+      mutate?.(doc);
+      const cfg = vscode.workspace.getConfiguration('gaffy', this.document.uri);
+      const opts = {
+        maxNodes: cfg.get<number>('maxNodes') ?? 400,
+        exclude: (cfg.get<string[]>('exclude') ?? []).map(globToRegExp),
+        cache: this.host.cacheFor(this.folder),
+        token: cts.token,
+      };
+      await opts.cache.ready();
+      const fmt = (phase: string) => (q: BuildProgress) =>
+        show(`${phase} · depth ${q.level}/${q.depth} · ${q.definitions} definitions · ${q.requests} language-server requests · ${q.cached} cached`);
+      const phases: BuildMode[] = how === 'revalidate' ? ['cacheOnly', 'fresh'] : ['cached'];
+      let current = doc;
+      for (const mode of phases) {
+        const label = mode === 'cacheOnly' ? 'from cache' : mode === 'fresh' ? 'asking the language server' : 'building';
+        show(label);
+        const r = await buildGraph(this.host.provider, current, { ...opts, mode, progress: fmt(label) });
+        if (cts.token.isCancellationRequested) { show('cancelled'); break; }
+        if (mode !== 'cacheOnly' && r.missing.length) {
+          void vscode.window.showWarningMessage(`gaffy: seeds not resolved: ${r.missing.map((k) => k.split('#').pop()).join(', ')}`);
+        }
+        if (mode === 'cacheOnly' && !Object.keys(r.graph.edges).length && !Object.keys(current.graph.nodes).length) continue;
+        current = applyBuild(current, r);
+        await this.write(current);
+      }
     } catch (e) {
       void vscode.window.showErrorMessage(`gaffy: ${(e as Error).message}`);
     } finally {
+      clearTimeout(timer);
+      done();
+      cts.dispose();
       this.busy = false;
       void this.panel.webview.postMessage({ type: 'busy', busy: false });
     }
@@ -84,6 +126,18 @@ export class GaffyEditor implements vscode.CustomTextEditorProvider {
   static readonly viewType = 'gaffy.view';
   readonly sessions = new Map<string, Session>();
   active: Session | undefined;
+  private caches = new Map<string, CallCache>();
+
+  /** Call cache of a workspace folder, `.gaffy/cache/calls.json`. */
+  cacheFor(folder: vscode.Uri): CallCache {
+    const k = folder.toString();
+    let c = this.caches.get(k);
+    if (!c) this.caches.set(k, (c = new CallCache(vscode.Uri.joinPath(gaffyDir(folder), 'cache', 'calls.json'))));
+    return c;
+  }
+
+  allCaches(): CallCache[] { return [...this.caches.values()]; }
+
   /** Handlers for webview messages that need commands (open, expand, export). */
   onMessage: (s: Session, m: { type: string; [k: string]: unknown }) => Promise<void> = async () => {};
 
@@ -157,6 +211,7 @@ export class GaffyEditor implements vscode.CustomTextEditorProvider {
 </head>
 <body data-vscode-context='${canvas}'>
 <div id="toolbar"></div>
+<div id="banner"></div>
 <svg id="graph" tabindex="0"></svg>
 <div id="status"></div>
 <script nonce="${nonce}" src="${js}"></script>

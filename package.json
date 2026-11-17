@@ -2,7 +2,7 @@
   "name": "gaffy",
   "displayName": "gaffy",
   "description": "Persistent, manipulable call graphs on a character grid, rendered with D3",
-  "version": "0.2.2",
+  "version": "0.3.0",
   "publisher": "xvdp",
   "license": "UNLICENSED",
   "private": true,
@@ -313,6 +313,11 @@
       {
         "command": "gaffy.showAll",
         "title": "Show All (unhide, unfold, expand)",
+        "category": "gaffy"
+      },
+      {
+        "command": "gaffy.clearCache",
+        "title": "Clear Call Cache",
         "category": "gaffy"
       }
     ],

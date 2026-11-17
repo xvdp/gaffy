@@ -51,6 +51,24 @@ body { display: flex; flex-direction: column; }
 #toolbar .sep { width: 1px; height: 16px; margin: 0 4px; background: var(--vscode-panel-border); }
 #toolbar .caption { color: var(--vscode-descriptionForeground); margin-left: 2px; }
 
+#banner {
+  position: absolute;
+  right: 12px;
+  top: 76px;
+  z-index: 2;
+  display: none;
+  padding: 3px 10px;
+  border-radius: 3px;
+  font-size: 12px;
+  background: var(--vscode-editorWidget-background);
+  color: var(--vscode-editorWidget-foreground, var(--g-fg));
+  border: 1px solid var(--vscode-focusBorder);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+  animation: gaffy-pulse 1.2s ease-in-out infinite;
+}
+#banner.on { display: block; }
+@keyframes gaffy-pulse { 50% { opacity: 0.55; } }
+
 #graph { flex: 1; width: 100%; outline: none; cursor: grab; user-select: none; }
 #graph:active { cursor: grabbing; }
 

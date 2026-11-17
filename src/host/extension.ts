@@ -43,17 +43,28 @@ export function activate(ctx: vscode.ExtensionContext): void {
       }
     }
   };
+  // files changed outside the editor (git checkout, generators): cached calls of those files are stale
+  const watcher = vscode.workspace.createFileSystemWatcher('**/*', true, false, true);
+  ctx.subscriptions.push(watcher, watcher.onDidChange((u) => {
+    if (isGaffy(u)) return;
+    provider.invalidate(u);
+    for (const c of editor.allCaches()) c.invalidate(u.toString());
+  }));
   ctx.subscriptions.push(
     vscode.workspace.onDidSaveTextDocument((d) => {
       if (isGaffy(d.uri)) return;
       provider.invalidate(d.uri);
+      for (const c of editor.allCaches()) c.invalidate(d.uri.toString());
       if ((vscode.workspace.getConfiguration('gaffy').get<string>('refreshOnSave') ?? 'touched') === 'off') return;
       pending.add(d.uri.toString());
       clearTimeout(timer);
       timer = setTimeout(flush, 800);
     }),
     vscode.workspace.onDidRenameFiles(async (e) => {
-      for (const f of e.files) { provider.invalidate(f.oldUri); provider.invalidate(f.newUri); }
+      for (const f of e.files) {
+        provider.invalidate(f.oldUri); provider.invalidate(f.newUri);
+        for (const c of editor.allCaches()) { c.invalidate(f.oldUri.toString()); c.invalidate(f.newUri.toString()); }
+      }
       const seen = new Set<string>();
       const touched: Session[] = [];
       for (const s of editor.sessions.values()) {
