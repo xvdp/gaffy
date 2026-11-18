@@ -70,7 +70,7 @@ export interface Grid {
   failed: [NodeKey, NodeKey][];
 }
 
-export interface RouteCost { bend: number; cross: number; border: number }
+export interface RouteCost { bend: number; cross: number; border: number; adjacent: number }
 
 const STRIDE = 1 << 16;
 export const cellId = (r: number, c: number) => r * STRIDE + c;
@@ -374,7 +374,9 @@ export function buildGrid(P: Placement, vg: VGraph, opts: { arrow: boolean; cost
       const gcur = g[id];
       if (r === gr && c === gc && d === gdir) { goal = id; break; }
       // merge into an existing trunk of the same net
-      if (!startDir.has(id) && cells.get(cellId(r, c))?.has(net) && !(r === gr && c === gc)) { goal = id; break; }
+      // merge only where the trunk of this net runs alone: a merge on a line other calls share is ambiguous
+      const here0 = cells.get(cellId(r, c));
+      if (!startDir.has(id) && here0?.has(net) && here0.size === 1 && !(r === gr && c === gc)) { goal = id; break; }
       const here = otherNets(cellId(r, c));
       for (let nd = 0; nd < 4; nd++) {
         const sd = startDir.get(id);
@@ -411,6 +413,17 @@ export function buildGrid(P: Placement, vg: VGraph, opts: { arrow: boolean; cost
           }
         }
         if (nd !== d) step += opts.cost.bend + turnPenalty;
+        // spacing: a vertical run in the column next to an unrelated vertical line reads as one thick line;
+        // horizontal runs on adjacent rows are a row apart and stay free
+        const side = nd < 2 ? [cellId(nr, nc - 1), cellId(nr, nc + 1)] : [];
+        const along = AXIS_V;
+        for (const sc2 of side) {
+          const sm = cells.get(sc2);
+          if (!sm) continue;
+          const own = srcOf.get(sc2);
+          if (own && own.size === 1 && own.has(u)) continue;
+          for (const [n2, m2] of sm) if (n2 !== net && (m2 & along)) { step += opts.cost.adjacent; break; }
+        }
         const ns = sid(nr, nc, nd);
         const ng = gcur + step;
         if (ng < g[ns]) {

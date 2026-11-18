@@ -21,6 +21,8 @@ const theme = `
   --vscode-button-secondaryBackground: #3a3d41; --vscode-button-secondaryForeground: #ccc;
   --vscode-list-hoverBackground: #2a2d2e; --vscode-list-activeSelectionBackground: #04395e;
   --vscode-editor-selectionHighlightBackground: #3a3d4199; --vscode-font-family: sans-serif;
+  --vscode-textLink-activeForeground: #3794ff; --vscode-editor-selectionBackground: #264f78;
+  --vscode-menu-background: #252526; --vscode-menu-selectionBackground: #04395e; --vscode-editorWidget-background: #252526;
 }`;
 
 const mock = `
@@ -37,6 +39,18 @@ let text = JSON.stringify(initial, null, 1) + '\\n';
 const log = (m) => { const el = document.getElementById('log'); if (el) el.textContent = JSON.stringify(m).slice(0, 300); };
 // simulated drag (sim=drag&label=<text>&dx=&dy=): runs synchronously after the first render
 const simulate = () => {
+  if (params.get('opts')) document.querySelector('#toolbar .opts button').dispatchEvent(new MouseEvent('click', { bubbles: true, view: window }));
+  if (params.get('callclick')) {
+    // click a point on a call's path: callclick=<caller>,<callee>,<fraction of its length>
+    const [a, b, f] = params.get('callclick').split(',');
+    const p = [...document.querySelectorAll('.hits path')].find((x) => (x.querySelector('title')?.textContent ?? '').startsWith(a + '() → ' + b + '()'));
+    if (!p) { log({ sim: 'no call ' + a + ' → ' + b }); return; }
+    const q = p.getPointAtLength(p.getTotalLength() * (+f || 0.2));
+    const m = p.getScreenCTM();
+    const pt = new DOMPoint(q.x, q.y).matrixTransform(m);
+    p.dispatchEvent(new MouseEvent('click', { clientX: pt.x, clientY: pt.y, bubbles: true, view: window }));
+    return;
+  }
   if (params.get('call')) {
     // double click a call: call=<caller>,<callee>
     const [a, b] = params.get('call').split(',');

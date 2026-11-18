@@ -7,7 +7,7 @@ VS Code extension: persistent, manipulable call graphs laid out on a character g
 ```bash
 npm install
 npm run package                              # typecheck, tests, bundles, gaffy-<version>.vsix
-code --install-extension gaffy-0.3.0.vsix
+code --install-extension gaffy-0.4.0.vsix
 ```
 
 Development: open `gaffy/` in VS Code and press F5 (Extension Development Host). `npm run watch` rebuilds on change.
@@ -17,16 +17,17 @@ Development: open `gaffy/` in VS Code and press F5 (Extension Development Host).
 
 ## Create a view
 
-Right click on a function name in the editor, then the **gaffy** submenu:
+Right click on a function name in the editor; the gaffy entries sit below Go to Definition, references and Call Hierarchy:
 
 | entry | seeds | traversal |
 |---|---|---|
-| New View: Callers of Symbol | the function | incoming calls, `gaffy.depth` hops |
-| New View: Callees of Symbol | the function | outgoing calls |
-| New View: Callers and Callees of Symbol | the function | both |
-| Add Symbol to Active View | appended to the open view | view direction |
+| gaffy: Upstream callers | the function | incoming calls, `gaffy.depth` hops |
+| gaffy: Calls downstream | the function | outgoing calls |
+| gaffy: Add to view | appended to the open view | view direction |
 
-Explorer, right click on a file, **gaffy** > New View: Functions of File: seeds are the file's functions and methods, outgoing calls, one hop. The view file goes to `.gaffy/views/<name>.<callers|callees|calls>.gaffy` and opens.
+`gaffy: Upstream callers and calls downstream` is in the command palette. With `gaffy.openCallHierarchy` (default on) VS Code's own Call Hierarchy opens in the References view as well. Explorer, right click on a file, **gaffy** > New View: Functions of File. The view file goes to `.gaffy/views/<name>.<callers|callees|calls>.gaffy`. A new view with more than `gaffy.foldAbove` (30) definitions opens one layer: the neighbors of the seeds start folded, as in the VS Code call hierarchy.
+
+The editor entries were a `gaffy` submenu; the submenu stays defined in `package.json` (`contributes.submenus`, `contributes.menus["gaffy.editor"]`). To return to it, replace the three `editor/context` entries by `{ "submenu": "gaffy.editor", "group": "z_gaffy@1" }`.
 
 ## Layout
 
@@ -43,7 +44,8 @@ Explorer, right click on a file, **gaffy** > New View: Functions of File: seeds 
 
 - Order `callers on top` (default): each caller sits above its callees, `└─>` points to the callee. Order `callees on top`: each callee sits above its callers with `└──`, as in the VS Code call hierarchy view. Calls always go from caller to callee; the order only changes which end sits on top.
 - Namespace boxes (optional, key `b`): packages and folders; a package holding one module merges with it (`render.harmonics`); labels are relative to their box. Callee boxes sit right of their caller boxes; the top-level functions of a box take the rows of their callers outside the box, so those calls draw level.
-- `├─>`, `└─>`: tree edge from the caller's stem. `──┐ ──┤ <──┘`: lane inside a box. `──> f()`: routed call arriving from the left, crossing box borders. Calls into one function share one line (a merge); calls from one function can leave on one line (a fork); unrelated calls never share a line.
+- `◂ name()`: its callers are closed (folded, or not yet asked); `name() ▸`: its calls are closed; `◂3`, `▸3`: folded count.
+- `├─>`, `└─>`: tree edge from the caller's stem. `──┐ ──┤ <──┘`: lane inside a box. `──> f()`: routed call arriving from the left, crossing box borders. Calls into one function share one line (a merge); calls from one function can leave on one line (a fork); a call joins a merge only where that line carries no other call; unrelated calls never share a line.
 - Vector mode: where two calls cross, the horizontal one hops over the vertical one; where calls merge or fork, the branch curves in the direction of the call.
 - `↻`: direct recursion; `↻ f()`: call back to `f` higher in the same chain.
 - `[render.harmonics] (6)`: collapsed container with its member count. ` ▸3`: three functions folded below (reached only through this one). ` +2`: two hidden callers or callees.
@@ -55,25 +57,39 @@ Algorithms: [src/core/layout.ts](src/core/layout.ts) (rows and lanes in a block)
 | input | action |
 |---|---|
 | click a function | select it and open it beside the graph (`gaffy.openBeside`) |
-| Shift+click | add to or remove from the selection |
-| double click a function | fold what lies below it (` ▸n` marks the folded count); again to unfold; a function with nothing below expands through the language server; Shift: expand both directions |
+| Shift+click a function | add to or remove from the selection |
+| `◂ name()` / `name() ▸` | closed side: click opens its callers / its calls (unfold, or ask the language server) |
+| hover a function: `▴` / `▾` | close its callers / its calls (fold: hide what only it reaches on that side; `◂3`, `▸3` show the count) |
+| double click a function | open or close it on the traversal side |
 | double click a collapsed container; a box header | expand it; collapse the box |
-| drag a function | move it with its tree children; calls re-route; the namespace box grows to enclose it; a callee moved above its caller gets `┌─>` from over the caller |
+| drag a function | move it with its tree children; calls re-route; the namespace box grows to enclose it |
 | drag a box header | move the box with its content |
 | `+n` badge | pick hidden neighbors to unhide |
-| hover an arrow; click; double click | highlight that call end to end, through the lines it shares with other calls; select it; show only its caller and what lies below it |
-| right click an arrow | show only what lies below this call; show only the path through this call; go to call site; go to callee |
-| hover | highlight its calls, callers and callees |
-| right click a function | go to definition, editor context menu, peek references, VS Code call hierarchy; fold or unfold; expand callers or callees; make or remove seed; select all callers, all callees, through, paths between two; hide selection, show only selection; hide, show hidden neighbors; collapse class, module, package; lock or unlock position; move among siblings; tag; reveal in explorer; copy path or qualified name |
-| right click a box header | collapse, lock or unlock, reveal, copy path |
+| hover an arrow | highlight every call through the cell under the pointer, each end to end |
+| click an arrow | select every call through that cell: on a fork or merge, all of them; Shift+click adds or removes |
+| double click an arrow | isolate: keep each selected call's caller and what lies below its callee, hide the rest |
+| Enter | isolate the selected calls (or the selected functions); with a single focused function: open it |
+| Esc | show all again; with nothing hidden: clear the selection |
+| right click a function | go to definition, editor context menu, peek references, VS Code call hierarchy; fold; expand callers or callees; seeds; select upstream, downstream, through, paths between two; hide; show hidden neighbors; collapse class, module, package; group its module; lock or unlock; move among siblings; tag; reveal; copy path or name |
+| right click a box header | collapse, ungroup (dissolve the box), group the modules inside, lock or unlock, reveal, copy path |
+| right click an arrow | isolate this call, isolate the path through it, go to call site, go to callee |
 | ↑ ↓, Alt+↑ ↓ | move focus; move the focused function among its siblings |
-| Enter, e, f, c or ←, → | open; expand through the language server; fold or unfold; collapse innermost container; expand collapsed |
-| h or Delete, i, Esc | hide selection; show only selection; clear selection |
-| k | lock or unlock the focused function |
-| u, o, g, b | unhide all; toggle order; glyph or vector edges; namespace boxes |
-| r, 0, x | rebuild; fit; export |
+| e, f, c or ←, → | expand through the language server; fold or unfold; collapse innermost container; expand collapsed |
+| h or Delete, i, k | hide selection; show only selection; lock or unlock the focused function |
+| u, o, g, b, r, 0, x | unhide all; toggle order; glyph or vector edges; group namespaces; rebuild; fit; export |
 
-Toolbar: traverse (callers, callees, both), depth, order, namespace boxes, edges (glyph, vector, and in vector mode the curve: orthogonal, rounded, sigmoid, spline), tree parent rule, fit, reset layout (drop every move, lock and sibling order), re-arrange (drop the moves of unlocked items), unlock all, show all (unhide, unfold, expand collapsed), folders (per top-level folder: included or excluded), export, style.
+Toolbar: ⟳ rebuild, **Isolate** (when nothing is hidden: isolates the selection) or **Show all (n)** (when something is hidden), depth − n +, fit, and **☰ Options**, a pulldown with checkmarks:
+
+- Traverse: ✓ Upstream callers, ✓ Calls downstream (both checked = both directions; unchecking a side removes its expansions and folds)
+- Order: callers on top, callees on top (VS Code call hierarchy)
+- Namespaces: ✓ Group namespaces, reset per-box grouping
+- Edges: glyphs (UTF box drawing) or vector; curve for vector: orthogonal, rounded, sigmoid, spline
+- Tree parent: first caller found (dfs), nearest caller above
+- Arrange: reset view (back to seeds, direction and depth), reset layout (moves, locks, sibling order), re-arrange (the selected functions, else every unlocked item), unlock all, expand collapsed, open folds
+- Folders: per top-level folder, included or excluded
+- File: export ASCII, edit style.json
+
+The toolbar and the pulldown are plain HTML elements in the webview, built with d3-selection and styled with VS Code's theme variables (`--vscode-menu-*`); the graph itself is SVG drawn with D3.
 
 Locks: a locked function or box keeps its absolute position; re-arrange and rebuilds place every unlocked item around it.
 
@@ -97,28 +113,53 @@ Locks: a locked function or box keeps its absolute position; re-arrange and rebu
 
 ```
 .gaffy/
-  views/<name>.gaffy     view: seeds, direction, depth, order, collapsed, hidden, sibling order, moves (offset),
-                         locks, folder include and exclude, tags, last built graph (JSON)
-  export/<name>.md       ASCII export, <pre> with links to path#Lline
-  export/<name>.txt      ASCII export, plain
-  style.json             style overrides (gaffy: Edit Style writes the defaults)
+  views/<name>.gaffy           view: seeds, direction, depth, order, expansions, folds, collapsed, hidden, grouping,
+                               sibling order, moves (offset), locks, folder include and exclude, tags,
+                               last built graph and the directions asked per definition (JSON)
+  export/<symbol>_<commit>_<nn>.md   ASCII export, <pre> with links to path#Lline; <commit> = short HEAD hash,
+  export/<symbol>_<commit>_<nn>.txt  or <YYYYMMDD-HHMM> outside git; <nn> counts exports per symbol and commit
+  cache/calls.json             cached language-server answers
+  style.json                   style overrides (gaffy: Edit Style writes the defaults)
 ```
 
 ## Style
 
-`.gaffy/style.json` overrides the `gaffy.style` setting, which overrides the defaults in [src/core/style.ts](src/core/style.ts). Schema: [schemas/style.schema.json](schemas/style.schema.json).
+`.gaffy/style.json` overrides the `gaffy.style` setting, which overrides the defaults in [src/core/style.ts](src/core/style.ts) (`DEFAULT_STYLE`). Schema: [schemas/style.schema.json](schemas/style.schema.json).
 
 ```json
 {
   "font":   { "family": "'JetBrains Mono', monospace", "size": 13, "lineHeight": 1.25 },
   "grid":   { "indent": 4, "laneGap": 2, "parentRule": "dfs" },
-  "edges":  { "mode": "glyph", "glyphs": "unicode", "arrow": true, "cross": "│", "width": 1, "curve": "orthogonal" },
+  "edges":  { "mode": "vector", "curve": "rounded", "lead": 3, "tension": 0.5, "arrow": true, "width": 1, "glyphs": "unicode", "cross": "│" },
   "labels": { "strip": [], "parens": true },
   "boxes":  { "enabled": true, "modules": false, "root": true, "fill": "hue", "alpha": 0.08, "line": "dashed" },
-  "route":  { "bend": 3, "cross": 6, "border": 4, "channel": 4 },
-  "colors": { "edge": "#6e7681", "seed": "#4daafc" }
+  "route":  { "bend": 3, "cross": 6, "border": 4, "adjacent": 2, "channel": 4 },
+  "colors": { "selection": "#ff9e3b", "highlight": "#3794ff" }
 }
 ```
+
+- `edges.lead`: straight lead-out and lead-in of the sigmoid, in cells; `edges.tension`: how far the S-curve's control points reach (0 sharp, 1 wide).
+- `route.adjacent`: cost of a vertical run in the column next to an unrelated vertical line; `route.cross`: cost of a crossing.
+
+### Colors
+
+Each key of `colors` becomes the CSS custom property `--g-<key>` on the webview (`applyColors` in [src/webview/main.ts](src/webview/main.ts)); the rules in [media/webview.css](media/webview.css) read those properties. Values are CSS colors or VS Code theme variables (`var(--vscode-…)`).
+
+| key | default | element |
+|---|---|---|
+| `fg` | editor foreground | function names |
+| `bg` | editor background | canvas, box header background |
+| `edge` | line-number foreground | call lines, arrowheads, glyphs |
+| `highlight` | focus border | hovered calls and the calls of the hovered function |
+| `selection` | active link foreground | selected calls (click on an arrow), outline of selected functions |
+| `selected` | selection background | background of selected functions |
+| `seed` | link foreground | seed functions, `+n` badges |
+| `twisty` | link foreground | `◂` `▸` `▴` `▾` disclosure markers |
+| `frame` | widget border | namespace box lines |
+| `namespace` | description foreground | namespace box headers |
+| `external` | disabled foreground | definitions outside the workspace |
+
+A new UI element gets a color by a CSS rule in `media/webview.css` that reads `var(--g-<key>)`, and the key with its default in `DEFAULT_STYLE.colors` (and in the `:root` block of the CSS file, used before the style arrives).
 
 ## Settings
 
@@ -126,7 +167,9 @@ Locks: a locked function or box keeps its absolute position; re-arrange and rebu
 |---|---|---|
 | `gaffy.depth` | 4 | hop limit for new views |
 | `gaffy.maxNodes` | 400 | definitions fetched per build |
-| `gaffy.exclude` | tests (`**/tests/**`, `**/test_*.py`, …) | globs left out of builds; the folders toolbar includes them per view |
+| `gaffy.foldAbove` | 30 | a new view larger than this opens one layer |
+| `gaffy.openCallHierarchy` | true | also open VS Code's Call Hierarchy when creating a view |
+| `gaffy.exclude` | tests (`**/tests/**`, `**/test_*.py`, …) | globs left out of builds; the Folders section includes them per view |
 | `gaffy.includeExternal` | false | include site-packages, node_modules, stubs |
 | `gaffy.autoSave` | true | save the view file after each graph change |
 | `gaffy.refreshOnSave` | touched | rebuild policy after a source save |

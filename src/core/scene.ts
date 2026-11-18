@@ -26,7 +26,11 @@ export interface Scene {
   seeds: Set<NodeKey>;
   hiddenOf: Map<NodeKey, NodeKey[]>;   // hidden callers and callees per visible vertex
   folds: Map<NodeKey, NodeKey[]>;      // folded vertex → vertices folded away
+  decor: Map<NodeKey, Decor>;          // label parts around the name: disclosure markers, tag, hidden badge
 }
+
+/** Label = pre + name + post + badge. */
+export interface Decor { pre: string; post: string; badge: string }
 
 export function sortKeyOf(n: GNode | undefined, key: NodeKey): string {
   return `${n?.path ?? ''}\u0000${String(n?.line ?? 0).padStart(9, '0')}\u0000${key}`;
@@ -39,8 +43,11 @@ export function buildScene(doc: ViewDoc, style: Style): Scene {
   const hidden = new Set(view.hidden);
   const vq = quotient(graph, collapsed, hidden, view.seeds);
   const dq = view.order === 'callees' ? reversed(vq) : vq;
-  // folds act on the drawn graph: callees under `callers` order, callers under `callees` order
-  const folds = foldOut(dq, view.folded, view.seeds);
+  // folds act in call direction: side `down` hides what only this vertex calls, `up` what only calls it
+  const sides = Object.entries(view.fold);
+  const down = foldOut(vq, sides.filter(([, s]) => s === 'down').map(([k]) => k), view.seeds);
+  const up = foldOut(reversed(vq), sides.filter(([, s]) => s === 'up').map(([k]) => k), view.seeds);
+  const folds = new Map<NodeKey, NodeKey[]>([...down, ...up]);
   const gone = new Set([...folds.values()].flat());
   const keep = new Set([...vq.nodes.keys()].filter((k) => !gone.has(k)));
   const vg = gone.size ? induced(vq, keep) : vq;
@@ -59,19 +66,34 @@ export function buildScene(doc: ViewDoc, style: Style): Scene {
     }
   }
 
-  const tree = boxTree(vg.nodes.keys(), graph.nodes, { ...style.boxes, enabled: view.boxes ?? style.boxes.enabled });
+  const tree = boxTree(vg.nodes.keys(), graph.nodes, {
+    ...style.boxes, enabled: view.boxes ?? style.boxes.enabled, group: new Set(view.group), ungroup: new Set(view.ungroup),
+  });
   const boxes = boxOf(tree);
   const labelOpts = { strip: style.labels.strip, parens: style.labels.parens };
+  // disclosure markers: `◂` before a label, its callers are closed; `▸` after it, its calls are closed.
+  // Closed: folded on that side (with the folded count), or not yet asked from the provider with
+  // nothing shown on that side (a frontier vertex).
+  const explored = doc.explored ?? {};
+  const asked = (k: NodeKey, d: 'in' | 'out') => explored[k] === d || explored[k] === 'both';
+  const decor = new Map<NodeKey, Decor>();
+  for (const k of vg.nodes.keys()) {
+    const v = vg.nodes.get(k)!;
+    const f = folds.get(k);
+    const side = view.fold[k];
+    let pre = '', post = '';
+    if (side === 'up') pre = `◂${f!.length} `;
+    else if (!v.collapsed && !(vg.inc.get(k) ?? []).length && !asked(k, 'in') && (view.direction !== 'out' || vq.nodes.has(k) && view.seeds.includes(k))) pre = '◂ ';
+    if (side === 'down') post = ` ▸${f!.length}`;
+    else if (!v.collapsed && !(vg.out.get(k) ?? []).length && !asked(k, 'out') && (view.direction !== 'in' || view.seeds.includes(k))) post = ' ▸';
+    const tag = view.tags[k];
+    const h = hiddenOf.get(k);
+    decor.set(k, { pre, post: (tag ? ` [${tag}]` : '') + post, badge: h ? ` +${h.length}` : '' });
+  }
   const label = (k: NodeKey) => {
     const v = vg.nodes.get(k)!;
-    let text = nodeLabel(v.node ?? fallbackNode(k), labelOpts, boxes.get(k)?.ns ?? '', v.members, v.collapsed);
-    const tag = view.tags[k];
-    if (tag) text += ` [${tag}]`;
-    const f = folds.get(k);
-    if (f) text += ` ▸${f.length}`;
-    const h = hiddenOf.get(k);
-    if (h) text += ` +${h.length}`;
-    return text;
+    const d = decor.get(k)!;
+    return d.pre + nodeLabel(v.node ?? fallbackNode(k), labelOpts, boxes.get(k)?.ns ?? '', v.members, v.collapsed) + d.post + d.badge;
   };
   const shortName = (k: NodeKey) => {
     const n = graph.nodes[k];
@@ -97,9 +119,9 @@ export function buildScene(doc: ViewDoc, style: Style): Scene {
   });
   const grid = buildGrid(placement, drawn, {
     arrow: style.edges.arrow && view.order !== 'callees',
-    cost: { bend: style.route.bend, cross: style.route.cross, border: style.route.border },
+    cost: { bend: style.route.bend, cross: style.route.cross, border: style.route.border, adjacent: style.route.adjacent },
   });
-  return { graph, vg, drawn, tree, placement, grid, seeds: new Set(view.seeds), hiddenOf, folds };
+  return { graph, vg, drawn, tree, placement, grid, seeds: new Set(view.seeds), hiddenOf, folds, decor };
 }
 
 function fallbackNode(key: NodeKey): GNode {

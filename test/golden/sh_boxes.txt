@@ -1,13 +1,13 @@
 ╭┄ gutai ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄╮
 ┆  ╭┄ render.harmonics ┄┄┄┄┄┄┄┄┄┄┄┄╮         ╭┄ runtime ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄╮ ┆
-┆  ┆  sh_eval() ──────────────────────┬─────┬─> interop.to_drjit() ↻                  ┆ ┆
-┆  ┆  ├─> resolve_backend() ──┐    ┆  │     │┆  ├─> interop._device_of()              ┆ ┆
-┆  ┆  ├─> _in_type() <────────┘    ┆  │     │┆  ├─> interop._on_device()              ┆ ┆
-┆  ┆  ├─> sh_eval_torch_compiled() ┆  │     │┆  └─> interop._shape()                  ┆ ┆
-┆  ┆  │   ├─> _torch_order()       ┆  │     │┆                                        ┆ ┆
-┆  ┆  │   ├─> _poly_table()        ┆  │     │┆                                        ┆ ┆
-┆  ┆  │   └─> _compiled()          ┆  │     │┆                                        ┆ ┆
-┆  ┆  ├─> _from_tensor() ─────────────┘     │┆                                        ┆ ┆
+┆  ┆  sh_eval() ────────────────────────────┬─> interop.to_drjit() ↻                  ┆ ┆
+┆  ┆  ├─> resolve_backend() ──┐    ┆        │┆│ ├─> interop._device_of()              ┆ ┆
+┆  ┆  ├─> _in_type() <────────┘    ┆        │┆│ ├─> interop._on_device()              ┆ ┆
+┆  ┆  ├─> sh_eval_torch_compiled() ┆        │┆│ └─> interop._shape()                  ┆ ┆
+┆  ┆  │   ├─> _torch_order()       ┆        │┆│                                       ┆ ┆
+┆  ┆  │   ├─> _poly_table()        ┆        │┆│                                       ┆ ┆
+┆  ┆  │   └─> _compiled()          ┆        │┆│                                       ┆ ┆
+┆  ┆  ├─> _from_tensor() ───────────────────│─┘                                       ┆ ┆
 ┆  ┆  ├─> _from_columns() ────┐    ┆        │┆                                        ┆ ┆
 ┆  ┆  │   └─> _stacked() ─────│─────────────┴─> interop.to_torch()                    ┆ ┆
 ┆  ┆  ├─> _wrapped_mi() ────┬─│───────────────> interop.unravel()                     ┆ ┆

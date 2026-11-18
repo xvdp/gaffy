@@ -174,7 +174,7 @@ describe('addendum 1a: sh_eval and its callees', () => {
   it('fold hides what only the folded vertex reaches; shared callees stay', () => {
     const torch = k('gutai.render.harmonics:sh_eval_torch_compiled');
     const cols = k('gutai.render.harmonics:_from_columns');
-    const sc = buildScene(fixtureDoc(SH, { ...doc.view, folded: [torch, cols] }), boxed());
+    const sc = buildScene(fixtureDoc(SH, { ...doc.view, fold: { [torch]: 'down', [cols]: 'down' } }), boxed());
     invariants(sc);
     expect(sc.folds.get(torch)!.map((x) => x.split('#')[1]).sort()).toEqual(['_compiled', '_poly_table', '_torch_order']);
     expect(sc.folds.get(cols)!.map((x) => x.split('#')[1])).toEqual(['_stacked']);
@@ -182,6 +182,49 @@ describe('addendum 1a: sh_eval and its callees', () => {
     expect(sc.vg.nodes.has(k('gutai.runtime.interop:to_torch'))).toBe(true);        // also called by sh_eval
     expect(sc.grid.labels.find((l) => l.key === torch)!.text).toBe('sh_eval_torch_compiled() ▸3');
     expect(sc.hiddenOf.size).toBe(0);                                               // folded is not hidden
+  });
+
+  it('disclosure markers: ◂ before a seed with unasked callers, ▸ after an unasked leaf', () => {
+    const d = fixtureDoc(SH, doc.view);
+    d.explored = { [k('gutai.render.harmonics:sh_eval')]: 'out' };
+    const sc = buildScene(d, boxed());
+    expect(sc.decor.get(k('gutai.render.harmonics:sh_eval'))!.pre).toBe('◂ ');
+    expect(sc.decor.get(k('gutai.runtime.device:_nvml'))!.post).toBe(' ▸');
+    expect(sc.decor.get(k('gutai.render.harmonics:sh_eval_mi'))!.post).toBe('');   // its calls are shown
+    expect(sc.grid.labels.find((l) => l.key === k('gutai.render.harmonics:sh_eval'))!.text).toBe('◂ sh_eval()');
+  });
+
+  it('grouping on demand: ungroup a package, group a module', () => {
+    const rt = 'dir:gutai/runtime';
+    const un = buildScene(fixtureDoc(SH, { ...doc.view, ungroup: [rt] }), boxed());
+    invariants(un);
+    expect(un.placement.frames.map((f) => f.box.label)).not.toContain('runtime');
+    expect(un.grid.labels.find((l) => l.key === k('gutai.runtime.variant:pick_parallel'))!.text).toBe('runtime.variant.pick_parallel()');
+    const gr = buildScene(fixtureDoc(SH, { ...doc.view, group: ['py:gutai/runtime/variant.py'] }), boxed());
+    invariants(gr);
+    expect(gr.placement.frames.map((f) => f.box.label)).toContain('variant');
+    expect(gr.grid.labels.find((l) => l.key === k('gutai.runtime.variant:pick_parallel'))!.text).toBe('pick_parallel()');
+  });
+
+  it('fold on the callers side hides what only calls through the folded vertex', () => {
+    const d = fixtureDoc(SH, { seeds: [k('gutai.runtime.variant:current')], direction: 'in',
+      fold: { [k('gutai.runtime.variant:pick_parallel')]: 'up' } });
+    const sc = buildScene(d, boxed());
+    invariants(sc);
+    // sh_eval_mi still calls assert_variant → current: it stays; nothing calls only through pick_parallel
+    expect(sc.vg.nodes.has(k('gutai.render.harmonics:sh_eval_mi'))).toBe(true);
+    // a callers view holds only the callers chain of its seed
+    const chain: [string, string][] = [
+      ['gutai.runtime.device:has_cards', 'gutai.runtime.device:_nvml'],
+      ['gutai.runtime.variant:_host_process', 'gutai.runtime.device:has_cards'],
+      ['gutai.runtime.variant:pick_parallel', 'gutai.runtime.variant:_host_process'],
+      ['gutai.render.harmonics:sh_eval_mi', 'gutai.runtime.variant:pick_parallel'],
+    ];
+    const d2 = fixtureDoc(chain, { seeds: [k('gutai.runtime.device:_nvml')], direction: 'in',
+      fold: { [k('gutai.runtime.variant:_host_process')]: 'up' } });
+    const s2 = buildScene(d2, boxed());
+    expect(s2.vg.nodes.has(k('gutai.runtime.variant:pick_parallel'))).toBe(false);
+    expect(s2.decor.get(k('gutai.runtime.variant:_host_process'))!.pre).toMatch(/^◂\d+ $/);
   });
 
   it('callees order with boxes', () => {

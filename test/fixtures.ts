@@ -142,5 +142,6 @@ export const STAR: [string, string][] = [
 export function fixtureDoc(edges: [string, string][], view: Partial<ViewSpec> = {}): ViewDoc {
   const doc = emptyDoc('fixture', view);
   doc.graph = buildFixture(edges);
+  doc.explored = Object.fromEntries(Object.keys(doc.graph.nodes).map((x) => [x, 'both' as const]));
   return doc;
 }

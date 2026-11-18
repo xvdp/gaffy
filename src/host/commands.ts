@@ -3,6 +3,7 @@
  * the webview context menu. A `webview/context` command receives the merged `data-vscode-context`
  * object of the clicked element: `{ webviewSection, key, webview }`.
  */
+import { execFile } from 'node:child_process';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { toHtmlPre, toText } from '../core/grid';
@@ -28,6 +29,15 @@ async function uniqueUri(dir: vscode.Uri, stem: string, ext: string): Promise<vs
     try { await vscode.workspace.fs.stat(u); } catch { return u; }
   }
 }
+
+/** Short commit hash of HEAD in `cwd`, undefined outside git. */
+function gitShort(cwd: string): Promise<string | undefined> {
+  return new Promise((res) => execFile('git', ['rev-parse', '--short', 'HEAD'], { cwd, timeout: 3000 },
+    (err, out) => res(err ? undefined : out.trim() || undefined)));
+}
+
+const dateSlug = (d = new Date()) =>
+  `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}-${String(d.getHours()).padStart(2, '0')}${String(d.getMinutes()).padStart(2, '0')}`;
 
 async function openNode(n: GNode | undefined, focus: boolean): Promise<vscode.TextEditor | undefined> {
   if (!n?.uri) return undefined;
@@ -88,8 +98,21 @@ export function registerCommands(ctx: vscode.ExtensionContext, editor: GaffyEdit
       { viewColumn: vscode.ViewColumn.Active });
   };
 
+  /** VS Code's own call hierarchy in the References view, next to the gaffy view (`gaffy.openCallHierarchy`). */
+  const showCallHierarchy = async (direction: Direction) => {
+    if (!cfg().get<boolean>('openCallHierarchy')) return;
+    const have = new Set(await vscode.commands.getCommands(true));
+    if (!have.has('references-view.showCallHierarchy')) return;
+    try {
+      await vscode.commands.executeCommand('references-view.showCallHierarchy');
+      const toggle = direction === 'out' ? 'references-view.showOutgoingCalls' : 'references-view.showIncomingCalls';
+      if (have.has(toggle)) await vscode.commands.executeCommand(toggle);
+    } catch { /* the view is optional */ }
+  };
+
   const graphAtCursor = async (direction: Direction) => {
     const s = await seedAtCursor();
+    await showCallHierarchy(direction);
     const doc = emptyDoc(s.node.name, { seeds: [s.key], direction, depth: cfg().get<number>('depth') ?? 4 });
     doc.graph.nodes = s.acc;
     await createView(s.uri, `${s.node.name}.${direction === 'in' ? 'callers' : direction === 'out' ? 'callees' : 'calls'}`, doc);
@@ -162,6 +185,8 @@ export function registerCommands(ctx: vscode.ExtensionContext, editor: GaffyEdit
   reg('gaffy.edge.callee', forward('callee'));
   reg('gaffy.resetLayout', forward('resetLayout'));
   reg('gaffy.showAll', forward('showAll'));
+  reg('gaffy.resetView', forward('resetView'));
+  reg('gaffy.isolateSelection', forward('isolateSelection'));
   reg('gaffy.node.lock', forward('lock'));
   reg('gaffy.node.unlock', forward('unlock'));
   reg('gaffy.node.showHidden', forward('showHidden'));
@@ -187,9 +212,21 @@ export function registerCommands(ctx: vscode.ExtensionContext, editor: GaffyEdit
       return n.line !== undefined && n.kind !== 'package' && n.kind !== 'folder' ? `${rel}#L${n.line + 1}` : rel;
     };
     const md = `# ${doc.name}\n\n<pre>\n${toHtmlPre(sc.grid, gs, href)}\n</pre>\n`;
-    const mdUri = vscode.Uri.joinPath(outDir, `${s.name}.md`);
-    await vscode.workspace.fs.writeFile(mdUri, new TextEncoder().encode(md));
-    await vscode.workspace.fs.writeFile(vscode.Uri.joinPath(outDir, `${s.name}.txt`),
+    // <symbol>_<short commit hash, or date>_<nn>.md and .txt, numbered per symbol and commit
+    const seed = doc.view.seeds[0];
+    const sym = ((seed && nodeOf(doc, seed)?.name) || s.name).replace(/[^\w.-]+/g, '_');
+    const prefix = `${sym}_${(await gitShort(s.folder.fsPath)) ?? dateSlug()}_`;
+    let n = 0;
+    try {
+      for (const [f] of await vscode.workspace.fs.readDirectory(outDir)) {
+        const m = f.startsWith(prefix) ? /^(\d+)\./.exec(f.slice(prefix.length)) : null;
+        if (m) n = Math.max(n, Number(m[1]));
+      }
+    } catch { /* new folder */ }
+    const stem = `${prefix}${String(n + 1).padStart(2, '0')}`;
+    const mdUri = vscode.Uri.joinPath(outDir, `${stem}.md`);
+    await vscode.workspace.fs.writeFile(mdUri, new TextEncoder().encode(md.replace(`# ${doc.name}`, `# ${stem}`)));
+    await vscode.workspace.fs.writeFile(vscode.Uri.joinPath(outDir, `${stem}.txt`),
       new TextEncoder().encode(toText(sc.grid, gs) + '\n'));
     await vscode.commands.executeCommand('markdown.showPreviewToSide', mdUri);
   };
@@ -239,6 +276,22 @@ export function registerCommands(ctx: vscode.ExtensionContext, editor: GaffyEdit
   reg('gaffy.node.collapseClass', collapse(['class'], 'class'));
   reg('gaffy.node.collapseFile', collapse(['module', 'file'], 'file or module'));
   reg('gaffy.node.collapsePackage', collapse(['package', 'folder'], 'package or folder'));
+  // namespace grouping on demand: box a module, dissolve a box, box every module inside a box
+  reg('gaffy.node.groupModule', node((s, d, k) => {
+    const m = containerOfKind(d, k, ['module', 'file']);
+    if (!m) throw new Error('no enclosing module');
+    return s.update((doc) => { doc.view.ungroup = doc.view.ungroup.filter((x) => x !== m); if (!doc.view.group.includes(m)) doc.view.group.push(m); });
+  }));
+  reg('gaffy.node.ungroup', node((s, _d, k) =>
+    s.update((doc) => { doc.view.group = doc.view.group.filter((x) => x !== k); if (!doc.view.ungroup.includes(k)) doc.view.ungroup.push(k); })));
+  reg('gaffy.node.groupInside', node((s, d, k) => {
+    const nodes = d.graph.nodes;
+    const mods = Object.values(nodes).filter((n) => (n.kind === 'module' || n.kind === 'file') && ancestors(nodes, n.key).includes(k)).map((n) => n.key);
+    return s.update((doc) => {
+      doc.view.ungroup = doc.view.ungroup.filter((x) => !mods.includes(x));
+      for (const m of mods) if (!doc.view.group.includes(m)) doc.view.group.push(m);
+    });
+  }));
   reg('gaffy.node.expandContainer', node((s, _d, k) =>
     s.update((doc) => { doc.view.collapsed = doc.view.collapsed.filter((c) => c !== k); })));
   reg('gaffy.node.hide', node((s, _d, k) => s.update((doc) => { if (!doc.view.hidden.includes(k)) doc.view.hidden.push(k); })));

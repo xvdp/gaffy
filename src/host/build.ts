@@ -30,6 +30,7 @@ async function pool<T>(items: T[], limit: number, fn: (t: T) => Promise<void>): 
 
 export interface BuildResult {
   graph: Subgraph;
+  explored: Record<NodeKey, Direction>;   // directions answered per vertex
   truncated: boolean;
   missing: NodeKey[];
 }
@@ -52,6 +53,9 @@ export async function buildGraph(
   const acc: Record<NodeKey, GNode> = {};
   const edges = new Map<string, GEdge>();
   const queried = new Set<string>();
+  const explored: Record<NodeKey, Direction> = {};
+  const mark = (k: NodeKey, d: Dir) => { const p = explored[k]; explored[k] = !p || p === d ? d : 'both'; };
+  const priorAsked = (k: NodeKey, d: Dir) => doc.explored?.[k] === d || doc.explored?.[k] === 'both';
   const defs = () => Object.values(acc).filter((n) => !isContainer(n)).length;
   const missing: NodeKey[] = [];
   let truncated = false;
@@ -84,15 +88,18 @@ export async function buildGraph(
       for (const [k, n] of Object.entries(hit.nodes)) if (!acc[k]) acc[k] = n;
       es = hit.edges;
       stats.cached++;
+      mark(key, dir);
     } else if (mode === 'cacheOnly') {
       // the view's own graph is a cache too: reuse its calls of this definition
       es = doc.graph.edges.filter((e) => (dir === 'out' ? e.from === key : e.to === key));
       for (const e of es) for (const k of [e.from, e.to]) withContainers(k, (x) => known[x]);
       stats.cached++;
+      if (priorAsked(key, dir)) mark(key, dir);
     } else {
       es = dir === 'out' ? await p.outgoing(key, acc) : await p.incoming(key, acc);
       opts.cache?.put(key, dir, es, acc);
       stats.requests++;
+      mark(key, dir);
     }
     report();
     for (const e of es) {
@@ -119,12 +126,12 @@ export async function buildGraph(
 
   // drop definitions of excluded folders that only the provider's answers introduced
   for (const k of Object.keys(acc)) if (!isContainer(acc[k]) && skip(k)) delete acc[k];
-  return { graph: { nodes: acc, edges: [...edges.values()] }, truncated, missing };
+  return { graph: { nodes: acc, edges: [...edges.values()] }, explored, truncated, missing };
 }
 
 /** Document after a build: the new graph replaces the old one; definitions outside the new reach set disappear. */
 export function applyBuild(doc: ViewDoc, r: BuildResult): ViewDoc {
-  const out: ViewDoc = { ...doc, graph: r.graph, updated: new Date().toISOString() };
+  const out: ViewDoc = { ...doc, graph: r.graph, explored: r.explored, updated: new Date().toISOString() };
   if (r.truncated) out.truncated = true;
   else delete out.truncated;
   return out;

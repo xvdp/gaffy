@@ -5,6 +5,7 @@
  */
 import * as path from 'node:path';
 import * as vscode from 'vscode';
+import { isContainer, NodeKey } from '../core/model';
 import { globToRegExp, parseDoc, serializeDoc, ViewDoc } from '../core/viewdoc';
 import { applyBuild, buildGraph, BuildMode, BuildProgress } from './build';
 import { CallCache } from './cache';
@@ -100,7 +101,9 @@ export class Session {
           void vscode.window.showWarningMessage(`gaffy: seeds not resolved: ${r.missing.map((k) => k.split('#').pop()).join(', ')}`);
         }
         if (mode === 'cacheOnly' && !Object.keys(r.graph.edges).length && !Object.keys(current.graph.nodes).length) continue;
+        const first = !Object.keys(current.graph.nodes).length || Object.keys(current.graph.nodes).length <= current.view.seeds.length;
         current = applyBuild(current, r);
+        if (first) openOneLayer(current, cfg.get<number>('foldAbove') ?? 30);
         await this.write(current);
       }
     } catch (e) {
@@ -119,6 +122,28 @@ export class Session {
     const doc = this.doc();
     mutate(doc);
     await this.write(doc);
+  }
+}
+
+/**
+ * A new view larger than `limit` definitions opens one layer, as the VS Code call hierarchy does: the
+ * neighbors of the seeds are folded on the traversal side (calls for `out`, callers for `in`).
+ */
+function openOneLayer(doc: ViewDoc, limit: number): void {
+  const defs = Object.values(doc.graph.nodes).filter((n) => !isContainer(n)).length;
+  if (defs <= limit || Object.keys(doc.view.fold).length) return;
+  const seeds = new Set(doc.view.seeds);
+  const out = new Map<NodeKey, NodeKey[]>(), inc = new Map<NodeKey, NodeKey[]>();
+  for (const e of doc.graph.edges) {
+    if (!out.has(e.from)) out.set(e.from, []);
+    out.get(e.from)!.push(e.to);
+    if (!inc.has(e.to)) inc.set(e.to, []);
+    inc.get(e.to)!.push(e.from);
+  }
+  const d = doc.view.direction;
+  for (const s of seeds) {
+    if (d !== 'in') for (const c of out.get(s) ?? []) if (!seeds.has(c) && (out.get(c) ?? []).length) doc.view.fold[c] = 'down';
+    if (d !== 'out') for (const c of inc.get(s) ?? []) if (!seeds.has(c) && (inc.get(c) ?? []).length) doc.view.fold[c] = 'up';
   }
 }
 

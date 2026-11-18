@@ -10,30 +10,32 @@ export type FrameLine = 'solid' | 'rounded' | 'dashed' | 'dotted' | 'double';
 export interface Style {
   font: { family: string; size: number; lineHeight: number };
   grid: { indent: number; laneGap: number; parentRule: ParentRule };
-  edges: { mode: EdgeMode; glyphs: 'unicode' | 'ascii'; arrow: boolean; cross: string; width: number; curve: Curve };
+  edges: { mode: EdgeMode; glyphs: 'unicode' | 'ascii'; arrow: boolean; cross: string; width: number; curve: Curve; lead: number; tension: number };
   labels: { strip: string[]; parens: boolean };
   boxes: { enabled: boolean; modules: boolean; root: boolean; fill: 'none' | 'hue'; alpha: number; line: FrameLine };
-  route: { bend: number; cross: number; border: number; channel: number };
+  route: { bend: number; cross: number; border: number; adjacent: number; channel: number };
   colors: Record<string, string>;
 }
 
 export const DEFAULT_STYLE: Style = {
   font: { family: "'JetBrains Mono', 'Fira Code', Menlo, Consolas, monospace", size: 13, lineHeight: 1.25 },
   grid: { indent: 4, laneGap: 2, parentRule: 'dfs' },
-  edges: { mode: 'glyph', glyphs: 'unicode', arrow: true, cross: '│', width: 1, curve: 'orthogonal' },
+  edges: { mode: 'vector', glyphs: 'unicode', arrow: true, cross: '│', width: 1, curve: 'rounded', lead: 3, tension: 0.5 },
   labels: { strip: [], parens: true },
   boxes: { enabled: true, modules: false, root: true, fill: 'none', alpha: 0.08, line: 'dashed' },
-  route: { bend: 3, cross: 6, border: 4, channel: 4 },
+  route: { bend: 3, cross: 6, border: 4, adjacent: 2, channel: 4 },
   colors: {
     fg: 'var(--vscode-editor-foreground)',
     bg: 'var(--vscode-editor-background)',
     edge: 'var(--vscode-editorLineNumber-foreground)',
-    highlight: 'var(--vscode-focusBorder)',
+    highlight: '#ddaa22', // 'var(--vscode-focusBorder)'
     seed: 'var(--vscode-textLink-foreground)',
     frame: 'var(--vscode-editorWidget-border)',
     namespace: 'var(--vscode-descriptionForeground)',
     external: 'var(--vscode-disabledForeground)',
     selected: 'var(--vscode-editor-selectionBackground)',
+    selection: 'var(--vscode-textLink-activeForeground)',
+    twisty: 'var(--vscode-textLink-foreground)',
   },
 };
 

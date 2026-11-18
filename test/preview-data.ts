@@ -13,6 +13,7 @@ star.name = 'star';
 
 const sh = fixtureDoc(SH, { seeds: [k('gutai.render.harmonics:sh_eval')], direction: 'out' });
 sh.name = 'sh';
+sh.explored = { [k('gutai.render.harmonics:sh_eval')]: 'out', [k('gutai.render.harmonics:sh_eval_mi')]: 'out' };
 
 process.stdout.write(JSON.stringify({
   docs: { exp4: serializeDoc(exp4), star: serializeDoc(star), sh: serializeDoc(sh) }, style: DEFAULT_STYLE,

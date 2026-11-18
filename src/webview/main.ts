@@ -29,7 +29,9 @@ let excludeGlobs: string[] = [];
 let scene: Scene | undefined;
 let focusKey: NodeKey | undefined = api.getState()?.focus;
 let selected = new Set<NodeKey>();
-let selectedCall: { from: NodeKey; to: NodeKey } | undefined;   // drawn direction
+const callKey = (p: { from: NodeKey; to: NodeKey }) => `${p.from}\u0000${p.to}`;
+let selCalls = new Set<string>();     // selected calls, drawn direction, callKey
+let optsOpen = false;                 // options pulldown
 let busy = false;
 let cw = 8;
 let ch = 16;
@@ -195,14 +197,19 @@ function curvePath(p: EdgePath, curve: Curve): string {
   const pts = p.pts.map(([x, y]) => [X(x), Y(y)] as [number, number]);
   if (curve === 'spline') return line().curve(curveBasis)(pts) ?? '';
   if (curve === 'sigmoid') {
+    // straight lead-out of `edges.lead` cells, cubic S, straight lead-in; `edges.tension` sets how far the
+    // control points reach along the leads (0: sharp, 1: wide)
     const [x0, y0] = pts[0], [x1, y1] = pts[pts.length - 1];
-    if (p.start === 'S') {
-      // from under the caller: vertical start, horizontal end
-      return `M${x0},${y0}C${x0},${y1} ${x0},${y1} ${x1},${y1}`;
-    }
-    const dx = Math.max(cw * 2, Math.abs(x1 - x0) / 2);
-    const c2 = p.arrive === 'E' ? x1 - dx : x1 + dx;
-    return `M${x0},${y0}C${x0 + dx},${y0} ${c2},${y1} ${x1},${y1}`;
+    const L = style!.edges.lead, t = style!.edges.tension;
+    const vertical = p.start !== 'E';
+    const sy = p.start === 'N' ? -1 : 1;
+    const a: [number, number] = vertical ? [x0, y0 + sy * L * ch * 0.5] : [x0 + L * cw, y0];
+    const b: [number, number] = p.arrive === 'E' ? [x1 - L * cw, y1] : [x1 + L * cw, y1];
+    const kx = Math.max(cw, t * Math.abs(b[0] - a[0]));
+    const ky = Math.max(ch * 0.5, t * Math.abs(b[1] - a[1]));
+    const c1 = vertical ? [a[0], a[1] + sy * ky] : [a[0] + kx, a[1]];
+    const c2 = p.arrive === 'E' ? [b[0] - kx, b[1]] : [b[0] + kx, b[1]];
+    return `M${x0},${y0}L${a[0]},${a[1]}C${c1[0]},${c1[1]} ${c2[0]},${c2[1]} ${b[0]},${b[1]}L${x1},${y1}`;
   }
   // rounded corners
   const r = Math.min(cw, ch) * 0.9;
@@ -291,13 +298,30 @@ function render() {
   root.append('g').attr('class', 'overlay');
 
   // calls: wide transparent hit paths; hover highlights, click selects, double click shows only what lies below
+  // calls: wide transparent hit paths. A click gathers every call through the clicked cell, so a click on
+  // a shared line (fork, merge) takes all calls on it. Shift adds or removes; double click isolates.
   root.append('g').attr('class', 'hits').selectAll('path').data(g.paths).join('path')
     .attr('d', (p) => callD(p))
     .attr('data-vscode-context', (p) => JSON.stringify({ webviewSection: 'edge', key: p.from, to: p.to, preventDefaultContextMenuItems: true }))
-    .on('mouseenter', (_ev, p) => highlightCall(p))
+    .on('mousemove', (ev: MouseEvent, p) => highlightCalls(callsAt(ev, p)))
     .on('mouseleave', () => highlight(focusKey))
-    .on('click', (ev: MouseEvent, p) => { ev.stopPropagation(); selectedCall = { from: p.from, to: p.to }; highlight(focusKey); status(); })
-    .on('dblclick', (ev: MouseEvent, p) => { ev.stopPropagation(); runCmd('callSubtree', p.from, undefined, p.to); })
+    .on('click', (ev: MouseEvent, p) => {
+      ev.stopPropagation();
+      const hit = callsAt(ev, p).map(callKey);
+      if (ev.shiftKey) {
+        const all = hit.every((x) => selCalls.has(x));
+        for (const x of hit) all ? selCalls.delete(x) : selCalls.add(x);
+      } else selCalls = new Set(hit);
+      highlight(focusKey);
+      toolbar();
+      status();
+    })
+    .on('dblclick', (ev: MouseEvent, p) => {
+      ev.stopPropagation();
+      const hit = callsAt(ev, p);
+      const sel = hit.some((c) => selCalls.has(callKey(c))) ? [...selCalls].map(unkey) : hit;
+      isolateCalls(sel);
+    })
     .append('title').text((p) => callTitle(p));
 
   // labels
@@ -311,13 +335,30 @@ function render() {
     }));
   nodes.append('rect').attr('class', 'hit').attr('x', -2).attr('y', 0).attr('width', (d) => d.text.length * cw + 4).attr('height', ch).attr('rx', 2);
   nodes.append('text').attr('y', ch / 2).each(function (d) {
-    const hid = sc.hiddenOf.get(d.key);
-    const badge = hid ? ` +${hid.length}` : '';
+    const dec = sc.decor.get(d.key) ?? { pre: '', post: '', badge: '' };
+    const base = d.text.slice(dec.pre.length, d.text.length - dec.post.length - dec.badge.length);
     const t = select(this);
-    t.append('tspan').text(badge ? d.text.slice(0, d.text.length - badge.length) : d.text);
-    if (badge) {
-      t.append('tspan').attr('class', 'badge').text(badge)
-        .on('click', (ev: MouseEvent) => { ev.stopPropagation(); api.postMessage({ type: 'hiddenNeighbors', key: d.key, keys: hid }); });
+    if (dec.pre) t.append('tspan').attr('class', 'twisty').text(dec.pre)
+      .on('click', (ev: MouseEvent) => { ev.stopPropagation(); twisty(d.key, 'up'); });
+    t.append('tspan').text(base);
+    if (dec.post) t.append('tspan').attr('class', dec.post.includes('▸') ? 'twisty' : null).text(dec.post)
+      .on('click', (ev: MouseEvent) => { if (dec.post.includes('▸')) { ev.stopPropagation(); twisty(d.key, 'down'); } });
+    if (dec.badge) t.append('tspan').attr('class', 'badge').text(dec.badge)
+      .on('click', (ev: MouseEvent) => { ev.stopPropagation(); api.postMessage({ type: 'hiddenNeighbors', key: d.key, keys: sc.hiddenOf.get(d.key) }); });
+  });
+  // open sides show a closing twisty on hover: ▾ after the label closes its calls, ▴ before it its callers
+  nodes.each(function (d) {
+    const g0 = select(this);
+    const dec = sc.decor.get(d.key);
+    if ((sc.vg.out.get(d.key) ?? []).length && !dec?.post.includes('▸')) {
+      g0.append('text').attr('class', 'twisty open').attr('x', d.text.length * cw + cw * 0.4).attr('y', ch / 2).text('▾')
+        .on('click', (ev: MouseEvent) => { ev.stopPropagation(); twisty(d.key, 'down'); })
+        .append('title').text('close what this calls');
+    }
+    if ((sc.vg.inc.get(d.key) ?? []).length && !dec?.pre) {
+      g0.append('text').attr('class', 'twisty open').attr('x', -cw * 1.2).attr('y', ch / 2).text('▴')
+        .on('click', (ev: MouseEvent) => { ev.stopPropagation(); twisty(d.key, 'up'); })
+        .append('title').text('close what calls this');
     }
   });
   nodes.append('title').text((d) => tooltip(d));
@@ -325,8 +366,10 @@ function render() {
     .on('click', (ev: MouseEvent, d) => {
       ev.stopPropagation();
       if (ev.shiftKey) { selected.has(d.key) ? selected.delete(d.key) : selected.add(d.key); }
-      else { selected = new Set([d.key]); api.postMessage({ type: 'open', key: d.key }); }
+      else { selected = new Set([d.key]); selCalls.clear(); api.postMessage({ type: 'open', key: d.key }); }
       setFocus(d.key);
+      toolbar();
+      status();
     })
     .on('dblclick', (ev: MouseEvent, d) => {
       ev.stopPropagation();
@@ -356,7 +399,7 @@ function render() {
   heads.call(dragUnit((d) => d.key) as any);
 
   root.append('g').attr('class', 'drag');
-  svg.on('click', () => { selected.clear(); selectedCall = undefined; setFocus(undefined); });
+  svg.on('click', () => { selected.clear(); selCalls.clear(); optsOpen = false; toolbar(); setFocus(undefined); });
   if (!placed) placeView();
   highlight(focusKey);
   toolbar();
@@ -383,10 +426,41 @@ function callTitle(p: EdgePath): string {
   return `${name(caller)}() → ${name(callee)}()\nclick select · double click: show only what lies below · right click: more`;
 }
 
-function highlightCall(p: { from: NodeKey; to: NodeKey }) {
+const unkey = (k: string) => { const [from, to] = k.split('\u0000'); return { from, to }; };
+
+/** Calls through the grid cell under the pointer; the hit path alone when none matches (curved styles). */
+function callsAt(ev: MouseEvent, p: EdgePath): EdgePath[] {
+  const t = (root.node() as SVGGElement).getScreenCTM();
+  if (!t) return [p];
+  const pt = new DOMPoint(ev.clientX, ev.clientY).matrixTransform(t.inverse());
+  const id = cellId(Math.floor(pt.y / ch), Math.floor(pt.x / cw));
+  const at = scene!.grid.paths.filter((q) => q.cells.includes(id));
+  return at.length ? at : [p];
+}
+
+function highlightCalls(ps: { from: NodeKey; to: NodeKey }[]) {
   const ov = root.select('.overlay');
   ov.selectAll('path.hl').remove();
-  for (const q of scene!.grid.paths) if (q.from === p.from && q.to === p.to) ov.append('path').attr('class', 'hl').attr('d', callD(q));
+  const want = new Set(ps.map(callKey));
+  for (const q of scene!.grid.paths) if (want.has(callKey(q))) ov.append('path').attr('class', 'hl').attr('d', callD(q));
+}
+
+/** Keep each call's caller and what lies below its callee in the drawn graph; hide the rest. */
+function isolateCalls(calls: { from: NodeKey; to: NodeKey }[]) {
+  if (!calls.length) return;
+  const keep = new Set<NodeKey>();
+  for (const c of calls) { keep.add(c.from); for (const k of reachDrawn(c.to, 'down')) keep.add(k); }
+  selCalls.clear();
+  isolate(keep);
+}
+
+/** Open or close one side of a vertex: unfold, fold, or ask the language server for that side. */
+function twisty(key: NodeKey, side: 'up' | 'down') {
+  if (!scene || !doc) return;
+  if (doc.view.fold[key] === side) { commit((x) => { delete x.view.fold[key]; }); return; }
+  const shown = side === 'down' ? scene.vg.out.get(key) : scene.vg.inc.get(key);
+  if (shown?.length) { commit((x) => { x.view.fold[key] = side; }); return; }
+  api.postMessage({ type: 'expand', key, dir: side === 'down' ? 'out' : 'in' });
 }
 
 /** Vertices reachable along the drawn graph: down = what lies below, up = what lies above. */
@@ -424,7 +498,7 @@ function labelClass(d: LabelSpan): string {
   if (v?.collapsed) cls.push('collapsed');
   if (v?.node?.external) cls.push('external');
   if (doc!.view.lock[d.key]) cls.push('locked');
-  if (sc.folds.has(d.key)) cls.push('folded');
+  if (doc!.view.fold[d.key]) cls.push('folded');
   if (selected.has(d.key)) cls.push('sel');
   if (d.key === focusKey) cls.push('focus');
   return cls.join(' ');
@@ -441,9 +515,8 @@ function tooltip(d: LabelSpan): string {
   const hid = scene!.hiddenOf.get(d.key);
   if (hid) lines.push(`hidden: ${hid.map((k) => scene!.graph.nodes[k]?.name ?? k).join(', ')} (click +${hid.length} to unhide)`);
   const fold = scene!.folds.get(d.key);
-  if (fold) lines.push(`folded: ${fold.length} below (double click to unfold)`);
-  else if ((scene!.drawn.out.get(d.key) ?? []).length) lines.push('double click to fold what lies below');
-  else lines.push('double click to expand through the language server');
+  if (fold) lines.push(`folded: ${fold.length} ${doc!.view.fold[d.key] === 'up' ? 'callers' : 'calls'} (click ${doc!.view.fold[d.key] === 'up' ? '◂' : '▸'} to open)`);
+  lines.push('◂ open callers · ▸ open calls · hover: ▴ ▾ close them · double click: open or close');
   if (doc!.view.lock[d.key]) lines.push('locked');
   return lines.join('\n');
 }
@@ -498,10 +571,8 @@ function dragUnit(unitOf: (d: LabelSpan) => string) {
 
 /** Fold or unfold a vertex; a vertex with nothing below it expands through the language server instead. */
 function toggleFold(key: NodeKey) {
-  if (!scene || !doc) return;
-  if (doc.view.folded.includes(key)) { commit((x) => { x.view.folded = x.view.folded.filter((f) => f !== key); }); return; }
-  if ((scene.drawn.out.get(key) ?? []).length) { commit((x) => { x.view.folded.push(key); }); return; }
-  api.postMessage({ type: 'expand', key });
+  if (!doc) return;
+  twisty(key, doc.view.direction === 'in' ? 'up' : 'down');
 }
 
 function lockUnit(unit: string) {
@@ -541,10 +612,26 @@ function reach(start: NodeKey, dir: 'up' | 'down'): Set<NodeKey> {
 function runCmd(cmd: string, key?: NodeKey, unit?: string, to?: NodeKey) {
   if (!scene || !doc) return;
   const k = key ?? focusKey;
-  const call = key && to ? { from: key, to } : selectedCall;
+  const call = key && to ? { from: key, to } : selCalls.size ? unkey([...selCalls][0]) : undefined;
   switch (cmd) {
-    case 'callSubtree': if (call) isolate(new Set([call.from, ...reachDrawn(call.to, 'down')])); return;
+    case 'callSubtree': {
+      // the clicked call, or the whole selection when the clicked call is part of it
+      const calls = call && !selCalls.has(callKey(call)) ? [call] : [...selCalls].map(unkey);
+      isolateCalls(calls.length ? calls : call ? [call] : []);
+      return;
+    }
     case 'callPath': if (call) isolate(new Set([...reachDrawn(call.from, 'up'), ...reachDrawn(call.to, 'down')])); return;
+    case 'isolateSelection': {
+      if (selCalls.size) isolateCalls([...selCalls].map(unkey));
+      else if (selected.size) isolate(new Set(selected));
+      return;
+    }
+    case 'resetView':
+      commit((x) => {
+        Object.assign(x.view, { expanded: {}, hidden: [], fold: {}, collapsed: [], offset: {}, lock: {}, sibling: {}, group: [], ungroup: [] });
+      }, true);
+      fit();
+      return;
     case 'callSite': {
       if (!call) return;
       const { caller, callee } = asCall(call);
@@ -554,7 +641,7 @@ function runCmd(cmd: string, key?: NodeKey, unit?: string, to?: NodeKey) {
     }
     case 'callee': if (call) api.postMessage({ type: 'open', key: asCall(call).callee }); return;
     case 'resetLayout': commit((x) => { x.view.offset = {}; x.view.lock = {}; x.view.sibling = {}; }); fit(); return;
-    case 'showAll': commit((x) => { x.view.hidden = []; x.view.folded = []; x.view.collapsed = []; }); return;
+    case 'showAll': commit((x) => { x.view.hidden = []; }); return;
     case 'lock': if (unit ?? k) lockUnit(unit ?? k!); return;
     case 'fold': if (k) toggleFold(k); return;
     case 'unlock': if (unit ?? k) unlockUnit(unit ?? k!); return;
@@ -582,13 +669,19 @@ function runCmd(cmd: string, key?: NodeKey, unit?: string, to?: NodeKey) {
       commit((x) => { for (const s of drop) if (!x.view.hidden.includes(s)) x.view.hidden.push(s); });
       return;
     }
-    case 'clearSelection': selected.clear(); selectedCall = undefined; break;
+    case 'clearSelection': selected.clear(); selCalls.clear(); break;
     case 'showHidden': {
       const hid = k ? scene.hiddenOf.get(k) : undefined;
       if (k && hid) api.postMessage({ type: 'hiddenNeighbors', key: k, keys: hid });
       return;
     }
-    case 'rearrange': commit((x) => { x.view.offset = {}; }); return;
+    case 'rearrange':
+      // selected nodes only, else every unlocked move
+      commit((x) => {
+        if (selected.size) for (const k of selected) delete x.view.offset[k];
+        else x.view.offset = {};
+      });
+      return;
     case 'unlockAll': commit((x) => { x.view.lock = {}; }); return;
   }
   render();
@@ -631,7 +724,7 @@ function highlight(key: NodeKey | undefined) {
       ? `M${p.pts.map(([x, y]) => `${X(x)},${Y(y)}`).join('L')}` : curvePath(p, curve));
   // selection: calls with both ends selected, and the selected call
   if (selected.size > 1) for (const p of scene.grid.paths) if (selected.has(p.from) && selected.has(p.to)) draw(p, 'sel');
-  if (selectedCall) for (const p of scene.grid.paths) if (p.from === selectedCall.from && p.to === selectedCall.to) draw(p, 'call');
+  for (const p of scene.grid.paths) if (selCalls.has(callKey(p))) draw(p, 'call');
   if (!key) return;
   for (const p of scene.grid.paths) if (p.from === key || p.to === key) draw(p, 'hl');
   const callers = new Set((scene.vg.inc.get(key) ?? []).map((e) => e.from));
@@ -678,13 +771,19 @@ svg.on('keydown', (ev: KeyboardEvent) => {
   switch (key) {
     case 'ArrowDown': moveFocus(1); break;
     case 'ArrowUp': moveFocus(-1); break;
-    case 'Enter': if (k) api.postMessage({ type: 'open', key: k }); break;
+    case 'Enter':
+      if (selCalls.size || selected.size > 1) runCmd('isolateSelection');
+      else if (k) api.postMessage({ type: 'open', key: k });
+      break;
     case 'e': case ' ': if (k) api.postMessage({ type: 'expand', key: k, dir: ev.shiftKey ? 'both' : undefined }); break;
     case 'ArrowLeft': case 'c': if (k) collapseInnermost(k); break;
     case 'ArrowRight': if (k && scene?.vg.nodes.get(k)?.collapsed) commit((d) => { d.view.collapsed = d.view.collapsed.filter((x) => x !== k); }); break;
     case 'h': case 'Delete': runCmd('hideSelection'); break;
     case 'i': runCmd('isolate'); break;
-    case 'Escape': runCmd('clearSelection'); break;
+    case 'Escape':
+      if (doc.view.hidden.length) runCmd('showAll');
+      else runCmd('clearSelection');
+      break;
     case 'k': if (k) runCmd(doc.view.lock[k] ? 'unlock' : 'lock', k, k); break;
     case 'f': if (k) toggleFold(k); break;
     case 'u': commit((d) => { d.view.hidden = []; }); break;
@@ -699,9 +798,10 @@ svg.on('keydown', (ev: KeyboardEvent) => {
   ev.preventDefault();
 });
 
-// ---- toolbar and status -------------------------------------------------------------------------
-type Btn = { label: string; title: string; on?: boolean; act: () => void };
-type Group = { caption?: string; items: Btn[] };
+// ---- toolbar and options pulldown ----------------------------------------------------------------
+// Plain HTML built with d3-selection: buttons in the bar, a pulldown panel of checkable items.
+type Btn = { label: string; title: string; on?: boolean; act: () => void; disabled?: boolean };
+type Section = { caption: string; items: Btn[]; radio?: boolean };
 
 function folders(): { path: string; label: string; excluded: boolean }[] {
   if (!doc) return [];
@@ -716,6 +816,23 @@ function folders(): { path: string; label: string; excluded: boolean }[] {
   return [...set].sort().map((p) => ({ path: p, label: p.split('/').pop()!, excluded: ex(`${p}/x`) }));
 }
 
+/** Traverse checkmarks: `in` and `out` independent; unchecking a side drops its expansions and folds. */
+function setSide(side: 'in' | 'out', on: boolean) {
+  commit((x) => {
+    const has = { in: x.view.direction !== 'out', out: x.view.direction !== 'in' };
+    has[side] = on;
+    if (!has.in && !has.out) return;
+    x.view.direction = has.in && has.out ? 'both' : has.in ? 'in' : 'out';
+    if (!on) {
+      for (const [k, d] of Object.entries(x.view.expanded)) {
+        if (d === side) delete x.view.expanded[k];
+        else if (d === 'both') x.view.expanded[k] = side === 'in' ? 'out' : 'in';
+      }
+      for (const [k, f] of Object.entries(x.view.fold)) if ((f === 'up') === (side === 'in')) delete x.view.fold[k];
+    }
+  }, true);
+}
+
 function toolbar() {
   if (!doc || !style) return;
   const v = doc.view;
@@ -723,44 +840,56 @@ function toolbar() {
   const curve = v.curve ?? style.edges.curve;
   const rule = v.parentRule ?? style.grid.parentRule;
   const boxes = v.boxes ?? style.boxes.enabled;
-  const groups: Group[] = [
-    { items: [{ label: '⟳ rebuild', title: 'rebuild from the language server (r)', act: () => api.postMessage({ type: 'refresh' }) }] },
-    { caption: 'traverse', items: (['in', 'out', 'both'] as Direction[]).map((d) => ({
-      label: d === 'in' ? 'callers' : d === 'out' ? 'callees' : 'both', title: `follow ${d === 'in' ? 'incoming' : d === 'out' ? 'outgoing' : 'incoming and outgoing'} calls from the seeds`,
-      on: v.direction === d, act: () => commit((x) => { x.view.direction = d; }, true),
-    })) },
-    { caption: 'depth', items: [
-      { label: '−', title: 'depth − 1', act: () => commit((x) => { x.view.depth = Math.max(1, x.view.depth - 1); }, true) },
-      { label: String(v.depth), title: 'hop limit from the seeds', act: () => {} },
-      { label: '+', title: 'depth + 1', act: () => commit((x) => { x.view.depth += 1; }, true) },
-    ] },
-    { caption: 'order', items: (['callers', 'callees'] as Order[]).map((o) => ({
-      label: o === 'callers' ? 'callers on top' : 'callees on top',
-      title: o === 'callers' ? 'caller above, └─> to the callee (o)' : 'callee above, └── to its callers, as VS Code call hierarchy (o)',
-      on: v.order === o, act: () => commit((x) => { x.view.order = o; }),
-    })) },
-    { caption: 'namespaces', items: [{ label: boxes ? 'boxes on' : 'boxes off', title: 'namespace boxes (b)', on: boxes,
-      act: () => commit((x) => { x.view.boxes = !boxes; }) }] },
-    { caption: 'edges', items: [
-      ...(['glyph', 'vector'] as const).map((m) => ({ label: m, title: 'glyph: UTF box drawing; vector: SVG lines (g)', on: mode === m,
-        act: () => commit((x) => { x.view.edges = m; }) })),
-      ...(mode === 'vector' ? (['orthogonal', 'rounded', 'sigmoid', 'spline'] as Curve[]).map((c) => ({ label: c, title: 'curve style', on: curve === c,
-        act: () => commit((x) => { x.view.curve = c; }) })) : []),
-    ] },
-    { caption: 'tree', items: (['dfs', 'nearest'] as const).map((m) => ({ label: m, title: 'tree parent rule', on: rule === m,
-      act: () => commit((x) => { x.view.parentRule = m; }) })) },
-    { caption: 'arrange', items: [
-      { label: 'fit', title: 'fit to window (0)', act: fit },
-      { label: 'reset layout', title: 'drop every move, lock and sibling order', act: () => runCmd('resetLayout') },
-      { label: `re-arrange ${Object.keys(v.offset).length}`, title: 'drop the moves of unlocked nodes and boxes; locked ones stay', act: () => runCmd('rearrange') },
-      { label: `unlock ${Object.keys(v.lock).length}`, title: 'unlock every locked node and box', act: () => runCmd('unlockAll') },
-      { label: `show all ${v.hidden.length + v.folded.length + v.collapsed.length}`, title: 'unhide, unfold, and expand collapsed containers', act: () => runCmd('showAll') },
-    ] },
+  const isolated = v.hidden.length > 0;
+  const canIsolate = selCalls.size > 0 || selected.size > 0;
+
+  const bar: Btn[] = [
+    { label: '⟳ rebuild', title: 'redraw from the cache, then ask the language server again (r)', act: () => api.postMessage({ type: 'refresh' }) },
+    isolated
+      ? { label: `Show all (${v.hidden.length})`, title: 'show every hidden function (Esc)', on: true, act: () => runCmd('showAll') }
+      : { label: 'Isolate', title: 'show only the selected calls or functions (Enter)', disabled: !canIsolate, act: () => runCmd('isolateSelection') },
+    { label: '−', title: 'depth − 1', act: () => commit((x) => { x.view.depth = Math.max(1, x.view.depth - 1); }, true) },
+    { label: `depth ${v.depth}`, title: 'hop limit from the seeds', act: () => {} },
+    { label: '+', title: 'depth + 1', act: () => commit((x) => { x.view.depth += 1; }, true) },
+    { label: 'fit', title: 'fit to window (0)', act: fit },
   ];
   const fl = folders();
-  if (fl.length) {
-    groups.push({ caption: 'folders', items: fl.map((f) => ({ label: f.label, title: `${f.path}: ${f.excluded ? 'excluded, click to include' : 'included, click to exclude'}`,
-      on: !f.excluded, act: () => commit((x) => {
+  const sections: Section[] = [
+    { caption: 'Traverse', items: [
+      { label: 'Upstream callers', title: 'follow incoming calls from the seeds', on: v.direction !== 'out', act: () => setSide('in', v.direction === 'out') },
+      { label: 'Calls downstream', title: 'follow outgoing calls from the seeds', on: v.direction !== 'in', act: () => setSide('out', v.direction === 'in') },
+    ] },
+    { caption: 'Order', radio: true, items: (['callers', 'callees'] as Order[]).map((o) => ({
+      label: o === 'callers' ? 'Callers on top' : 'Callees on top (VS Code call hierarchy)', title: 'which end of each call sits on top (o)',
+      on: v.order === o, act: () => commit((x) => { x.view.order = o; }),
+    })) },
+    { caption: 'Namespaces', items: [
+      { label: 'Group namespaces', title: 'boxes per package and folder (b); right click a box or function to group or ungroup one', on: boxes,
+        act: () => commit((x) => { x.view.boxes = !boxes; }) },
+      ...(v.group.length || v.ungroup.length ? [{ label: `Reset grouping (${v.group.length + v.ungroup.length})`, title: 'drop per-box group and ungroup choices',
+        act: () => commit((x) => { x.view.group = []; x.view.ungroup = []; }) }] : []),
+    ] },
+    { caption: 'Edges', radio: true, items: (['glyph', 'vector'] as const).map((m) => ({
+      label: m === 'glyph' ? 'Glyphs (UTF box drawing)' : 'Vector', title: 'edge drawing (g)', on: mode === m, act: () => commit((x) => { x.view.edges = m; }),
+    })) },
+    ...(mode === 'vector' ? [{ caption: 'Curve', radio: true, items: (['orthogonal', 'rounded', 'sigmoid', 'spline'] as Curve[]).map((c) => ({
+      label: c, title: 'curve style of vector edges', on: curve === c, act: () => commit((x) => { x.view.curve = c; }),
+    })) } as Section] : []),
+    { caption: 'Tree parent', radio: true, items: (['dfs', 'nearest'] as const).map((m) => ({
+      label: m === 'dfs' ? 'First caller found (dfs)' : 'Nearest caller above', title: 'which caller a shared function hangs under', on: rule === m,
+      act: () => commit((x) => { x.view.parentRule = m; }) })) },
+    { caption: 'Arrange', items: [
+      { label: 'Reset view', title: 'back to the seeds, direction and depth: drop expansions, folds, hidden, collapsed, moves, locks, grouping', act: () => runCmd('resetView') },
+      { label: 'Reset layout', title: 'drop every move, lock and sibling order', act: () => runCmd('resetLayout') },
+      { label: selected.size ? `Re-arrange selected (${selected.size})` : `Re-arrange (${Object.keys(v.offset).length})`,
+        title: 'drop the moves of the selected functions, or of every unlocked item', act: () => runCmd('rearrange') },
+      { label: `Unlock all (${Object.keys(v.lock).length})`, title: 'unlock every locked function and box', act: () => runCmd('unlockAll') },
+      { label: `Expand collapsed (${v.collapsed.length})`, title: 'expand every collapsed container', act: () => commit((x) => { x.view.collapsed = []; }) },
+      { label: `Open folds (${Object.keys(v.fold).length})`, title: 'open every folded function', act: () => commit((x) => { x.view.fold = {}; }) },
+    ] },
+    ...(fl.length ? [{ caption: 'Folders', items: fl.map((f) => ({
+      label: f.label, title: `${f.path}: ${f.excluded ? 'excluded, click to include' : 'included, click to exclude'}`, on: !f.excluded,
+      act: () => commit((x) => {
         if (f.excluded) {
           if (x.view.exclude.includes(f.path)) x.view.exclude = x.view.exclude.filter((p) => p !== f.path);
           else x.view.include.push(f.path);
@@ -768,31 +897,46 @@ function toolbar() {
           x.view.include = x.view.include.filter((p) => p !== f.path);
           x.view.exclude.push(f.path);
         }
-      }, true) })) });
-  }
-  groups.push({ items: [
-    { label: 'export', title: 'ASCII export to .gaffy/export (x)', act: () => api.postMessage({ type: 'export' }) },
-    { label: 'style', title: 'edit .gaffy/style.json', act: () => api.postMessage({ type: 'editStyle' }) },
-  ] });
+      }, true) })) } as Section] : []),
+    { caption: 'File', items: [
+      { label: 'Export ASCII', title: '.gaffy/export/<symbol>_<commit>_<n>.md and .txt (x)', act: () => api.postMessage({ type: 'export' }) },
+      { label: 'Edit style.json', title: '.gaffy/style.json', act: () => api.postMessage({ type: 'editStyle' }) },
+    ] },
+  ];
 
-  const bar = select('#toolbar');
-  bar.selectAll('*').remove();
-  groups.forEach((grp, i) => {
-    if (i) bar.append('span').attr('class', 'sep');
-    if (grp.caption) bar.append('span').attr('class', 'caption').text(`${grp.caption}:`);
-    for (const b of grp.items) bar.append('button').attr('class', b.on ? 'on' : null).attr('title', b.title).text(b.label).on('click', () => b.act());
-  });
+  const tb = select('#toolbar');
+  tb.selectAll('*').remove();
+  for (const b of bar) {
+    tb.append('button').attr('class', b.on ? 'on' : null).attr('title', b.title).property('disabled', !!b.disabled).text(b.label)
+      .on('click', (ev: MouseEvent) => { ev.stopPropagation(); b.act(); });
+  }
+  const wrap = tb.append('span').attr('class', 'opts');
+  wrap.append('button').attr('class', optsOpen ? 'on' : null).text('☰ Options ▾').attr('title', 'traverse, order, namespaces, edges, arrange, folders')
+    .on('click', (ev: MouseEvent) => { ev.stopPropagation(); optsOpen = !optsOpen; toolbar(); });
+  if (optsOpen) {
+    const panel = wrap.append('div').attr('class', 'panel').on('click', (ev: MouseEvent) => ev.stopPropagation());
+    for (const sec of sections) {
+      panel.append('div').attr('class', 'caption').text(sec.caption);
+      for (const it of sec.items) {
+        const row = panel.append('div').attr('class', 'item').attr('title', it.title).on('click', () => it.act());
+        row.append('span').attr('class', 'check').text(it.on === undefined ? '' : it.on ? (sec.radio ? '●' : '✓') : (sec.radio ? '○' : ''));
+        row.append('span').text(it.label);
+      }
+    }
+  }
 }
+
+document.addEventListener('click', () => { if (optsOpen) { optsOpen = false; toolbar(); } });
 
 function status() {
   const el = select('#status');
   if (!scene || !doc) { el.text(busy ? 'building…' : ''); return; }
   const parts = [`${scene.vg.nodes.size} nodes`, `${scene.vg.edges.length} calls`];
   if (selected.size) parts.push(`${selected.size} selected`);
-  if (selectedCall) {
-    const { caller, callee } = asCall(selectedCall);
+  if (selCalls.size === 1) {
+    const { caller, callee } = asCall(unkey([...selCalls][0]));
     parts.push(`call ${scene.graph.nodes[caller]?.name ?? caller}() → ${scene.graph.nodes[callee]?.name ?? callee}()`);
-  }
+  } else if (selCalls.size) parts.push(`${selCalls.size} calls selected (Enter: isolate)`);
   if (scene.grid.unrouted) parts.push(`${scene.grid.unrouted} calls unrouted`);
   if (doc.truncated) parts.push('truncated at gaffy.maxNodes');
   if (busy) parts.push('building…');

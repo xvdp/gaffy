@@ -15,6 +15,7 @@ export type Order = 'callers' | 'callees';
 export type EdgeMode = 'glyph' | 'vector';
 export type ParentRule = 'dfs' | 'nearest';
 export type Cell = [number, number];        // [column, row]
+export type FoldSide = 'down' | 'up';       // down: what a vertex calls; up: what calls it
 
 export const ROOTS = '__roots__';
 export const boxUnit = (containerKey: string) => `box:${containerKey}`;
@@ -26,13 +27,15 @@ export interface ViewSpec {
   expanded: Record<NodeKey, Direction>;   // per-node expansions beyond the depth limit
   collapsed: NodeKey[];                    // collapse set K
   hidden: NodeKey[];
-  folded: NodeKey[];                       // vertices whose dominated subtree is folded away
+  fold: Record<NodeKey, FoldSide>;         // closed sides: the vertices only this one reaches on that side are folded away
   order: Order;                            // callers: caller above, `└─>` to callee; callees: callee above, `└──` to caller
   sibling: Record<NodeKey, NodeKey[]>;     // child order per tree parent; ROOTS orders the top level
   offset: Record<string, Cell>;            // unlocked moves: [Δcolumn, Δrow] per unit
   lock: Record<string, Cell>;              // locked units: absolute [column, row]
   exclude: string[];                       // folders (workspace-relative) left out of the build
   include: string[];                       // folders kept although `gaffy.exclude` matches them
+  group: NodeKey[];                        // containers boxed on demand (modules, classes)
+  ungroup: NodeKey[];                      // containers whose box is dissolved into the parent box
   boxes?: boolean;                         // overrides style.boxes.enabled
   edges?: EdgeMode;                        // overrides style.edges.mode
   curve?: Curve;                           // overrides style.edges.curve
@@ -45,14 +48,15 @@ export interface ViewDoc {
   name: string;
   view: ViewSpec;
   graph: Subgraph;                         // last build
+  explored?: Record<NodeKey, Direction>;   // directions the last build asked the provider for, per vertex
   truncated?: boolean;                     // build stopped at maxNodes
   updated?: string;                        // ISO time of last build
 }
 
 export function defaultView(): ViewSpec {
   return {
-    seeds: [], direction: 'out', depth: 4, expanded: {}, collapsed: [], hidden: [], folded: [], order: 'callers',
-    sibling: {}, offset: {}, lock: {}, exclude: [], include: [], tags: {},
+    seeds: [], direction: 'out', depth: 4, expanded: {}, collapsed: [], hidden: [], fold: {}, order: 'callers',
+    sibling: {}, offset: {}, lock: {}, exclude: [], include: [], group: [], ungroup: [], tags: {},
   };
 }
 
@@ -72,13 +76,15 @@ export function parseDoc(text: string, fallbackName = 'view'): ViewDoc {
     expanded: v.expanded ?? {},
     collapsed: v.collapsed ?? [],
     hidden: v.hidden ?? [],
-    folded: v.folded ?? [],
+    fold: v.fold ?? Object.fromEntries(((v as { folded?: NodeKey[] }).folded ?? []).map((k) => [k, 'down' as FoldSide])),
     order: v.order === 'callees' ? 'callees' : 'callers',
     sibling: v.sibling ?? {},
     offset: v.offset ?? {},
     lock: v.lock ?? {},
     exclude: v.exclude ?? [],
     include: v.include ?? [],
+    group: v.group ?? [],
+    ungroup: v.ungroup ?? [],
     tags: v.tags ?? {},
   };
   if (v.boxes !== undefined) view.boxes = v.boxes;
@@ -87,6 +93,7 @@ export function parseDoc(text: string, fallbackName = 'view'): ViewDoc {
   if (v.parentRule) view.parentRule = v.parentRule;
   const doc = emptyDoc(raw.name ?? fallbackName, view);
   doc.graph = { nodes: raw.graph?.nodes ?? {}, edges: raw.graph?.edges ?? [] };
+  if (raw.explored) doc.explored = raw.explored;
   if (raw.truncated) doc.truncated = true;
   if (raw.updated) doc.updated = raw.updated;
   return doc;

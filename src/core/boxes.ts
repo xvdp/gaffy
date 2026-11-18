@@ -22,7 +22,11 @@ export interface BoxNode {
   frame: boolean;          // drawn with a frame and header
 }
 
-export interface BoxOptions { enabled: boolean; modules: boolean; root: boolean }
+export interface BoxOptions {
+  enabled: boolean; modules: boolean; root: boolean;
+  group?: ReadonlySet<NodeKey>;    // containers boxed on demand
+  ungroup?: ReadonlySet<NodeKey>;  // containers never boxed: their content joins the parent box
+}
 
 interface Trie {
   chain: GNode[];          // containers merged into this box, outermost first
@@ -44,7 +48,8 @@ export function boxTree(vertices: Iterable<NodeKey>, nodes: Record<NodeKey, GNod
   const all = [...vertices];
   if (!opt.enabled) return { key: 'root', label: '', ns: '', members: all, children: [], frame: false };
   const boxable = (n: GNode | undefined) =>
-    !!n && (BOXABLE.has(n.kind) || (opt.modules && (n.kind === 'module' || n.kind === 'file')));
+    !!n && !opt.ungroup?.has(n.key) &&
+    (BOXABLE.has(n.kind) || (opt.modules && (n.kind === 'module' || n.kind === 'file')) || !!opt.group?.has(n.key));
 
   const root: Trie = { chain: [], children: new Map(), members: [] };
   for (const v of all) {
@@ -66,7 +71,8 @@ export function boxTree(vertices: Iterable<NodeKey>, nodes: Record<NodeKey, GNod
       t.members = only.members;
     }
     for (const c of t.children.values()) compress(c, false);
-    if (!isRoot && !opt.modules && t.children.size === 0 && t.members.length) {
+    // absorb the single module of a box, unless that module is grouped or ungrouped on demand
+    if (!isRoot && !opt.modules && t.children.size === 0 && t.members.length && !t.chain.some((c) => opt.group?.has(c.key))) {
       const mods = new Set(t.members.map((m) => nodes[m]?.module));
       if (mods.size === 1) {
         const m = [...mods][0];
