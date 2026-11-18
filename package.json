@@ -2,7 +2,7 @@
   "name": "gaffy",
   "displayName": "gaffy",
   "description": "Persistent, manipulable call graphs on a character grid, rendered with D3",
-  "version": "0.4.0",
+  "version": "0.6.0",
   "publisher": "xvdp",
   "license": "UNLICENSED",
   "private": true,
@@ -41,9 +41,9 @@
       "properties": {
         "gaffy.depth": {
           "type": "integer",
-          "default": 4,
+          "default": 3,
           "minimum": 1,
-          "description": "Hop limit from the seeds when a view is built."
+          "description": "Stable views: layers prefetched in the background along the traversal direction (the screen shows one layer per open side). Automatic views: hop limit."
         },
         "gaffy.maxNodes": {
           "type": "integer",
@@ -69,7 +69,7 @@
             "off"
           ],
           "default": "touched",
-          "description": "Rebuild open views after a source file is saved: views containing the file, all open views, or none."
+          "description": "Update open views after a source file is saved: views containing the file, all open views, or none. Stable views ask again only the calls the save made stale."
         },
         "gaffy.openBeside": {
           "type": "boolean",
@@ -95,12 +95,6 @@
             "**/*.spec.*"
           ],
           "description": "Workspace-relative globs left out of view builds; a view can include a folder again from its toolbar."
-        },
-        "gaffy.foldAbove": {
-          "type": "integer",
-          "default": 30,
-          "minimum": 1,
-          "description": "A new view with more definitions than this opens one layer (the neighbors of the seeds folded), as the VS Code call hierarchy does."
         },
         "gaffy.openCallHierarchy": {
           "type": "boolean",
@@ -133,7 +127,7 @@
       },
       {
         "command": "gaffy.refresh",
-        "title": "Rebuild View",
+        "title": "Ask the Language Server Again",
         "category": "gaffy"
       },
       {
@@ -348,6 +342,26 @@
         "command": "gaffy.isolateSelection",
         "title": "Isolate Selection",
         "category": "gaffy"
+      },
+      {
+        "command": "gaffy.node.openCallers",
+        "title": "Open Callers (one layer)"
+      },
+      {
+        "command": "gaffy.node.openCalls",
+        "title": "Open Calls (one layer)"
+      },
+      {
+        "command": "gaffy.node.closeCallers",
+        "title": "Close Callers"
+      },
+      {
+        "command": "gaffy.node.closeCalls",
+        "title": "Close Calls"
+      },
+      {
+        "command": "gaffy.edge.straighten",
+        "title": "Straighten This Call (route it first)"
       }
     ],
     "menus": {
@@ -644,6 +658,31 @@
           "command": "gaffy.resetView",
           "when": "webviewId == 'gaffy.view'",
           "group": "9_view@10"
+        },
+        {
+          "command": "gaffy.node.openCallers",
+          "when": "webviewId == 'gaffy.view' && webviewSection =~ /^(node|collapsed)$/",
+          "group": "2_graph@-4"
+        },
+        {
+          "command": "gaffy.node.openCalls",
+          "when": "webviewId == 'gaffy.view' && webviewSection =~ /^(node|collapsed)$/",
+          "group": "2_graph@-3"
+        },
+        {
+          "command": "gaffy.node.closeCallers",
+          "when": "webviewId == 'gaffy.view' && webviewSection =~ /^(node|collapsed)$/",
+          "group": "2_graph@-2"
+        },
+        {
+          "command": "gaffy.node.closeCalls",
+          "when": "webviewId == 'gaffy.view' && webviewSection =~ /^(node|collapsed)$/",
+          "group": "2_graph@-1"
+        },
+        {
+          "command": "gaffy.edge.straighten",
+          "when": "webviewId == 'gaffy.view' && webviewSection == 'edge'",
+          "group": "1_call@0"
         }
       ],
       "commandPalette": [
@@ -797,6 +836,26 @@
         },
         {
           "command": "gaffy.node.groupInside",
+          "when": "false"
+        },
+        {
+          "command": "gaffy.node.openCallers",
+          "when": "false"
+        },
+        {
+          "command": "gaffy.node.openCalls",
+          "when": "false"
+        },
+        {
+          "command": "gaffy.node.closeCallers",
+          "when": "false"
+        },
+        {
+          "command": "gaffy.node.closeCalls",
+          "when": "false"
+        },
+        {
+          "command": "gaffy.edge.straighten",
           "when": "false"
         }
       ]

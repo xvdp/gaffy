@@ -40,6 +40,27 @@ const log = (m) => { const el = document.getElementById('log'); if (el) el.textC
 // simulated drag (sim=drag&label=<text>&dx=&dy=): runs synchronously after the first render
 const simulate = () => {
   if (params.get('opts')) document.querySelector('#toolbar .opts button').dispatchEvent(new MouseEvent('click', { bubbles: true, view: window }));
+  if (params.get('markers')) {
+    // click markers in turn: markers=<name>:<up|down>,…
+    for (const spec of params.get('markers').split(',')) {
+      const [name, side] = spec.split(':');
+      const m = [...document.querySelectorAll('.markers text')].find((x) => x.__data__ && x.__data__.key.endsWith('#' + name) && x.__data__.side === side);
+      if (!m) { log({ sim: 'no marker ' + spec }); continue; }
+      m.dispatchEvent(new MouseEvent('click', { bubbles: true, view: window }));
+    }
+  }
+  // select labels (select=<text>,…) or a box header (selbox=<text>), then press a key (key=Delete)
+  if (params.get('select')) params.get('select').split(',').forEach((want, i) => {
+    const g = [...document.querySelectorAll('.labels g')].find((x) => (x.querySelector('text')?.textContent ?? '').includes(want));
+    if (!g) { log({ sim: 'no label ' + want }); return; }
+    g.dispatchEvent(new MouseEvent('click', { bubbles: true, view: window, shiftKey: i > 0 }));
+  });
+  if (params.get('selbox')) {
+    const g = [...document.querySelectorAll('.heads g')].find((x) => (x.querySelector('text')?.textContent ?? '').includes(params.get('selbox')));
+    if (!g) log({ sim: 'no box ' + params.get('selbox') });
+    else g.dispatchEvent(new MouseEvent('click', { bubbles: true, view: window }));
+  }
+  if (params.get('key')) document.getElementById('graph').dispatchEvent(new KeyboardEvent('keydown', { key: params.get('key'), bubbles: true }));
   if (params.get('callclick')) {
     // click a point on a call's path: callclick=<caller>,<callee>,<fraction of its length>
     const [a, b, f] = params.get('callclick').split(',');

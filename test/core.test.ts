@@ -23,8 +23,8 @@ function golden(name: string, text: string) {
 
 function invariants(sc: Scene) {
   const { grid, placement: P, drawn } = sc;
-  // every vertex placed once
-  expect(P.pos.size).toBe(sc.vg.nodes.size);
+  // every vertex placed once (marker rows of the stable arrangement included)
+  expect(P.pos.size).toBe(drawn.nodes.size);
   // labels never overlap edge cells or each other
   expect(grid.conflicts).toBe(0);
   const seen = new Map<number, string>();
@@ -231,6 +231,55 @@ describe('addendum 1a: sh_eval and its callees', () => {
     const sc = buildScene(fixtureDoc(SH, { ...doc.view, order: 'callees' }), boxed());
     invariants(sc);
     expect(text(sc, boxed())).not.toMatch(/[<>]/);
+  });
+});
+
+describe('one layer at a time: open sides, direction, markers, removal', () => {
+  const seed = k('gutai.render.harmonics:sh_eval');
+  const base = () => fixtureDoc(SH, { seeds: [seed], direction: 'out', arrange: 'grow', open: {} });
+  const name = (x: string) => x.split('#')[1];
+  const marked = (sc: Scene) => new Set(sc.grid.markers.map((m) => `${name(m.key)}:${m.side}`));
+
+  it('a new view shows the seed and one layer; marker rows only where more exists', () => {
+    const sc = buildScene(base(), boxed());
+    invariants(sc);
+    const names = [...sc.vg.nodes.keys()].map(name).sort();
+    expect(names).toEqual(['_from_columns', '_from_tensor', '_in_type', '_wrapped_mi', 'resolve_backend', 'sh_eval', 'sh_eval_mi',
+      'sh_eval_torch_compiled', 'to_drjit', 'to_torch'].sort());
+    expect(marked(sc).has('sh_eval_mi:down')).toBe(true);        // calls pick_parallel, assert_variant, _order_check
+    expect(marked(sc).has('_in_type:down')).toBe(false);         // calls nothing
+    expect(sc.decor.get(k('gutai.render.harmonics:_in_type'))!.pre).toBe('');   // revealed through calls: no callers side
+    const t = text(sc, boxed({ edges: { mode: 'glyph' } }));
+    expect(t).toMatch(/[└├]─>>/);
+    expect(t).not.toMatch(/[▾▴◂▸]/);
+    golden('grow_one_layer', t);
+  });
+
+  it('a vertex revealed through calls never opens its callers', () => {
+    const d = base();
+    d.view.open = { [k('gutai.runtime.interop:to_torch')]: 'both', [k('gutai.render.harmonics:sh_eval_mi')]: 'down' };
+    const sc = buildScene(d, boxed());
+    invariants(sc);
+    expect(sc.vg.nodes.has(k('gutai.runtime.variant:pick_parallel'))).toBe(true);
+    expect(sc.vg.nodes.has(k('gutai.render.harmonics:_stacked'))).toBe(false);   // a caller of to_torch only
+    expect(sc.rev.allowed.get(k('gutai.runtime.interop:to_torch'))).toBe('down');
+  });
+
+  it('a cut call or a hidden callee leaves a marker row under the caller', () => {
+    const d = base();
+    d.view.cut = [[seed, k('gutai.runtime.interop:to_drjit')]];
+    const s1 = buildScene(d, boxed());
+    invariants(s1);
+    expect(s1.vg.nodes.has(k('gutai.runtime.interop:to_drjit'))).toBe(false);
+    expect(marked(s1).has('sh_eval:down')).toBe(true);
+    const d2 = base();
+    d2.view.hidden = [k('gutai.render.harmonics:_in_type')];
+    const s2 = buildScene(d2, boxed());
+    invariants(s2);
+    expect(marked(s2).has('sh_eval:down')).toBe(true);
+    expect(s2.decor.get(seed)!.badge).toBe('');                  // no count in this arrangement
+    const s0 = buildScene(base(), boxed());
+    expect(marked(s0).has('sh_eval:down')).toBe(false);
   });
 });
 

@@ -16,6 +16,7 @@ export type EdgeMode = 'glyph' | 'vector';
 export type ParentRule = 'dfs' | 'nearest';
 export type Cell = [number, number];        // [column, row]
 export type FoldSide = 'down' | 'up';       // down: what a vertex calls; up: what calls it
+export type OpenSide = 'up' | 'down' | 'both' | 'none';
 
 export const ROOTS = '__roots__';
 export const boxUnit = (containerKey: string) => `box:${containerKey}`;
@@ -27,7 +28,9 @@ export interface ViewSpec {
   expanded: Record<NodeKey, Direction>;   // per-node expansions beyond the depth limit
   collapsed: NodeKey[];                    // collapse set K
   hidden: NodeKey[];
-  fold: Record<NodeKey, FoldSide>;         // closed sides: the vertices only this one reaches on that side are folded away
+  fold: Record<NodeKey, FoldSide>;         // auto arrangement: folded sides
+  open?: Record<NodeKey, OpenSide>;        // open sides per vertex; absent: every vertex visible
+  arrange: 'grow' | 'auto';                // grow: one layer per open side; auto: every vertex to the depth limit, with folds
   order: Order;                            // callers: caller above, `└─>` to callee; callees: callee above, `└──` to caller
   sibling: Record<NodeKey, NodeKey[]>;     // child order per tree parent; ROOTS orders the top level
   offset: Record<string, Cell>;            // unlocked moves: [Δcolumn, Δrow] per unit
@@ -41,6 +44,8 @@ export interface ViewSpec {
   curve?: Curve;                           // overrides style.edges.curve
   parentRule?: ParentRule;                 // overrides style.grid.parentRule
   tags: Record<NodeKey, string>;
+  straight?: string[];                     // calls routed before all others (caller\u0000callee, drawn direction)
+  cut?: [NodeKey, NodeKey][];              // removed calls [caller, callee]: not drawn, not followed by open sides
 }
 
 export interface ViewDoc {
@@ -56,7 +61,7 @@ export interface ViewDoc {
 export function defaultView(): ViewSpec {
   return {
     seeds: [], direction: 'out', depth: 4, expanded: {}, collapsed: [], hidden: [], fold: {}, order: 'callers',
-    sibling: {}, offset: {}, lock: {}, exclude: [], include: [], group: [], ungroup: [], tags: {},
+    sibling: {}, offset: {}, lock: {}, exclude: [], include: [], group: [], ungroup: [], tags: {}, arrange: 'auto',
   };
 }
 
@@ -85,8 +90,12 @@ export function parseDoc(text: string, fallbackName = 'view'): ViewDoc {
     include: v.include ?? [],
     group: v.group ?? [],
     ungroup: v.ungroup ?? [],
+    arrange: v.arrange === 'grow' ? 'grow' : 'auto',
     tags: v.tags ?? {},
   };
+  if (v.open) view.open = v.open;
+  if (v.straight?.length) view.straight = v.straight;
+  if (Array.isArray(v.cut) && v.cut.length) view.cut = v.cut.filter((c: unknown) => Array.isArray(c) && c.length === 2);
   if (v.boxes !== undefined) view.boxes = v.boxes;
   if (v.edges) view.edges = v.edges;
   if (v.curve) view.curve = v.curve;

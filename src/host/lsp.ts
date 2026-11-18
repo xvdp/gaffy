@@ -204,10 +204,18 @@ export class LspProvider {
     return it;
   }
 
-  async outgoing(key: NodeKey, acc: Record<NodeKey, GNode>): Promise<GEdge[]> {
-    const it = await this.item(key, acc[key]);
-    if (!it) return [];
-    const calls = await vscode.commands.executeCommand<vscode.CallHierarchyOutgoingCall[]>('vscode.provideOutgoingCalls', it) ?? [];
+  /**
+   * Outgoing calls of a definition. `undefined`: no answer (the definition does not resolve, e.g. while
+   * the language server is still analyzing, or the request failed); `[]`: the definition calls nothing.
+   */
+  async outgoing(key: NodeKey, acc: Record<NodeKey, GNode>): Promise<GEdge[] | undefined> {
+    const it = await this.item(key, acc[key]).catch(() => undefined);
+    if (!it) return undefined;
+    let calls: vscode.CallHierarchyOutgoingCall[] | undefined;
+    try {
+      calls = await vscode.commands.executeCommand<vscode.CallHierarchyOutgoingCall[]>('vscode.provideOutgoingCalls', it);
+    } catch { return undefined; }
+    if (!calls) return undefined;
     const edges: GEdge[] = [];
     for (const c of calls) {
       const to = await this.describe(c.to, acc);
@@ -216,10 +224,15 @@ export class LspProvider {
     return edges;
   }
 
-  async incoming(key: NodeKey, acc: Record<NodeKey, GNode>): Promise<GEdge[]> {
-    const it = await this.item(key, acc[key]);
-    if (!it) return [];
-    const calls = await vscode.commands.executeCommand<vscode.CallHierarchyIncomingCall[]>('vscode.provideIncomingCalls', it) ?? [];
+  /** Incoming calls of a definition; `undefined` and `[]` as for `outgoing`. */
+  async incoming(key: NodeKey, acc: Record<NodeKey, GNode>): Promise<GEdge[] | undefined> {
+    const it = await this.item(key, acc[key]).catch(() => undefined);
+    if (!it) return undefined;
+    let calls: vscode.CallHierarchyIncomingCall[] | undefined;
+    try {
+      calls = await vscode.commands.executeCommand<vscode.CallHierarchyIncomingCall[]>('vscode.provideIncomingCalls', it);
+    } catch { return undefined; }
+    if (!calls) return undefined;
     const edges: GEdge[] = [];
     for (const c of calls) {
       const from = await this.describe(c.from, acc);

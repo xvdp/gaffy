@@ -136,6 +136,8 @@ text { dominant-baseline: central; white-space: pre; }
 .labels g.folded text { font-style: italic; }
 .labels .badge { fill: var(--g-seed); cursor: pointer; font-weight: 600; }
 .labels .twisty { fill: var(--g-twisty); cursor: pointer; font-weight: 600; }
+.markers text { fill: var(--g-twisty); cursor: pointer; font-weight: 600; }
+.markers text:hover { fill: var(--g-highlight); }
 .labels .twisty.open { display: none; }
 .labels g:hover .twisty.open { display: inline; }
 .labels g.collapsed text { font-weight: 600; }

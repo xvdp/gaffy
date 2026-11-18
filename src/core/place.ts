@@ -36,6 +36,9 @@ export interface Block {
 
 export interface Frame { box: BoxNode; unit: string; c0: number; r0: number; c1: number; r1: number }
 
+/** Clickable glyphs in the grid: open or restore one side of `key`. */
+export interface Marker { row: number; col: number; text: string; key: NodeKey; side: 'up' | 'down' }
+
 export interface Placement {
   blocks: Block[];
   frames: Frame[];
@@ -46,6 +49,8 @@ export interface Placement {
   text: Map<NodeKey, string>;
   width: number;
   height: number;
+  elbows?: Map<NodeKey, NodeKey[]>;  // stable placement: tree elbows outside blocks
+  markers?: Marker[];                // stable arrangement: markers of sides with neighbors off screen
 }
 
 export interface PlaceInput {

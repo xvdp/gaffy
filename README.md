@@ -7,7 +7,7 @@ VS Code extension: persistent, manipulable call graphs laid out on a character g
 ```bash
 npm install
 npm run package                              # typecheck, tests, bundles, gaffy-<version>.vsix
-code --install-extension gaffy-0.4.0.vsix
+code --install-extension gaffy-0.5.0.vsix
 ```
 
 Development: open `gaffy/` in VS Code and press F5 (Extension Development Host). `npm run watch` rebuilds on change.
@@ -25,7 +25,29 @@ Right click on a function name in the editor; the gaffy entries sit below Go to 
 | gaffy: Calls downstream | the function | outgoing calls |
 | gaffy: Add to view | appended to the open view | view direction |
 
-`gaffy: Upstream callers and calls downstream` is in the command palette. With `gaffy.openCallHierarchy` (default on) VS Code's own Call Hierarchy opens in the References view as well. Explorer, right click on a file, **gaffy** > New View: Functions of File. The view file goes to `.gaffy/views/<name>.<callers|callees|calls>.gaffy`. A new view with more than `gaffy.foldAbove` (30) definitions opens one layer: the neighbors of the seeds start folded, as in the VS Code call hierarchy.
+`gaffy: Upstream callers and calls downstream` is in the command palette. With `gaffy.openCallHierarchy` (default on) VS Code's own Call Hierarchy opens in the References view as well. Explorer, right click on a file, **gaffy** > New View: Functions of File. The view file goes to `.gaffy/views/<symbol>_<short commit hash>.gaffy` (`<symbol>_<YYYYMMDD-HHMM>` outside git).
+
+A new view asks the language server for one layer, shows it, then in the background asks every function on screen for its callers and calls (so the open markers know what lies beyond) and prefetches `gaffy.depth` layers along the traversal direction. Reopening a view shows the stored graph at once and asks the language server only for calls that changed files made stale (see [Building, progress, cache](#building-progress-cache)).
+
+## One layer at a time
+
+```
+                 up_sym_3() ─────┐
+    up_sym_2() ──┐               │
+ >> up_sym_1() ─┴─> my_symbol() <┘
+                    ├─> downsym_1()
+                    └─> downsym_2()
+                        └─>>
+```
+
+- `>> name()`: callers not on screen; click shows one layer of them. `└─>>` under a function (first row of its calls): calls not on screen; click shows one layer of them. A side with nothing more shows no marker and no count.
+- Direction: a seed opens both sides. A function shown as a call opens only its calls; a function shown as a caller opens only its callers. The other callers of a callee belong to a view seeded at that callee (editor right click > gaffy: Upstream callers).
+- Click an arrowhead into a function: closes its callers. Click a line leaving a function: closes its calls. Ctrl, Cmd or Shift+click selects calls instead; double click on an arrow isolates.
+- Double click a function: close both sides, or open every side that has more.
+- **Delete** (or Backspace) removes the selection: selected calls are cut (the branch below goes unless another call shows it), selected functions are hidden; click a box header to select its functions. The caller of a removed call, or the function that showed a removed function, keeps a `└─>>` or `>> ` marker; clicking it shows that side again, removed ones included. **Show all (n)** and Esc (with nothing selected) bring back everything removed.
+- Layout: the tree layout of the automatic arrangement (caller above callee, `A └─> B`, ordered by namespace box, left to right, top to bottom, callers to calls) runs again after every change. The function last opened, closed, or removed keeps its position on screen; dragging releases it. Closed sides stay recorded, so reopening restores the layers below.
+- Options > Arrange: **Reset layout** drops moves, locks, sibling order, and straightened calls; **Reset view** returns to the seeds and their first layer. Right click an arrow > **Straighten This Call** routes it before all others.
+- Options > Layout: **Automatic** brings back every function to the depth limit, with folds (views made before 0.5.0 open in it).
 
 The editor entries were a `gaffy` submenu; the submenu stays defined in `package.json` (`contributes.submenus`, `contributes.menus["gaffy.editor"]`). To return to it, replace the three `editor/context` entries by `{ "submenu": "gaffy.editor", "group": "z_gaffy@1" }`.
 
@@ -75,10 +97,10 @@ Algorithms: [src/core/layout.ts](src/core/layout.ts) (rows and lanes in a block)
 | right click an arrow | isolate this call, isolate the path through it, go to call site, go to callee |
 | ↑ ↓, Alt+↑ ↓ | move focus; move the focused function among its siblings |
 | e, f, c or ←, → | expand through the language server; fold or unfold; collapse innermost container; expand collapsed |
-| h or Delete, i, k | hide selection; show only selection; lock or unlock the focused function |
-| u, o, g, b, r, 0, x | unhide all; toggle order; glyph or vector edges; group namespaces; rebuild; fit; export |
+| Delete or Backspace, h, i, k | remove selection (calls cut, functions hidden; automatic arrangement: hide); hide selection; show only selection; lock or unlock the focused function |
+| u, o, g, b, r, 0, x | unhide all; toggle order; glyph or vector edges; group namespaces; ask the language server again; fit; export |
 
-Toolbar: ⟳ rebuild, **Isolate** (when nothing is hidden: isolates the selection) or **Show all (n)** (when something is hidden), depth − n +, fit, and **☰ Options**, a pulldown with checkmarks:
+Toolbar: **Isolate** (when nothing is hidden: isolates the selection) or **Show all (n)** (when something is hidden), depth − n +, fit, and **☰ Options**, a pulldown with checkmarks:
 
 - Traverse: ✓ Upstream callers, ✓ Calls downstream (both checked = both directions; unchecking a side removes its expansions and folds)
 - Order: callers on top, callees on top (VS Code call hierarchy)
@@ -87,11 +109,11 @@ Toolbar: ⟳ rebuild, **Isolate** (when nothing is hidden: isolates the selectio
 - Tree parent: first caller found (dfs), nearest caller above
 - Arrange: reset view (back to seeds, direction and depth), reset layout (moves, locks, sibling order), re-arrange (the selected functions, else every unlocked item), unlock all, expand collapsed, open folds
 - Folders: per top-level folder, included or excluded
-- File: export ASCII, edit style.json
+- File: ask the language server again, export ASCII, edit style.json
 
 The toolbar and the pulldown are plain HTML elements in the webview, built with d3-selection and styled with VS Code's theme variables (`--vscode-menu-*`); the graph itself is SVG drawn with D3.
 
-Locks: a locked function or box keeps its absolute position; re-arrange and rebuilds place every unlocked item around it.
+Locks: a locked function or box keeps its absolute position; re-arrange and automatic layouts place every unlocked item around it.
 
 "Editor Context Menu…" opens the definition in an editor and shows VS Code's own editor context menu at its cursor, with every installed extension's entries. VS Code exposes no command that opens the explorer context menu for a given file; "Reveal in Explorer" selects the file there, where Shift+F10 opens it.
 
@@ -99,25 +121,27 @@ Locks: a locked function or box keeps its absolute position; re-arrange and rebu
 
 - While a view builds, a banner over the graph shows the phase, depth, definitions, language-server requests and cached answers; after 400 ms a notification with a cancel button shows the same.
 - Every answer of the language server (callers or callees of one definition) is cached in `.gaffy/cache/calls.json`. Changing depth or direction, expanding, and opening a view use cached answers and ask the language server only for the rest.
-- **⟳ rebuild** first redraws from the cache and the calls already in the view (instant), then asks the language server for every definition and redraws again.
-- A saved, renamed, or externally changed file drops the cached outgoing calls of its definitions and all cached incoming calls. `gaffy: Clear Call Cache` drops everything.
+- A saved, renamed, or externally changed source file drops the cached outgoing calls of its definitions and all cached incoming calls. Files whose extension no cached definition has (logs, bytecode, build output) drop nothing. `gaffy: Clear Call Cache` drops everything.
+- No answer differs from an empty answer. A definition the language server does not resolve (still analyzing after a window reload, renamed, removed) keeps the calls the view holds; its answer is neither cached nor recorded as explored. The view retries after 2, 4, 8, 15, 30 and 60 s and shows `language server not ready` in the status line meanwhile; after the last retry a warning names the count.
+- Opening a stable view: every explored (definition, direction) pair takes its cached answer without the language server. Pairs without a cached answer are stale: on-screen ones are asked again in the background; the others keep their calls, lose the explored mark, and are asked when a side opens onto them. Nothing changed since the last save: no language-server request.
+- **Ask the language server again** (Options > File, `r`, `gaffy: Ask the Language Server Again`): stable views ask every on-screen pair from the language server and drop the cached answers of the others (asked when a side opens onto them); automatic views redraw from the cache, then ask every definition.
 
 ## Change tracking
 
-- Saving a source file rebuilds open views that contain a definition from that file (`gaffy.refreshOnSave`: `touched`, `all`, `off`).
-- Renaming a file rewrites keys, paths and URIs in open views, then rebuilds them.
+- Saving a source file updates open views that contain a definition from that file (`gaffy.refreshOnSave`: `touched`, `all`, `off`); stable views ask only the pairs the save made stale, as on opening.
+- Renaming a file rewrites keys, paths and URIs in open views, then updates them the same way.
 - Definitions keep their identity across line moves: keys are `<lang>:<path>#<qualified name>`.
-- A rebuild replaces the graph: definitions outside the new reach set (lower depth, other direction, deleted code) disappear.
+- Automatic views: a build replaces the graph; definitions outside the new reach set (lower depth, other direction, deleted code) disappear. Stable views keep every definition; a closed side hides it.
 
 ## Files
 
 ```
 .gaffy/
-  views/<name>.gaffy           view: seeds, direction, depth, order, expansions, folds, collapsed, hidden, grouping,
-                               sibling order, moves (offset), locks, folder include and exclude, tags,
-                               last built graph and the directions asked per definition (JSON)
-  export/<symbol>_<commit>_<nn>.md   ASCII export, <pre> with links to path#Lline; <commit> = short HEAD hash,
-  export/<symbol>_<commit>_<nn>.txt  or <YYYYMMDD-HHMM> outside git; <nn> counts exports per symbol and commit
+  views/<symbol>_<commit>.gaffy  view: seeds, direction, depth, order, open sides, cut calls, collapsed, hidden, grouping,
+                               folder include and exclude, tags, straightened calls, last graph and the
+                               directions asked per definition (JSON)
+  <symbol>_<commit>.md         ASCII export, <pre> with links to path#Lline; <commit> = short HEAD hash, or
+  <symbol>_<commit>.txt        <YYYYMMDD-HHMM> outside git; later exports of the same symbol and commit: _2, _3, …
   cache/calls.json             cached language-server answers
   style.json                   style overrides (gaffy: Edit Style writes the defaults)
 ```
@@ -165,14 +189,13 @@ A new UI element gets a color by a CSS rule in `media/webview.css` that reads `v
 
 | setting | default | effect |
 |---|---|---|
-| `gaffy.depth` | 4 | hop limit for new views |
+| `gaffy.depth` | 3 | stable views: layers prefetched in the background; automatic views: hop limit |
 | `gaffy.maxNodes` | 400 | definitions fetched per build |
-| `gaffy.foldAbove` | 30 | a new view larger than this opens one layer |
 | `gaffy.openCallHierarchy` | true | also open VS Code's Call Hierarchy when creating a view |
 | `gaffy.exclude` | tests (`**/tests/**`, `**/test_*.py`, …) | globs left out of builds; the Folders section includes them per view |
 | `gaffy.includeExternal` | false | include site-packages, node_modules, stubs |
 | `gaffy.autoSave` | true | save the view file after each graph change |
-| `gaffy.refreshOnSave` | touched | rebuild policy after a source save |
+| `gaffy.refreshOnSave` | touched | update policy after a source save |
 | `gaffy.openBeside` | true | open definitions beside the graph |
 
 ## Tests and preview

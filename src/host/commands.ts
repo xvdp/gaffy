@@ -89,9 +89,14 @@ export function registerCommands(ctx: vscode.ExtensionContext, editor: GaffyEdit
   };
 
   const createView = async (base: vscode.Uri, stem: string, doc: ViewDoc) => {
-    const views = vscode.Uri.joinPath(gaffyDir(folderOf(base)), 'views');
+    const folder = folderOf(base);
+    const views = vscode.Uri.joinPath(gaffyDir(folder), 'views');
     await vscode.workspace.fs.createDirectory(views);
-    const uri = await uniqueUri(views, stem, '.gaffy');
+    // <symbol>_<short commit hash, or date>.gaffy
+    const uri = await uniqueUri(views, `${stem}_${(await gitShort(folder.fsPath)) ?? dateSlug()}`, '.gaffy');
+    doc.view.arrange = 'grow';
+    doc.view.open = {};
+    doc.view.depth = cfg().get<number>('depth') ?? 3;
     doc.name = path.basename(uri.path, '.gaffy');
     await vscode.workspace.fs.writeFile(uri, new TextEncoder().encode(serializeDoc(doc)));
     await vscode.commands.executeCommand('vscode.openWith', uri, GaffyEditor.viewType,
@@ -115,7 +120,7 @@ export function registerCommands(ctx: vscode.ExtensionContext, editor: GaffyEdit
     await showCallHierarchy(direction);
     const doc = emptyDoc(s.node.name, { seeds: [s.key], direction, depth: cfg().get<number>('depth') ?? 4 });
     doc.graph.nodes = s.acc;
-    await createView(s.uri, `${s.node.name}.${direction === 'in' ? 'callers' : direction === 'out' ? 'callees' : 'calls'}`, doc);
+    await createView(s.uri, s.node.name, doc);
   };
 
   reg('gaffy.graphCallers', () => graphAtCursor('in'));
@@ -152,7 +157,7 @@ export function registerCommands(ctx: vscode.ExtensionContext, editor: GaffyEdit
     if (!seeds.length) throw new Error('no functions with call hierarchy in this file');
     const doc = emptyDoc('', { seeds, direction: 'out', depth: 1 });
     doc.graph.nodes = acc;
-    await createView(uri, path.basename(uri.path), doc);
+    await createView(uri, path.basename(uri.path).replace(/\.[^.]+$/, ''), doc);
   });
 
   // ---- view commands ------------------------------------------------------------------------------
@@ -179,6 +184,11 @@ export function registerCommands(ctx: vscode.ExtensionContext, editor: GaffyEdit
     void s.panel.webview.postMessage({ type: 'cmd', cmd, key: arg?.key, unit: arg?.unit, to: arg?.to });
   };
   reg('gaffy.node.fold', forward('fold'));
+  reg('gaffy.node.openCallers', forward('openUp'));
+  reg('gaffy.node.openCalls', forward('openDown'));
+  reg('gaffy.node.closeCallers', forward('closeUp'));
+  reg('gaffy.node.closeCalls', forward('closeDown'));
+  reg('gaffy.edge.straighten', forward('straighten'));
   reg('gaffy.edge.subtree', forward('callSubtree'));
   reg('gaffy.edge.path', forward('callPath'));
   reg('gaffy.edge.callSite', forward('callSite'));
@@ -203,7 +213,7 @@ export function registerCommands(ctx: vscode.ExtensionContext, editor: GaffyEdit
     const style = await editor.styles.get(s.folder);
     const sc = buildScene(doc, style);
     const gs = glyphSet(style);
-    const outDir = vscode.Uri.joinPath(gaffyDir(s.folder), 'export');
+    const outDir = gaffyDir(s.folder);
     await vscode.workspace.fs.createDirectory(outDir);
     const href = (key: NodeKey) => {
       const n = nodeOf(doc, key);
@@ -215,15 +225,17 @@ export function registerCommands(ctx: vscode.ExtensionContext, editor: GaffyEdit
     // <symbol>_<short commit hash, or date>_<nn>.md and .txt, numbered per symbol and commit
     const seed = doc.view.seeds[0];
     const sym = ((seed && nodeOf(doc, seed)?.name) || s.name).replace(/[^\w.-]+/g, '_');
-    const prefix = `${sym}_${(await gitShort(s.folder.fsPath)) ?? dateSlug()}_`;
+    // .gaffy/<symbol>_<short commit hash, or date>.md; later exports of the same symbol and commit: _2, _3, …
+    const base = `${sym}_${(await gitShort(s.folder.fsPath)) ?? dateSlug()}`;
     let n = 0;
     try {
       for (const [f] of await vscode.workspace.fs.readDirectory(outDir)) {
-        const m = f.startsWith(prefix) ? /^(\d+)\./.exec(f.slice(prefix.length)) : null;
+        if (f === `${base}.md`) n = Math.max(n, 1);
+        const m = f.startsWith(`${base}_`) ? /^(\d+)\.md$/.exec(f.slice(base.length + 1)) : null;
         if (m) n = Math.max(n, Number(m[1]));
       }
     } catch { /* new folder */ }
-    const stem = `${prefix}${String(n + 1).padStart(2, '0')}`;
+    const stem = n ? `${base}_${n + 1}` : base;
     const mdUri = vscode.Uri.joinPath(outDir, `${stem}.md`);
     await vscode.workspace.fs.writeFile(mdUri, new TextEncoder().encode(md.replace(`# ${doc.name}`, `# ${stem}`)));
     await vscode.workspace.fs.writeFile(vscode.Uri.joinPath(outDir, `${stem}.txt`),
@@ -340,7 +352,8 @@ export function registerCommands(ctx: vscode.ExtensionContext, editor: GaffyEdit
         await openNode(n && line !== undefined ? { ...n, line, character: 0 } : n, false);
         break;
       }
-      case 'expand': if (key) await s.refresh((doc) => {
+      case 'expand': if (key && s.doc().view.arrange === 'grow') { await s.expand(key, (m.dir as 'in' | 'out') ?? 'out'); break; }
+      if (key) await s.refresh((doc) => {
         const dir = (m.dir as Direction | undefined) ?? doc.view.direction;
         const prev = doc.view.expanded[key];
         doc.view.expanded[key] = prev && prev !== dir ? 'both' : dir;

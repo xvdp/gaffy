@@ -7,7 +7,8 @@ import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { isContainer, NodeKey } from '../core/model';
 import { globToRegExp, parseDoc, serializeDoc, ViewDoc } from '../core/viewdoc';
-import { applyBuild, buildGraph, BuildMode, BuildProgress } from './build';
+import { applyBuild, buildGraph, BuildMode, BuildProgress, extendGraph, Extension, Pair } from './build';
+import { frontierOf, visibleOf } from '../core/scene';
 import { CallCache } from './cache';
 import { LspProvider } from './lsp';
 import { folderOf, gaffyDir, StyleService } from './style';
@@ -48,22 +49,20 @@ export class Session {
     void this.panel.webview.postMessage({ type: 'state', text: this.document.getText(), name: this.name, style, exclude, busy: this.busy });
   }
 
-  /**
-   * Rebuild from the seeds. `cached` (default): cached answers, the language server for the rest.
-   * `revalidate`: first from the cache alone (instant), then every definition again from the language server.
-   * Progress: banner in the graph, and after 400 ms a notification with a cancel button.
-   */
-  async refresh(mutate?: (d: ViewDoc) => void, how: 'cached' | 'revalidate' = 'cached'): Promise<void> {
-    if (this.busy) return;
-    this.busy = true;
+  private queue: Promise<void> = Promise.resolve();
+
+  /** Provider work of one view runs one task at a time. */
+  private enqueue(task: () => Promise<void>): Promise<void> {
+    this.queue = this.queue.then(task, task);
+    return this.queue;
+  }
+
+  /** Banner in the graph, and after 400 ms a notification with a cancel button. */
+  private async progress(fn: (show: (t: string) => void, token: vscode.CancellationToken) => Promise<void>): Promise<void> {
     const cts = new vscode.CancellationTokenSource();
     let text = 'starting';
     let notify: ((t: string) => void) | undefined;
-    const show = (t: string) => {
-      text = t;
-      void this.panel.webview.postMessage({ type: 'progress', text: t });
-      notify?.(t);
-    };
+    const show = (t: string) => { text = t; void this.panel.webview.postMessage({ type: 'progress', text: t }); notify?.(t); };
     let done!: () => void;
     const finished = new Promise<void>((r) => { done = r; });
     const timer = setTimeout(() => {
@@ -76,36 +75,10 @@ export class Session {
           await finished;
         });
     }, 400);
+    this.busy = true;
     void this.panel.webview.postMessage({ type: 'busy', busy: true });
     try {
-      const doc = this.doc();
-      mutate?.(doc);
-      const cfg = vscode.workspace.getConfiguration('gaffy', this.document.uri);
-      const opts = {
-        maxNodes: cfg.get<number>('maxNodes') ?? 400,
-        exclude: (cfg.get<string[]>('exclude') ?? []).map(globToRegExp),
-        cache: this.host.cacheFor(this.folder),
-        token: cts.token,
-      };
-      await opts.cache.ready();
-      const fmt = (phase: string) => (q: BuildProgress) =>
-        show(`${phase} · depth ${q.level}/${q.depth} · ${q.definitions} definitions · ${q.requests} language-server requests · ${q.cached} cached`);
-      const phases: BuildMode[] = how === 'revalidate' ? ['cacheOnly', 'fresh'] : ['cached'];
-      let current = doc;
-      for (const mode of phases) {
-        const label = mode === 'cacheOnly' ? 'from cache' : mode === 'fresh' ? 'asking the language server' : 'building';
-        show(label);
-        const r = await buildGraph(this.host.provider, current, { ...opts, mode, progress: fmt(label) });
-        if (cts.token.isCancellationRequested) { show('cancelled'); break; }
-        if (mode !== 'cacheOnly' && r.missing.length) {
-          void vscode.window.showWarningMessage(`gaffy: seeds not resolved: ${r.missing.map((k) => k.split('#').pop()).join(', ')}`);
-        }
-        if (mode === 'cacheOnly' && !Object.keys(r.graph.edges).length && !Object.keys(current.graph.nodes).length) continue;
-        const first = !Object.keys(current.graph.nodes).length || Object.keys(current.graph.nodes).length <= current.view.seeds.length;
-        current = applyBuild(current, r);
-        if (first) openOneLayer(current, cfg.get<number>('foldAbove') ?? 30);
-        await this.write(current);
-      }
+      await fn(show, cts.token);
     } catch (e) {
       void vscode.window.showErrorMessage(`gaffy: ${(e as Error).message}`);
     } finally {
@@ -117,6 +90,205 @@ export class Session {
     }
   }
 
+  private opts() {
+    const cfg = vscode.workspace.getConfiguration('gaffy', this.document.uri);
+    return {
+      maxNodes: cfg.get<number>('maxNodes') ?? 400,
+      exclude: (cfg.get<string[]>('exclude') ?? []).map(globToRegExp),
+      cache: this.host.cacheFor(this.folder),
+    };
+  }
+
+  /** Ask for (definition, direction) pairs and merge the answers into the current document; writes only on change. */
+  private async ask(qs: Pair[], mode: BuildMode, label: string,
+    show: (t: string) => void, token?: vscode.CancellationToken): Promise<Extension | undefined> {
+    if (!qs.length) return undefined;
+    const o = this.opts();
+    await o.cache.ready();
+    const r = await extendGraph(this.host.provider, this.doc(), qs, { ...o, mode, token,
+      progress: (q) => show(`${label} · ${q.definitions} definitions · ${q.requests} language-server requests · ${q.cached} cached`) });
+    const now = this.doc();
+    const before = signature(now);
+    now.graph = r.graph;
+    now.explored = r.explored;
+    if (signature(now) !== before) {
+      now.updated = new Date().toISOString();
+      await this.write(now);
+    }
+    for (const u of r.unresolved) this.pending.set(`${u.dir}:${u.key}`, u);
+    return r;
+  }
+
+  private unasked(doc: ViewDoc, keys: NodeKey[], dirs: ('in' | 'out')[]): Pair[] {
+    return this.unaskedPairs(doc, keys.flatMap((key) => dirs.map((dir) => ({ key, dir }))));
+  }
+
+  private unaskedPairs(doc: ViewDoc, pairs: Pair[]): Pair[] {
+    const ex = doc.explored ?? {};
+    return pairs.filter(({ key, dir }) => ex[key] !== dir && ex[key] !== 'both');
+  }
+
+  // pairs without an answer in the current task; retried with backoff while the language server starts
+  private pending = new Map<string, Pair>();
+  private retries = 0;
+  private retryTimer: NodeJS.Timeout | undefined;
+
+  /** After a task: retry unresolved pairs later, or report them after the last attempt. */
+  private settle(): void {
+    const n = this.pending.size;
+    this.pending.clear();
+    clearTimeout(this.retryTimer);
+    if (!n) { this.retries = 0; this.note(); return; }
+    if (this.retries >= RETRY_S.length) {
+      this.retries = 0;
+      this.note(`language server: ${n} calls lists unresolved, stored calls kept`);
+      void vscode.window.showWarningMessage(`gaffy: ${this.name}: the language server resolved no answer for ${n} (definition, direction) pairs `
+        + '(still analyzing, renamed or removed). The view keeps their stored calls; Options > Ask the language server again retries.');
+      return;
+    }
+    const sec = RETRY_S[this.retries++];
+    this.note(`language server not ready: ${n} calls lists unresolved, retry in ${sec} s`);
+    this.retryTimer = setTimeout(() => void this.revalidate(), sec * 1000);
+  }
+
+  private note(text?: string): void { void this.panel.webview.postMessage({ type: 'note', text: text ?? '' }); }
+
+  dispose(): void { clearTimeout(this.retryTimer); }
+
+  /**
+   * Visible definitions: the directions each may open (seeds both, others the direction that revealed
+   * them) asked once, so the markers know what lies beyond. An answer can reveal more (an open side), so
+   * this repeats until nothing visible is unasked (at most 8 rounds, one per revealed layer).
+   */
+  private async neighbors(show: (t: string) => void, token: vscode.CancellationToken): Promise<void> {
+    for (let i = 0; i < 8 && !token.isCancellationRequested; i++) {
+      const qs = this.unaskedPairs(this.doc(), frontierOf(this.doc()));
+      if (!qs.length || !(await this.ask(qs, 'cached', 'checking neighbors', show, token))?.asked) break;
+    }
+  }
+
+  ensure(): Promise<void> {
+    return this.enqueue(async () => {
+      const doc = this.doc();
+      if (doc.view.arrange !== 'grow') return;
+      if (!this.unaskedPairs(doc, frontierOf(doc)).length) return;
+      await this.progress((show, token) => this.neighbors(show, token));
+      this.settle();
+    });
+  }
+
+  /**
+   * Stable views: the seeds' first layer (shown at once), the neighbors of everything on screen (for the
+   * markers), then a prefetch along the traversal direction up to `view.depth` layers, in the background.
+   */
+  grow(): Promise<void> {
+    return this.enqueue(async () => {
+      await this.progress(async (show, token) => {
+        let doc = this.doc();
+        const dirs: ('in' | 'out')[] = doc.view.direction === 'both' ? ['in', 'out'] : [doc.view.direction];
+        await this.ask(this.unasked(doc, doc.view.seeds, dirs), 'cached', 'first layer', show, token);
+        await this.neighbors(show, token);
+        for (let level = 2; level <= doc.view.depth && !token.isCancellationRequested; level++) {
+          doc = this.doc();
+          const reach = layers(doc, dirs, level - 1);
+          const qs = this.unasked(doc, reach, dirs);
+          if (!qs.length) break;
+          await this.ask(qs, 'cached', `prefetch ${level}/${doc.view.depth}`, show, token);
+        }
+      });
+      this.settle();
+    });
+  }
+
+  /** Ask a side of one definition, then the neighbors of what that reveals. */
+  expand(key: NodeKey, dir: 'in' | 'out'): Promise<void> {
+    return this.enqueue(async () => {
+      await this.progress(async (show, token) => {
+        await this.ask([{ key, dir }], 'cached', 'opening', show, token);
+        await this.neighbors(show, token);
+      });
+      this.settle();
+    });
+  }
+
+  /**
+   * Stable views, progressive and non-destructive. Every explored pair takes its cached answer (no
+   * language server; the cache drops answers of files changed since). Pairs without a cached answer:
+   * visible ones are asked again in the background, the others lose their explored mark and are asked
+   * when a side opens onto them; until then they keep their stored calls. Then the neighbors of what is
+   * on screen. `force`: every visible pair from the language server, every other pair's cached answer dropped.
+   * With nothing changed since the view was saved this asks the language server nothing.
+   */
+  revalidate(force = false): Promise<void> {
+    return this.enqueue(async () => {
+      let doc = this.doc();
+      if (doc.view.arrange !== 'grow') return;
+      if (!Object.keys(doc.explored ?? {}).length) { void this.grow(); return; }
+      const o = this.opts();
+      await o.cache.ready();
+      const vis = new Set(visibleOf(doc));
+      const pairs = Object.entries(doc.explored ?? {}).flatMap(([key, d]) =>
+        (d === 'both' ? ['in', 'out'] as const : [d as 'in' | 'out']).map((dir) => ({ key, dir })));
+      const shown = pairs.filter((q) => vis.has(q.key));
+      const rest = pairs.filter((q) => !vis.has(q.key));
+      if (force) for (const q of rest) o.cache.drop(q.key, q.dir);
+      // cached answers merge without the language server; the others are stale
+      const quiet = () => undefined;
+      const r = force ? undefined : await this.ask(pairs, 'cacheOnly', '', quiet);
+      const stale = force ? new Set(rest.map(id)) : new Set((r?.missed ?? []).filter((q) => !vis.has(q.key)).map(id));
+      if (stale.size) {
+        const d = this.doc();
+        const ex = { ...(d.explored ?? {}) };
+        for (const k of new Set([...stale].map((x) => x.slice(x.indexOf(':') + 1)))) {
+          const keep = (['in', 'out'] as const).filter((dir) => (ex[k] === dir || ex[k] === 'both') && !stale.has(`${dir}:${k}`));
+          if (keep.length) ex[k] = keep[0]; else delete ex[k];
+        }
+        d.explored = ex;
+        await this.write(d);
+      }
+      const visStale = force ? shown : (r?.missed ?? []).filter((q) => vis.has(q.key));
+      doc = this.doc();
+      const neighbors = this.unaskedPairs(doc, frontierOf(doc));
+      if (visStale.length || neighbors.length) {
+        await this.progress(async (show, token) => {
+          await this.ask(visStale, force ? 'fresh' : 'cached', force ? 'asking the language server' : 'updating changed files', show, token);
+          await this.neighbors(show, token);
+        });
+      }
+      this.settle();
+    });
+  }
+
+  /**
+   * Stable views: `revalidate` (`how === 'revalidate'` forces the visible pairs from the language server).
+   * Automatic views: build from the seeds; pairs without an answer keep their stored calls.
+   */
+  async refresh(mutate?: (d: ViewDoc) => void, how: 'cached' | 'revalidate' = 'cached'): Promise<void> {
+    if (mutate) { const d = this.doc(); mutate(d); await this.write(d); }
+    const doc = this.doc();
+    if (doc.view.arrange === 'grow') return this.revalidate(how === 'revalidate');
+    return this.enqueue(() => this.progress(async (show, token) => {
+      const o = this.opts();
+      await o.cache.ready();
+      const fmt = (phase: string) => (q: BuildProgress) =>
+        show(`${phase} · depth ${q.level}/${q.depth} · ${q.definitions} definitions · ${q.requests} language-server requests · ${q.cached} cached`);
+      const phases: BuildMode[] = how === 'revalidate' ? ['cacheOnly', 'fresh'] : ['cached'];
+      let current = this.doc();
+      for (const mode of phases) {
+        const label = mode === 'cacheOnly' ? 'from cache' : mode === 'fresh' ? 'asking the language server' : 'building';
+        show(label);
+        const r = await buildGraph(this.host.provider, current, { ...o, token, mode, progress: fmt(label) });
+        if (token.isCancellationRequested) { show('cancelled'); break; }
+        if (mode !== 'cacheOnly' && r.missing.length) {
+          void vscode.window.showWarningMessage(`gaffy: seeds not resolved: ${r.missing.map((k) => k.split('#').pop()).join(', ')}`);
+        }
+        this.note(mode !== 'cacheOnly' && r.unresolved ? `language server: ${r.unresolved} calls lists unresolved, stored calls kept` : undefined);
+        current = applyBuild(current, r);
+        await this.write(current);
+      }
+    }));
+  }
+
   /** Applies a local change without querying the provider. */
   async update(mutate: (d: ViewDoc) => void): Promise<void> {
     const doc = this.doc();
@@ -125,14 +297,21 @@ export class Session {
   }
 }
 
-/**
- * A new view larger than `limit` definitions opens one layer, as the VS Code call hierarchy does: the
- * neighbors of the seeds are folded on the traversal side (calls for `out`, callers for `in`).
- */
-function openOneLayer(doc: ViewDoc, limit: number): void {
-  const defs = Object.values(doc.graph.nodes).filter((n) => !isContainer(n)).length;
-  if (defs <= limit || Object.keys(doc.view.fold).length) return;
-  const seeds = new Set(doc.view.seeds);
+/** Retry delays in seconds for answers the language server did not give (startup analysis). */
+const RETRY_S = [2, 4, 8, 15, 30, 60];
+
+const id = (q: Pair) => `${q.dir}:${q.key}`;
+
+/** Order-free fingerprint of the data a build changes: node records, calls, explored directions. */
+function signature(d: ViewDoc): string {
+  const nodes = Object.entries(d.graph.nodes).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
+  const edges = d.graph.edges.map((e) => `${e.from}\u0000${e.to}\u0000${e.line ?? ''}`).sort();
+  const ex = Object.entries(d.explored ?? {}).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
+  return JSON.stringify([nodes, edges, ex]);
+}
+
+/** Definitions exactly `n` layers from the seeds along `dirs` in the view's data. */
+function layers(doc: ViewDoc, dirs: ('in' | 'out')[], n: number): NodeKey[] {
   const out = new Map<NodeKey, NodeKey[]>(), inc = new Map<NodeKey, NodeKey[]>();
   for (const e of doc.graph.edges) {
     if (!out.has(e.from)) out.set(e.from, []);
@@ -140,11 +319,14 @@ function openOneLayer(doc: ViewDoc, limit: number): void {
     if (!inc.has(e.to)) inc.set(e.to, []);
     inc.get(e.to)!.push(e.from);
   }
-  const d = doc.view.direction;
-  for (const s of seeds) {
-    if (d !== 'in') for (const c of out.get(s) ?? []) if (!seeds.has(c) && (out.get(c) ?? []).length) doc.view.fold[c] = 'down';
-    if (d !== 'out') for (const c of inc.get(s) ?? []) if (!seeds.has(c) && (inc.get(c) ?? []).length) doc.view.fold[c] = 'up';
+  let level = new Set(doc.view.seeds);
+  const seen = new Set(level);
+  for (let i = 0; i < n; i++) {
+    const next = new Set<NodeKey>();
+    for (const k of level) for (const d of dirs) for (const m of (d === 'out' ? out : inc).get(k) ?? []) if (!seen.has(m)) { seen.add(m); next.add(m); }
+    level = next;
   }
+  return [...level].filter((k) => !isContainer(doc.graph.nodes[k]));
 }
 
 export class GaffyEditor implements vscode.CustomTextEditorProvider {
@@ -194,11 +376,14 @@ export class GaffyEditor implements vscode.CustomTextEditorProvider {
           if (m.type === 'ready') {
             await s.post();
             const doc = s.doc();
-            if (doc.view.seeds.length && !Object.keys(doc.graph.nodes).length) await s.refresh();
+            // stable views: stored data at once, then only what changed since (no language server when nothing did)
+            if (doc.view.arrange === 'grow') { if (doc.view.seeds.length) void s.revalidate(); }
+            else if (doc.view.seeds.length && !Object.keys(doc.graph.nodes).length) await s.refresh();
           } else if (m.type === 'edit') {
             const doc = parseDoc(m.text, s.name);
             await s.write(doc);
             if (m.rebuild) await s.refresh();
+            else if (doc.view.arrange === 'grow') void s.ensure();
           } else {
             await this.onMessage(s, m);
           }
@@ -208,6 +393,7 @@ export class GaffyEditor implements vscode.CustomTextEditorProvider {
       }),
     ];
     panel.onDidDispose(() => {
+      s.dispose();
       subs.forEach((d) => d.dispose());
       this.sessions.delete(id);
       if (this.active === s) this.active = undefined;
