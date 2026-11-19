@@ -29,6 +29,27 @@ export const LANG: Record<string, string> = {
 
 export const TEXT_LANGS = new Set(['glsl', 'hlsl', 'slang', 'wgsl', 'metal']);
 
+/** VS Code extensions whose language servers give a language document symbols and call hierarchy (for messages). */
+export const SERVERS: Record<string, string> = {
+  py: 'Python with Pylance (ms-python.python)',
+  rs: 'rust-analyzer (rust-lang.rust-analyzer)',
+  c: 'C/C++ (ms-vscode.cpptools) or clangd (llvm-vs-code-extensions.vscode-clangd)',
+  cpp: 'C/C++ (ms-vscode.cpptools) or clangd (llvm-vs-code-extensions.vscode-clangd)',
+  cuda: 'C/C++ (ms-vscode.cpptools) or clangd (llvm-vs-code-extensions.vscode-clangd)',
+  go: 'Go (golang.go)',
+  java: 'Language Support for Java (redhat.java)',
+  cs: 'C# Dev Kit (ms-dotnettools.csdevkit)',
+  dart: 'Dart (Dart-Code.dart-code)',
+  slang: 'Slang (shader-slang.slang-language-extension)',
+  glsl: 'WebGL GLSL Editor (raczzalan.webgl-glsl-editor)',
+};
+
+/** Message for a file whose language answered nothing: the extension that would. */
+export const serverHint = (path: string) => {
+  const lang = langOf(path);
+  return SERVERS[lang] ? `install or enable ${SERVERS[lang]}` : `no language server with call hierarchy is known for .${path.split('.').pop()} files`;
+};
+
 /** Extensions of one language (for the text index of a language). */
 export const extsOf = (lang: string) => Object.entries(LANG).filter(([, l]) => l === lang).map(([e]) => e);
 

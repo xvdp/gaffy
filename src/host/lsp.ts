@@ -376,12 +376,14 @@ export class LspProvider {
   async outgoing(key: NodeKey, acc: Record<NodeKey, GNode>): Promise<GEdge[] | undefined> {
     const it = await this.item(key, acc[key]).catch(() => undefined);
     if (!it) return undefined;
-    const own = this.textItems.has(it) ? await this.textOutgoing(key, it, acc).catch(() => undefined) : await this.lspOutgoing(key, it, acc);
+    const own = this.textItems.has(it) ? await this.textOutgoing(key, it, acc).catch(() => undefined)
+      : await this.lspOutgoing(key, it, acc, await this.bridges.boundIn(it.uri).catch(() => undefined));
     // calls across languages join the answer (a Python function calling bound C++/CUDA or Slang)
     return own && own.concat(await this.bridges.outgoing(key, it, acc).catch(() => []));
   }
 
-  private async lspOutgoing(key: NodeKey, it: vscode.CallHierarchyItem, acc: Record<NodeKey, GNode>): Promise<GEdge[] | undefined> {
+  /** `bound`: call ranges in the caller's file where a binding matched; the server's edge from such a range is dropped (same-name match). */
+  private async lspOutgoing(key: NodeKey, it: vscode.CallHierarchyItem, acc: Record<NodeKey, GNode>, bound?: (r: vscode.Range) => boolean): Promise<GEdge[] | undefined> {
     let calls: vscode.CallHierarchyOutgoingCall[] | undefined;
     try {
       calls = await timed(vscode.commands.executeCommand<vscode.CallHierarchyOutgoingCall[]>('vscode.provideOutgoingCalls', it));
@@ -389,6 +391,7 @@ export class LspProvider {
     if (!calls) return undefined;
     const edges: GEdge[] = [];
     for (const c of calls) {
+      if (bound && c.fromRanges.length && c.fromRanges.every(bound)) continue;
       const to = await this.describe(c.to, acc);
       if (to) edges.push({ from: key, to, line: c.fromRanges[0]?.start.line });
     }
@@ -411,7 +414,13 @@ export class LspProvider {
     } catch { return undefined; }
     if (!calls) return undefined;
     const edges: GEdge[] = [];
+    const boundBy = new Map<string, Promise<((r: vscode.Range) => boolean) | undefined>>();
     for (const c of calls) {
+      // a caller whose only call ranges are binding call sites called the binding, not this same-named function
+      const u = c.from.uri.toString();
+      if (!boundBy.has(u)) boundBy.set(u, this.bridges.boundIn(c.from.uri).catch(() => undefined));
+      const bound = await boundBy.get(u);
+      if (bound && c.fromRanges.length && c.fromRanges.every(bound)) continue;
       const from = await this.describe(c.from, acc);
       if (from) edges.push({ from, to: key, line: c.fromRanges[0]?.start.line });
     }

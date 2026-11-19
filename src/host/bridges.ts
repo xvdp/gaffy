@@ -11,8 +11,15 @@
  * `pkg/` folder, `pkg/<crate>.js`, or the package name, which is the crate name); incoming calls of such a
  * Rust function gain those callers. The generated glue `pkg/*.js` counts as external code (langs.ts), so
  * the call shows once, from the caller to the Rust function.
- * Edges carry `via` (`pybind11: src/ext.cpp:42`). Indexes of the workspace's binding files and Python
- * files are built once and dropped when one of those files changes.
+ * torch.autograd: `X.apply(…)` on a `torch.autograd.Function` subclass → `X.forward` (autograd dispatches
+ * it at run time; the language server stops at `Function.apply` in torch).
+ * Where a call site matched a binding, the language server's own edge from that site is dropped: with
+ * the compiled module unresolved, it matches the callee by name (`_C.rasterize_gaussians(…)` taken for
+ * the Python wrapper `rasterize_gaussians`; measured with Pyright).
+ * Edges carry `via` (`pybind11: src/ext.cpp:42`). Indexes are per project (the nearest folder with a
+ * build or package manifest, inside the workspace folder), so a workspace of many projects is searched
+ * only where the file lives; the whole workspace is the fallback when the project has no bindings.
+ * Indexes are built once and dropped when a file of their kind changes.
  */
 import * as path from 'node:path';
 import * as vscode from 'vscode';
@@ -22,6 +29,7 @@ import { GEdge, GNode, NodeKey } from '../core/model';
 import type { LspProvider } from './lsp';
 
 const SKIP = '{**/node_modules/**,**/.git/**,**/_deps/**,**/.venv/**,**/venv/**,**/site-packages/**,**/.gaffy/**}';
+const MANIFESTS = ['setup.py', 'pyproject.toml', 'setup.cfg', 'CMakeLists.txt', 'Cargo.toml', 'package.json'];
 const NATIVE = new Set(['c', 'cpp', 'cuda']);
 const JS = new Set(['ts', 'js']);
 type Located = Binding & { uri: vscode.Uri; module: string };
@@ -32,8 +40,9 @@ interface PyFile { uri: vscode.Uri; text: string }
 const lineOf = (text: string, offset: number) => { let n = 0; for (let i = 0; i < offset && i < text.length; i++) if (text.charCodeAt(i) === 10) n++; return n; };
 
 export class Bridges {
-  private native?: Promise<Located[]>;
-  private python?: Promise<PyFile[]>;
+  private native = new Map<string, Promise<Located[]>>();     // per project folder ('' the workspace)
+  private python = new Map<string, Promise<PyFile[]>>();
+  private projects = new Map<string, Promise<string>>();
   private targets = new Map<string, Promise<vscode.CallHierarchyItem | undefined>>();
   private wasm?: Promise<Exported[]>;
   private js?: Promise<PyFile[]>;
@@ -42,8 +51,9 @@ export class Bridges {
 
   invalidate(uri: vscode.Uri): void {
     const lang = langOf(uri.path);
-    if (NATIVE.has(lang)) { this.native = undefined; this.targets.clear(); }
-    if (lang === 'py') { this.python = undefined; this.native = undefined; }     // extension module names come from Python
+    if (NATIVE.has(lang)) { this.native.clear(); this.targets.clear(); }
+    if (lang === 'py') { this.python.clear(); this.native.clear(); }              // extension module names come from Python
+    if (MANIFESTS.includes(path.posix.basename(uri.path))) this.projects.clear();
     if (lang === 'rs' || uri.path.endsWith('Cargo.toml')) this.wasm = undefined;
     if (JS.has(lang)) this.js = undefined;
   }
@@ -52,19 +62,44 @@ export class Bridges {
     try { return new TextDecoder().decode(await vscode.workspace.fs.readFile(uri)); } catch { return ''; }
   }
 
-  private pyFiles(): Promise<PyFile[]> {
-    this.python ??= (async () => {
-      const uris = await vscode.workspace.findFiles('**/*.py', SKIP, 5000);
-      return Promise.all(uris.map(async (uri) => ({ uri, text: await this.read(uri) })));
-    })();
-    return this.python;
+  /** Project folder of a file: the nearest folder above it holding a manifest, below its workspace folder; '' otherwise (the workspace). */
+  private project(uri: vscode.Uri): Promise<string> {
+    const top = vscode.workspace.getWorkspaceFolder(uri)?.uri.path;
+    const up = (dir: string): Promise<string> => {
+      if (!top || dir === top || !dir.startsWith(top)) return Promise.resolve('');
+      let p = this.projects.get(dir);
+      if (!p) {
+        p = (async () => {
+          for (const m of MANIFESTS) { try { await vscode.workspace.fs.stat(vscode.Uri.file(`${dir}/${m}`)); return dir; } catch { /* next */ } }
+          return up(path.posix.dirname(dir));
+        })();
+        this.projects.set(dir, p);
+      }
+      return p;
+    };
+    return up(path.posix.dirname(uri.path));
   }
 
-  /** Bindings of the workspace, each with its Python module; `TORCH_EXTENSION_NAME` takes the name of the extension built from its file. */
-  private bindings(): Promise<Located[]> {
-    this.native ??= (async () => {
-      const uris = await vscode.workspace.findFiles('**/*.{c,cc,cpp,cxx,cu,cuh,h,hh,hpp,hxx,inl,ipp}', SKIP, 5000);
-      const exts = (await this.pyFiles()).filter((f) => /cpp_extension|Extension\s*\(/.test(f.text)).flatMap((f) => extModules(f.text));
+  private find(scope: string, glob: string): Thenable<vscode.Uri[]> {
+    return vscode.workspace.findFiles(scope ? new vscode.RelativePattern(vscode.Uri.file(scope), glob) : glob, SKIP, 5000);
+  }
+
+  private pyFiles(scope = ''): Promise<PyFile[]> {
+    let p = this.python.get(scope);
+    if (!p) {
+      p = (async () => Promise.all((await this.find(scope, '**/*.py')).map(async (uri) => ({ uri, text: await this.read(uri) }))))();
+      this.python.set(scope, p);
+    }
+    return p;
+  }
+
+  /** Bindings of a project (or the workspace), each with its Python module; `TORCH_EXTENSION_NAME` takes the name of the extension built from its file. */
+  private bindings(scope = ''): Promise<Located[]> {
+    let cached = this.native.get(scope);
+    if (cached) return cached;
+    cached = (async () => {
+      const uris = await this.find(scope, '**/*.{c,cc,cpp,cxx,cu,cuh,h,hh,hpp,hxx,inl,ipp}');
+      const exts = (await this.pyFiles(scope)).filter((f) => /cpp_extension|Extension\s*\(/.test(f.text)).flatMap((f) => extModules(f.text));
       const out: Located[] = [];
       for (const uri of uris) {
         const text = await this.read(uri);
@@ -79,7 +114,61 @@ export class Bridges {
       }
       return out;
     })();
-    return this.native;
+    this.native.set(scope, cached);
+    return cached;
+  }
+
+  /** Bindings for a file: its project's, else the workspace's. */
+  private async bindingsFor(uri: vscode.Uri): Promise<Located[]> {
+    const scope = await this.project(uri);
+    const own = scope ? await this.bindings(scope) : [];
+    return own.length ? own : this.bindings('');
+  }
+
+  /** Offsets of the call sites in a Python text that a binding (pybind11, nanobind, torch) matches. */
+  private async bound(uri: vscode.Uri, text: string, from = 0, to = text.length): Promise<{ at: number; b: Located }[]> {
+    const imports = pyImports(text);
+    for (const e of extModules(text)) if (e.local) imports.set(e.local, e.name);
+    const bindings = await this.bindingsFor(uri);
+    const out: { at: number; b: Located }[] = [];
+    for (const s of pyCallSites(text, from, to)) for (const b of matchBindings(resolveDotted(s.dotted, imports), bindings)) out.push({ at: s.at, b });
+    return out;
+  }
+
+  /**
+   * For a Python file: whether a call range of the language server's answer is a binding call site, so
+   * its edge (a same-named Python function) is dropped; undefined for other files or without bindings.
+   */
+  async boundIn(uri: vscode.Uri): Promise<((r: vscode.Range) => boolean) | undefined> {
+    if (!this.enabled() || langOf(uri.path) !== 'py') return undefined;
+    const doc = await vscode.workspace.openTextDocument(uri);
+    const at = (await this.bound(uri, doc.getText())).map((x) => x.at);
+    if (!at.length) return undefined;
+    return (r) => { const a = doc.offsetAt(r.start), b = doc.offsetAt(r.end); return at.some((x) => x >= a && x <= b); };
+  }
+
+  /** torch.autograd: the `forward` of the `torch.autograd.Function` subclass a `X.apply(…)` call names. */
+  private async forwardOf(uri: vscode.Uri, doc: vscode.TextDocument, at: number, dotted: string): Promise<vscode.CallHierarchyItem | undefined> {
+    const cls = dotted.split('.').slice(-2, -1)[0];
+    if (!cls) return undefined;
+    const pos = doc.positionAt(doc.getText().lastIndexOf(cls, at));
+    let defs: (vscode.Location | vscode.LocationLink)[] = [];
+    try { defs = await vscode.commands.executeCommand<(vscode.Location | vscode.LocationLink)[]>('vscode.executeDefinitionProvider', uri, pos) ?? []; } catch { return undefined; }
+    for (const l of defs) {
+      const tu = 'targetUri' in l ? l.targetUri : l.uri;
+      const tp = 'targetUri' in l ? (l.targetSelectionRange ?? l.targetRange).start : l.range.start;
+      const syms = await this.p.symbolsOf(tu);
+      const find = (ss: readonly vscode.DocumentSymbol[]): vscode.DocumentSymbol | undefined => {
+        for (const x of ss) { if (x.range.contains(tp) && x.kind === vscode.SymbolKind.Class) return x; const c = find(x.children ?? []); if (c) return c; }
+        return undefined;
+      };
+      const c = find(syms);
+      const tdoc = await vscode.workspace.openTextDocument(tu);
+      if (!c || !/\bFunction\b/.test(tdoc.getText(new vscode.Range(c.range.start, c.selectionRange.end.translate(0, 200))).split(':')[0])) continue;
+      const fwd = (c.children ?? []).find((x) => x.name === 'forward');
+      if (fwd) return (await this.p.prepare(tu, fwd.selectionRange.start))[0];
+    }
+    return undefined;
   }
 
   /** The C++/CUDA function a binding names: go to definition at its target, else a workspace symbol of that name. */
@@ -221,12 +310,16 @@ export class Bridges {
     if (langOf(it.uri.path) !== 'py') return [];
     const doc = await vscode.workspace.openTextDocument(it.uri);
     const text = doc.getText();
-    const sites = pyCallSites(text, doc.offsetAt(it.selectionRange.end), doc.offsetAt(it.range.end));
+    const from = doc.offsetAt(it.selectionRange.end), upto = doc.offsetAt(it.range.end);
+    const sites = pyCallSites(text, from, upto);
     if (!sites.length) return [];
-    const imports = pyImports(text);
-    for (const e of extModules(text)) if (e.local) imports.set(e.local, e.name);
-    const bindings = await this.bindings();
     const edges: GEdge[] = [];
+    // torch.autograd: X.apply(…) → X.forward
+    for (const s of sites.filter((x) => x.dotted.endsWith('.apply'))) {
+      const t = await this.forwardOf(it.uri, doc, s.at, s.dotted);
+      const to = t && (await this.p.describe(t, acc));
+      if (to) edges.push({ from: key, to, line: doc.positionAt(s.at).line, via: `torch.autograd: ${s.dotted.split('.').slice(-2, -1)[0]}.apply → forward` });
+    }
     // Slang: the functions of the .slang files this Python file loads
     for (const l of slangLoads(text)) {
       const uri = await this.slangFile(it.uri, l.file);
@@ -239,13 +332,10 @@ export class Bridges {
         if (to) edges.push({ from: key, to, line: doc.positionAt(c.at).line, via: `${l.via}: ${l.file}${c.dynamic ? ' (by name, getattr)' : ''}` });
       }
     }
-    for (const s of sites) {
-      const line = doc.positionAt(s.at).line;
-      for (const b of matchBindings(resolveDotted(s.dotted, imports), bindings)) {
-        const t = await this.target(b);
-        const to = t && (await this.p.describe(t, acc));
-        if (to) edges.push({ from: key, to, line, via: `${b.via}: ${vscode.workspace.asRelativePath(b.uri)}:${lineOf(await this.read(b.uri), b.at) + 1}` });
-      }
+    for (const { at, b } of await this.bound(it.uri, text, from, upto)) {
+      const t = await this.target(b);
+      const to = t && (await this.p.describe(t, acc));
+      if (to) edges.push({ from: key, to, line: doc.positionAt(at).line, via: `${b.via}: ${vscode.workspace.asRelativePath(b.uri)}:${lineOf(await this.read(b.uri), b.at) + 1}` });
     }
     return edges;
   }
@@ -271,7 +361,7 @@ export class Bridges {
       }
       return edges;
     }
-    if (!(NATIVE.has(lang) || lang === 'slang')) return [];
+    if (!(NATIVE.has(lang) || lang === 'slang' || lang === 'py')) return [];
     const name = segments(it.name).pop()!;
     const edges: GEdge[] = [];
     const caller = async (f: PyFile, at: number, via: string) => {
@@ -280,7 +370,22 @@ export class Bridges {
       const from = c && (await this.p.describe(c, acc));
       if (from) edges.push({ from, to: key, line: doc.positionAt(at).line, via });
     };
-    const files = (await this.pyFiles()).filter((f) => f.text.includes(name));
+    // Python files of the function's project, else of the workspace, that mention the name
+    const scope = await this.project(it.uri);
+    let files = (await this.pyFiles(scope)).filter((f) => f.text.includes(name));
+    if (!files.length && scope) files = (await this.pyFiles('')).filter((f) => f.text.includes(name));
+    if (lang === 'py') {
+      // torch.autograd: callers of X.apply(…) when this is the forward of a torch.autograd.Function subclass X
+      if (name !== 'forward') return [];
+      const doc = await vscode.workspace.openTextDocument(it.uri);
+      const cls = segments(it.name).length > 1 ? undefined : (await this.p.symbolsOf(it.uri)).flatMap((x) => [x, ...(x.children ?? [])])
+        .find((x) => x.kind === vscode.SymbolKind.Class && x.range.contains(it.selectionRange.start));
+      if (!cls || !/\bFunction\b/.test(doc.getText(new vscode.Range(cls.range.start, cls.selectionRange.end.translate(0, 200))).split(':')[0])) return [];
+      for (const f of (await this.pyFiles(scope || '')).filter((x) => x.text.includes(`${cls.name}.apply`))) {
+        for (const s of pyCallSites(f.text)) if (s.dotted.endsWith(`${cls.name}.apply`)) await caller(f, s.at, `torch.autograd: ${cls.name}.apply → forward`);
+      }
+      return edges;
+    }
     if (lang === 'slang') {
       for (const f of files) {
         const l = slangLoads(f.text).find((x) => path.posix.basename(x.file) === path.posix.basename(it.uri.path));
@@ -304,7 +409,7 @@ export class Bridges {
     // bindings whose target is this function
     const mine: Located[] = [];
     if (!files.length) return edges;
-    for (const b of (await this.bindings()).filter((x) => x.target.split('::').pop() === name)) {
+    for (const b of (await this.bindingsFor(it.uri)).filter((x) => x.target.split('::').pop() === name)) {
       const t = await this.target(b);
       if (t && t.uri.toString() === it.uri.toString() && t.range.contains(it.selectionRange.start)) mine.push(b);
     }

@@ -6,6 +6,7 @@
 import { execFile } from 'node:child_process';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
+import { serverHint } from '../core/langs';
 import { toHtmlPre, toText } from '../core/grid';
 import { ancestors, GNode, NodeKey } from '../core/model';
 import { buildScene, siblingsOf } from '../core/scene';
@@ -81,7 +82,7 @@ export function registerCommands(ctx: vscode.ExtensionContext, editor: GaffyEdit
     const items = await vscode.window.withProgress(
       { location: vscode.ProgressLocation.Notification, title: 'gaffy: asking the language server about the symbol at the cursor…' },
       () => provider.prepare(ed.document.uri, ed.selection.active));
-    if (!items.length) throw new Error('no call hierarchy item at the cursor (language server without call hierarchy?)');
+    if (!items.length) throw new Error(`no call hierarchy at the cursor: ${serverHint(ed.document.uri.path)}`);
     const acc: Record<NodeKey, GNode> = {};
     const key = await provider.describe(items[0], acc);
     if (!key) throw new Error('symbol outside the workspace (gaffy.includeExternal is off)');
@@ -160,7 +161,7 @@ export function registerCommands(ctx: vscode.ExtensionContext, editor: GaffyEdit
       const key = it && (await provider.describe(it, acc));
       if (key) seeds.push(key);
     }
-    if (!seeds.length) throw new Error('no functions with call hierarchy in this file');
+    if (!seeds.length) throw new Error(syms.length ? `no function in this file has call hierarchy: ${serverHint(uri.path)}` : `no functions found in this file: ${serverHint(uri.path)}`);
     const doc = emptyDoc('', { seeds, direction: 'out', depth: 1 });
     doc.graph.nodes = acc;
     await createView(uri, path.basename(uri.path).replace(/\.[^.]+$/, ''), doc);
