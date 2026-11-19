@@ -14,7 +14,9 @@
  *    move down: row(i) = max(row(i-1) + 1, pref(i)) (greedy, monotone).
  * 5. Moves: a box unit keeps `offset` relative to its computed position, or its `lock` position;
  *    a vertex unit shifts its tree descendants in the block. A shifted subtree without lock descends
- *    until its labels overlap no other label of the block.
+ *    until its labels overlap no other label of the block. What was not moved stays where it was:
+ *    columns, rows and stacking of later items come from the unmoved positions (`moved` holds each
+ *    vertex's shift, `base` each item's unmoved rectangle); frames enclose the moved content.
  *
  * Coordinates: cells [column, row], canvas origin at (0, 0).
  */
@@ -63,6 +65,8 @@ export interface PlaceInput {
 }
 
 interface Rect { c0: number; r0: number; c1: number; r1: number }
+interface Area extends Rect { base: Rect }   // placed rectangle, and the rectangle it would take unmoved
+const shifted = (r: Rect, dc: number, dr: number): Rect => ({ c0: r.c0 + dc, r0: r.r0 + dr, c1: r.c1 + dc, r1: r.r1 + dr });
 const overlaps = (a: Rect, b: Rect) => a.c0 <= b.c1 && b.c0 <= a.c1 && a.r0 <= b.r1 && b.r0 <= a.r1;
 
 const verticesOf = (b: BoxNode): NodeKey[] => [...b.members, ...b.children.flatMap(verticesOf)];
@@ -74,13 +78,17 @@ export function place(inp: PlaceInput): Placement {
     width: 0, height: 0,
   };
 
-  // row a call leaves its caller: the port row when the caller has one
+  // shift a user move put into each placed vertex (box offsets and vertex offsets, cumulative)
+  const moved = new Map<NodeKey, Cell>();
+  const addMove = (k: NodeKey, dc: number, dr: number) => { const m = moved.get(k) ?? [0, 0]; moved.set(k, [m[0] + dc, m[1] + dr]); };
+  // row a call leaves its caller, unmoved: the port row when the caller has one
+  const baseRow = (u: NodeKey) => (P.port.get(u) ?? P.pos.get(u)!).row - (moved.get(u)?.[1] ?? 0);
   const callerRows = (k: NodeKey, inside: ReadonlySet<NodeKey>): number[] =>
     (vg.inc.get(k) ?? []).filter((e) => !inside.has(e.from) && P.pos.has(e.from))
-      .map((e) => (P.port.get(e.from) ?? P.pos.get(e.from)!).row).sort((a, b) => a - b);
+      .map((e) => baseRow(e.from)).sort((a, b) => a - b);
 
   // ---- block --------------------------------------------------------------------------------------
-  const placeBlock = (box: BoxNode, col: number, top: number, auto: boolean, avoid: Rect[]): Rect => {
+  const placeBlock = (box: BoxNode, col: number, top: number, auto: boolean, avoid: Rect[]): Area => {
     const keys = new Set(box.members);
     const sub = induced(vg, keys);
     const extIn = new Set<NodeKey>();
@@ -181,20 +189,26 @@ export function place(inp: PlaceInput): Placement {
     }
 
     P.blocks.push(block);
-    let rect: Rect = { c0: Infinity, r0: Infinity, c1: -Infinity, r1: -Infinity };
-    const grow = (c0: number, r0: number, c1: number, r1: number) => {
-      rect = { c0: Math.min(rect.c0, c0), r0: Math.min(rect.r0, r0), c1: Math.max(rect.c1, c1), r1: Math.max(rect.r1, r1) };
+    for (const k of keys) { const sh = shift.get(k)!; if (sh[0] || sh[1]) addMove(k, sh[0], sh[1]); }
+    // placed rectangle, and the unmoved one (labels at their computed cells)
+    const span = (at: (k: NodeKey) => Pos, portAt: (k: NodeKey) => Pos | undefined): Rect => {
+      let rect: Rect = { c0: Infinity, r0: Infinity, c1: -Infinity, r1: -Infinity };
+      const grow = (c0: number, r0: number, c1: number, r1: number) => {
+        rect = { c0: Math.min(rect.c0, c0), r0: Math.min(rect.r0, r0), c1: Math.max(rect.c1, c1), r1: Math.max(rect.r1, r1) };
+      };
+      for (const k of keys) { const p = at(k); grow(p.col, p.row, p.col + P.text.get(k)!.length - 1, p.row); }
+      for (const k of keys) { const pp = portAt(k); if (pp) grow(pp.col, pp.row, pp.col, pp.row); }
+      for (const l of L.lanes) grow(col + l.col, rowMap[l.lo], col + l.col, rowMap[l.hi]);
+      return keys.size ? rect : { c0: col, r0: top, c1: col, r1: top };
     };
-    for (const k of keys) grow(P.pos.get(k)!.col, P.pos.get(k)!.row, P.end.get(k)! - 1, P.pos.get(k)!.row);
-    for (const k of keys) { const pp = P.port.get(k); if (pp) grow(pp.col, pp.row, pp.col, pp.row); }
-    for (const l of L.lanes) grow(col + l.col, rowMap[l.lo], col + l.col, rowMap[l.hi]);
-    if (!keys.size) rect = { c0: col, r0: top, c1: col, r1: top };
-    return rect;
+    const rect = span((k) => P.pos.get(k)!, (k) => P.port.get(k));
+    const unmoved = span(base, (k) => { const pr = L.portOf.get(k); return pr === undefined ? undefined : { row: rowMap[pr], col: base(k).col }; });
+    return { ...rect, base: unmoved };
   };
 
   // ---- box ----------------------------------------------------------------------------------------
   type Item = { kind: 'block' } | { kind: 'box'; box: BoxNode };
-  const placeBox = (box: BoxNode, c0: number, r0: number, avoidOuter: Rect[]): Rect => {
+  const placeBox = (box: BoxNode, c0: number, r0: number, avoidOuter: Rect[]): Area => {
     const cc = box.frame ? c0 + 3 : c0;      // border, two cells: room for an arrival `─> f()` crossing the border
     const cr = box.frame ? r0 + 1 : r0;
     const items: Item[] = [];
@@ -226,8 +240,9 @@ export function place(inp: PlaceInput): Placement {
     const unitOf = (i: number) => (items[i].kind === 'box' ? boxUnit((items[i] as { box: BoxNode }).box.key) : '');
     const order = [...topo.filter((i) => inp.lock[unitOf(i)]), ...topo.filter((i) => !inp.lock[unitOf(i)])];
 
-    const placed: { i: number; rect: Rect }[] = [];
+    const placed: { i: number; rect: Rect; base: Rect }[] = [];
     let rect: Rect = { c0: cc, r0: cr, c1: cc, r1: cr };
+    let unmoved: Rect = { ...rect };
     for (const i of order) {
       const it = items[i];
       const inside = sets[i];
@@ -238,13 +253,14 @@ export function place(inp: PlaceInput): Placement {
       // channel: base width plus one column per call entering the item from an earlier sibling
       const entering = new Set<string>();
       for (const v of inside) for (const e of vg.inc.get(v) ?? []) if (sibCallers.some((p) => itemOf.get(e.from) === p.i)) entering.add(v);
-      const col = sibCallers.length ? Math.max(...sibCallers.map((p) => p.rect.c1)) + 1 + inp.channel + entering.size : cc;
+      // column, row and stacking from where earlier items would sit unmoved
+      const col = sibCallers.length ? Math.max(...sibCallers.map((p) => p.base.c1)) + 1 + inp.channel + entering.size : cc;
       // stacking ignores locked siblings: an unlocked item keeps its place unless it overlaps one
       const stack = placed.filter((p) => !inp.lock[unitOf(p.i)]);
-      const below = stack.length ? Math.max(...stack.map((p) => p.rect.r1)) + 1 : cr;
-      const top = callers.length ? Math.max(cr, Math.min(...callers.map((u) => P.pos.get(u)!.row))) : (sibCallers.length ? cr : below);
+      const below = stack.length ? Math.max(...stack.map((p) => p.base.r1)) + 1 : cr;
+      const top = callers.length ? Math.max(cr, Math.min(...callers.map(baseRow))) : (sibCallers.length ? cr : below);
       const avoid = [...placed.map((p) => p.rect), ...avoidOuter];
-      let r: Rect;
+      let r: Area;
       if (it.kind === 'block') {
         r = placeBlock(box, col, top, true, avoid);
       } else {
@@ -252,8 +268,12 @@ export function place(inp: PlaceInput): Placement {
         const lock = inp.lock[unit];
         const off = inp.offset[unit];
         if (lock) r = placeBox(it.box, lock[0], lock[1], []);
-        else if (off) r = placeBox(it.box, col + off[0], Math.max(0, (top - 1) + off[1]), []);
-        else {
+        else if (off) {
+          const at = Math.max(0, (top - 1) + off[1]);
+          r = placeBox(it.box, col + off[0], at, []);
+          for (const v of inside) addMove(v, off[0], at - (top - 1));
+          r = { ...r, base: shifted(r.base, -off[0], -(at - (top - 1))) };
+        } else {
           // trial placement, then descend below overlapped siblings
           let rr = Math.max(cr, top - 1);
           const snapshot = snapshotP();
@@ -267,19 +287,22 @@ export function place(inp: PlaceInput): Placement {
           }
         }
       }
-      placed.push({ i, rect: r });
+      placed.push({ i, rect: r, base: r.base });
       rect = { c0: Math.min(rect.c0, r.c0), r0: Math.min(rect.r0, r.r0), c1: Math.max(rect.c1, r.c1), r1: Math.max(rect.r1, r.r1) };
+      unmoved = { c0: Math.min(unmoved.c0, r.base.c0), r0: Math.min(unmoved.r0, r.base.r0), c1: Math.max(unmoved.c1, r.base.c1), r1: Math.max(unmoved.r1, r.base.r1) };
     }
 
     if (box.frame) {
       // the frame encloses its content in every direction, also content moved up or left
-      const f0 = Math.min(c0, rect.c0 - 3), g0 = Math.min(r0, rect.r0 - 1);
-      const c1 = Math.max(rect.c1 + 2, f0 + box.label.length + 5);
-      const r1 = rect.r1 + 1;
-      P.frames.push({ box, unit: boxUnit(box.key), c0: f0, r0: g0, c1, r1 });
-      return { c0: f0, r0: g0, c1, r1 };
+      const frame = (x: Rect): Rect => {
+        const f0 = Math.min(c0, x.c0 - 3), g0 = Math.min(r0, x.r0 - 1);
+        return { c0: f0, r0: g0, c1: Math.max(x.c1 + 2, f0 + box.label.length + 5), r1: x.r1 + 1 };
+      };
+      const f = frame(rect);
+      P.frames.push({ box, unit: boxUnit(box.key), ...f });
+      return { ...f, base: frame(unmoved) };
     }
-    return rect;
+    return { ...rect, base: unmoved };
   };
 
   // placement state snapshots for trial placements of boxes

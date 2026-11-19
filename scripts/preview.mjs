@@ -67,6 +67,32 @@ const simulate = () => {
     else r.dispatchEvent(new MouseEvent('click', { bubbles: true, view: window }));
   }
   if (params.get('key')) document.getElementById('graph').dispatchEvent(new KeyboardEvent('keydown', { key: params.get('key'), bubbles: true }));
+  // steps=a|b|…, in order: marker=<name>:<up|down>, isolate=<caller>,<callee>, arrow=<name>, sel=<name>, key=<key>
+  for (const step of (params.get('steps') || '').split('|').filter(Boolean)) {
+    const [kind, arg] = step.split('=');
+    const fire = (el, type = 'click', extra = {}) => el.dispatchEvent(new MouseEvent(type, { bubbles: true, view: window, ...extra }));
+    const labelOf = (name) => [...document.querySelectorAll('.labels g')].find((x) => x.__data__ && x.__data__.key.endsWith('#' + name));
+    if (kind === 'marker') {
+      const [name, side] = arg.split(':');
+      const el = side === 'up' ? labelOf(name)?.querySelector('tspan.twisty')
+        : [...document.querySelectorAll('.markers text')].find((x) => x.__data__ && x.__data__.key.endsWith('#' + name));
+      if (el) fire(el); else log({ sim: 'no marker ' + arg });
+    } else if (kind === 'isolate') {
+      const [a, b] = arg.split(',');
+      const p = [...document.querySelectorAll('.hits path')].find((x) => x.__data__ && x.__data__.from.endsWith('#' + a) && x.__data__.to.endsWith('#' + b));
+      if (p) fire(p, 'dblclick'); else log({ sim: 'no call ' + arg });
+    } else if (kind === 'arrow') {
+      const r = [...document.querySelectorAll('.arrowhits rect')].find((x) => x.__data__ && x.__data__.to.endsWith('#' + arg));
+      if (r) fire(r); else log({ sim: 'no arrowhead into ' + arg });
+    } else if (kind === 'sel') {
+      const g = labelOf(arg);
+      if (g) fire(g, 'click', { shiftKey: true }); else log({ sim: 'no label ' + arg });
+    } else if (kind === 'cmd') {
+      const [cmd, name] = arg.split(':');
+      const key = Object.keys(JSON.parse(text).graph.nodes).find((x) => x.endsWith('#' + name));
+      window.dispatchEvent(new MessageEvent('message', { data: { type: 'cmd', cmd, key } }));
+    } else if (kind === 'key') document.getElementById('graph').dispatchEvent(new KeyboardEvent('keydown', { key: arg, bubbles: true }));
+  }
   if (params.get('callclick')) {
     // click a point on a call's path: callclick=<caller>,<callee>,<fraction of its length>
     const [a, b, f] = params.get('callclick').split(',');

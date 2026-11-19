@@ -81,7 +81,7 @@ The editor entries were a `gaffy` submenu; the submenu stays defined in `package
 ```
 
 - Each caller sits above its callees; `└─>` points to the callee.
-- Namespace boxes (optional, key `b`): packages and folders; a package holding one module merges with it (`render.harmonics`); labels are relative to their box. Callee boxes sit right of their caller boxes; the top-level functions of a box take the rows of their callers outside the box, so those calls draw level.
+- Namespace boxes (optional, key `b`): packages and folders; a package holding one module merges with it (`render.harmonics`); labels are relative to their box. Callee boxes sit right of their caller boxes; the top-level functions of a box take the rows of their callers outside the box, so those calls draw level. A moved box or function leaves everything else where it was: later boxes take their columns and rows from where the moved item would sit unmoved.
 - `>> name()`: callers off screen; `└─>>`, the first row under a function: calls off screen (closed, beyond the call depth, hidden, or removed).
 - `├─>`, `└─>`: tree edge from the caller's stem. `──┐ ──┤ <──┘`: lane inside a box. `──> f()`: routed call arriving from the left, crossing box borders. Calls into one function share one line (a merge); calls from one function can leave on one line (a fork); a call joins a merge only where that line carries no other call; unrelated calls never share a line.
 - Vector mode: where two calls cross, the horizontal one hops over the vertical one; where calls merge or fork, the branch curves in the direction of the call.
@@ -96,18 +96,19 @@ Algorithms: [src/core/layout.ts](src/core/layout.ts) (rows and lanes in a block)
 |---|---|
 | click a function | select it and open it beside the graph (`gaffy.openBeside`) |
 | Shift+click a function | add to or remove from the selection |
+| Shift+drag on the background | selection window: adds every function whose label it touches |
 | `>> name()` / `└─>>` (one layer at a time) | open its callers / its calls, removed ones included |
 | click an arrowhead (one layer at a time) | close the level it points into |
 | double click a function (one layer at a time) | close both sides, or open every side that has more |
 | double click a collapsed container; a box header | expand it; collapse the box |
-| drag a function | move it with its tree children; calls re-route; the namespace box grows to enclose it |
+| drag a function | move it with its tree children; calls re-route; the namespace box grows to enclose it; dragging one of several selected functions moves them all; the rest of the picture stays still |
 | drag a box header | move the box with its content |
 | hover an arrow | highlight every call through the cell under the pointer, each end to end |
 | click an arrow | select every call through that cell: on a fork or merge, all of them; Shift+click adds or removes |
 | double click an arrow | isolate: keep each selected call's caller and what lies below its callee, hide the rest |
 | Enter | isolate the selected calls (or the selected functions); with a single focused function: open it |
 | Esc | clear the selection; with nothing selected: show all again |
-| right click a function | go to definition, editor context menu, peek references, VS Code call hierarchy; open or close callers and calls (one layer at a time); seeds; select upstream, downstream, through, paths between two; hide; show hidden neighbors; collapse class, module, package; group its module; lock or unlock; move among siblings; tag; reveal; copy path or name |
+| right click a function | go to definition, editor context menu, peek references, VS Code call hierarchy; open or close callers and calls (one layer at a time); make or remove a seed (it keeps its place; the language server is asked for the side it lacks); select upstream, downstream, through, paths between two; hide; show hidden neighbors; collapse class, module, package; group its module; lock or unlock; move among siblings; tag; reveal; copy path or name |
 | right click a box header | collapse, ungroup (dissolve the box), group the modules inside, lock or unlock, reveal, copy path |
 | right click an arrow | isolate this call, isolate the path through it, go to call site, go to callee |
 | ↑ ↓, Alt+↑ ↓ | move focus; move the focused function among its siblings |
@@ -121,8 +122,8 @@ Toolbar: **Isolate** (when nothing is hidden: isolates the selection) or **Show 
 - Namespaces: ✓ Group namespaces, reset per-box grouping
 - Edges: glyphs (UTF box drawing) or vector; curve for vector: orthogonal, rounded, sigmoid, spline
 - Tree parent: first caller found (dfs), nearest caller above, joint (shared functions: a caller right above joins the elbow `├───┴─>`; several callers in a box join one collector that enters from the left, `┌──┘` then `└─>`; calls between boxes arrive from the left whenever the cells are free)
-- Arrange: reset view (one layer at a time: the seeds and their first layer; full: the starting call depths), reset layout (moves, locks, sibling order, straightened calls), re-arrange (the selected functions, else every unlocked item), unlock all, expand collapsed, clear straightened calls
-- Folders: per top-level folder, included or excluded
+- Arrange (key `a`, right click > Re-arrange Selection: the selected functions back to their computed place, moves and locks dropped): reset view (one layer at a time: the seeds and their first layer; full: the starting call depths), reset layout (moves, locks, sibling order, straightened calls), re-arrange (the selected functions, else every unlocked item), unlock all, expand collapsed, clear straightened calls
+- Folders: per top-level folder, included or excluded. Filters apply when drawing: calls into an excluded folder are still fetched and kept, so including it again shows them at once, without the language server.
 - File: Refresh from Language Server, export ASCII, edit style.json
 
 The toolbar and the pulldown are plain HTML elements in the webview, built with d3-selection and styled with VS Code's theme variables (`--vscode-menu-*`); the graph itself is SVG drawn with D3.
@@ -137,6 +138,7 @@ Locks: a locked function or box keeps its absolute position; re-arrange and layo
 - Every answer of the language server (callers or callees of one definition) is cached in `.gaffy/cache/calls.json`. Changing depth or direction, expanding, and opening a view use cached answers and ask the language server only for the rest.
 - A saved, renamed, or externally changed source file drops the cached outgoing calls of its definitions and all cached incoming calls. Files whose extension no cached definition has (logs, bytecode, build output) drop nothing. `gaffy: Clear Call Cache` drops everything.
 - No answer differs from an empty answer. A definition the language server does not resolve (still analyzing after a window reload, renamed, removed) keeps the calls the view holds; its answer is neither cached nor recorded as explored. The view retries after 2, 4, 8, 15, 30 and 60 s and shows `language server not ready` in the status line meanwhile; after the last retry a warning names the count.
+- A language-server request without an answer after 30 s counts as no answer and is retried, so one stalled request does not hold the view's queue.
 - Opening a stable view: every explored (definition, direction) pair takes its cached answer without the language server. Pairs without a cached answer are stale: on-screen ones are asked again in the background; the others keep their calls, lose the explored mark, and are asked when a side opens onto them. Nothing changed since the last save: no language-server request.
 - **Refresh from Language Server** (Options > File, `r`, `gaffy: Refresh from Language Server`): asks every on-screen (definition, direction) pair from the language server and drops the cached answers of the others (asked when a side opens or a call depth reaches them).
 
@@ -208,7 +210,7 @@ A new UI element gets a color by a CSS rule in `media/webview.css` that reads `v
 | `gaffy.depth` | 3 | one layer at a time: levels prefetched in the background; full: the starting call depths |
 | `gaffy.maxNodes` | 400 | definitions fetched per build |
 | `gaffy.openCallHierarchy` | true | also open VS Code's Call Hierarchy when creating a view |
-| `gaffy.exclude` | tests (`**/tests/**`, `**/test_*.py`, …) | globs left out of builds; the Folders section includes them per view |
+| `gaffy.exclude` | none | globs of folders and files views leave off screen (for example `"**/tests/**"`); Options > Folders includes them again per view |
 | `gaffy.includeExternal` | false | include site-packages, node_modules, stubs |
 | `gaffy.autoSave` | true | save the view file after each graph change |
 | `gaffy.refreshOnSave` | touched | update policy after a source save |

@@ -142,6 +142,7 @@ text { dominant-baseline: central; white-space: pre; }
 .labels .twisty.off, .markers text.off { cursor: default; opacity: 0.6; }
 /* one layer at a time: arrowhead and the blank before the name close a level */
 .arrowhits rect { fill: transparent; cursor: pointer; }
+.drag rect.band { fill: var(--g-selection); fill-opacity: 0.08; stroke: var(--g-selection); stroke-dasharray: 4 3; }
 .arrowhits rect:hover { fill: var(--g-selection); fill-opacity: 0.25; }
 /* calls without a route */
 .edges path.net.fallback { stroke-dasharray: 3 3; }

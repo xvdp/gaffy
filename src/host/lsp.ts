@@ -40,6 +40,18 @@ function kindOf(k: vscode.SymbolKind): Kind {
 }
 
 type Sym = vscode.DocumentSymbol;
+
+/**
+ * A language-server request that has not answered after `ms` counts as no answer (retried later): one
+ * stalled request would otherwise hold a view's request queue, and every open, close and refresh behind it.
+ */
+const REQUEST_MS = 30000;
+function timed<T>(p: Thenable<T>, ms = REQUEST_MS): Promise<T | undefined> {
+  return new Promise((res) => {
+    const t = setTimeout(() => res(undefined), ms);
+    Promise.resolve(p).then((v) => { clearTimeout(t); res(v); }, () => { clearTimeout(t); res(undefined); });
+  });
+}
 interface TextFile { uri: vscode.Uri; doc: vscode.TextDocument; masked: string; fns: Sym[] }
 
 function chainAt(syms: readonly Sym[], pos: vscode.Position): Sym[] {
@@ -111,7 +123,7 @@ export class LspProvider {
   async prepare(uri: vscode.Uri, pos: vscode.Position): Promise<vscode.CallHierarchyItem[]> {
     let r: vscode.CallHierarchyItem[] | vscode.CallHierarchyItem | undefined;
     try {
-      r = await vscode.commands.executeCommand<vscode.CallHierarchyItem[] | vscode.CallHierarchyItem>('vscode.prepareCallHierarchy', uri, pos);
+      r = await timed(vscode.commands.executeCommand<vscode.CallHierarchyItem[] | vscode.CallHierarchyItem>('vscode.prepareCallHierarchy', uri, pos));
     } catch { r = undefined; }
     const items = !r ? [] : Array.isArray(r) ? r : [r];
     if (items.length || !TEXT_LANGS.has(langOf(uri.path))) return items;
@@ -356,7 +368,7 @@ export class LspProvider {
     if (this.textItems.has(it)) return this.textOutgoing(key, it, acc).catch(() => undefined);
     let calls: vscode.CallHierarchyOutgoingCall[] | undefined;
     try {
-      calls = await vscode.commands.executeCommand<vscode.CallHierarchyOutgoingCall[]>('vscode.provideOutgoingCalls', it);
+      calls = await timed(vscode.commands.executeCommand<vscode.CallHierarchyOutgoingCall[]>('vscode.provideOutgoingCalls', it));
     } catch { return undefined; }
     if (!calls) return undefined;
     const edges: GEdge[] = [];
@@ -374,7 +386,7 @@ export class LspProvider {
     if (this.textItems.has(it)) return this.textIncoming(key, it, acc).catch(() => undefined);
     let calls: vscode.CallHierarchyIncomingCall[] | undefined;
     try {
-      calls = await vscode.commands.executeCommand<vscode.CallHierarchyIncomingCall[]>('vscode.provideIncomingCalls', it);
+      calls = await timed(vscode.commands.executeCommand<vscode.CallHierarchyIncomingCall[]>('vscode.provideIncomingCalls', it));
     } catch { return undefined; }
     if (!calls) return undefined;
     const edges: GEdge[] = [];

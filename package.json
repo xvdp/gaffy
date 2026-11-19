@@ -2,7 +2,7 @@
   "name": "gaffy",
   "displayName": "gaffy",
   "description": "Persistent, manipulable call graphs on a character grid, rendered with D3",
-  "version": "0.8.0",
+  "version": "0.8.1",
   "publisher": "xvdp",
   "license": "UNLICENSED",
   "private": true,
@@ -86,17 +86,8 @@
           "items": {
             "type": "string"
           },
-          "default": [
-            "**/tests/**",
-            "**/test/**",
-            "**/__tests__/**",
-            "**/test_*.py",
-            "**/*_test.*",
-            "**/*_unittest.*",
-            "**/*.test.*",
-            "**/*.spec.*"
-          ],
-          "description": "Workspace-relative globs left out of view builds; a view can include a folder again from its toolbar."
+          "default": [],
+          "description": "Workspace-relative globs whose functions views leave off screen (for example \"**/tests/**\"); a view can include such a folder again from Options > Folders. Calls into them are still fetched and kept."
         },
         "gaffy.openCallHierarchy": {
           "type": "boolean",
@@ -214,6 +205,10 @@
       {
         "command": "gaffy.sel.isolate",
         "title": "Show Only Selection"
+      },
+      {
+        "command": "gaffy.sel.rearrange",
+        "title": "Re-arrange Selection (back to the computed place)"
       },
       {
         "command": "gaffy.sel.clear",
@@ -493,6 +488,11 @@
           "command": "gaffy.node.expandContainer",
           "when": "webviewId == 'gaffy.view' && webviewSection =~ /^(collapsed)$/",
           "group": "5_collapse@4"
+        },
+        {
+          "command": "gaffy.sel.rearrange",
+          "when": "webviewId == 'gaffy.view' && webviewSection =~ /^(node|collapsed)$/",
+          "group": "6_place@0"
         },
         {
           "command": "gaffy.node.lock",
@@ -809,6 +809,10 @@
         },
         {
           "command": "gaffy.edge.straighten",
+          "when": "false"
+        },
+        {
+          "command": "gaffy.sel.rearrange",
           "when": "false"
         }
       ]

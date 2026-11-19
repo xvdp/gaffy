@@ -27,6 +27,7 @@ let doc: ViewDoc | undefined;
 let style: Style | undefined;
 let styleText = '';
 let excludeGlobs: string[] = [];
+let excludeRx: RegExp[] = [];          // `gaffy.exclude` globs as expressions, for buildScene
 let scene: Scene | undefined;
 let focusKey: NodeKey | undefined = api.getState()?.focus;
 let selected = new Set<NodeKey>();
@@ -44,13 +45,57 @@ const svg = select<SVGSVGElement, unknown>('#graph');
 const root = svg.append('g').attr('class', 'root');
 const zoomer = zoom<SVGSVGElement, unknown>()
   .scaleExtent([0.08, 8])
-  // wheel zooms anywhere; dragging pans only from the background (labels and headers drag units)
-  .filter((ev: Event) => ev.type === 'wheel' || (!(ev as MouseEvent).button && !(ev.target as Element).closest?.('.labels g, .heads g')))
+  // wheel zooms anywhere; dragging pans only from the background (labels and headers drag units;
+  // Shift+drag on the background draws a selection window)
+  .filter((ev: Event) => ev.type === 'wheel' || (!(ev as MouseEvent).button && !(ev as MouseEvent).shiftKey
+    && !(ev.target as Element).closest?.('.labels g, .heads g')))
   .on('zoom', (ev) => {
     root.attr('transform', ev.transform.toString());
     saveState({ t: [ev.transform.x, ev.transform.y, ev.transform.k] });
   });
 svg.call(zoomer).on('dblclick.zoom', null);
+
+// ---- selection window: Shift+drag on the background selects every function whose label it touches ----
+let band: { x0: number; y0: number; x1: number; y1: number } | undefined;
+let bandEnded = false;
+const rootPoint = (ev: MouseEvent): [number, number] => {
+  const t = (root.node() as SVGGElement).getScreenCTM();
+  if (!t) return [0, 0];
+  const p = new DOMPoint(ev.clientX, ev.clientY).matrixTransform(t.inverse());
+  return [p.x, p.y];
+};
+svg.on('mousedown.band', (ev: MouseEvent) => {
+  if (!ev.shiftKey || ev.button || (ev.target as Element).closest?.('.labels g, .heads g, .markers, .arrowhits')) return;
+  ev.preventDefault();
+  const [x, y] = rootPoint(ev);
+  band = { x0: x, y0: y, x1: x, y1: y };
+});
+window.addEventListener('mousemove', (ev) => {
+  if (!band) return;
+  [band.x1, band.y1] = rootPoint(ev);
+  const o = root.select('.drag');
+  o.selectAll('*').remove();
+  o.append('rect').attr('class', 'band').attr('x', Math.min(band.x0, band.x1)).attr('y', Math.min(band.y0, band.y1))
+    .attr('width', Math.abs(band.x1 - band.x0)).attr('height', Math.abs(band.y1 - band.y0));
+});
+window.addEventListener('mouseup', () => {
+  if (!band || !scene) { band = undefined; return; }
+  const b = band;
+  band = undefined;
+  root.select('.drag').selectAll('*').remove();
+  const [xa, xb] = [Math.min(b.x0, b.x1), Math.max(b.x0, b.x1)], [ya, yb] = [Math.min(b.y0, b.y1), Math.max(b.y0, b.y1)];
+  if (xb - xa < 3 && yb - ya < 3) return;
+  bandEnded = true;
+  for (const l of scene.grid.labels) {
+    if (l.kind !== 'node' || isStub(l.key)) continue;
+    const x0 = l.col * cw, x1 = (l.col + l.text.length) * cw, y0 = l.row * ch, y1 = y0 + ch;
+    if (x1 >= xa && x0 <= xb && y1 >= ya && y0 <= yb) selected.add(l.key);
+  }
+  selCalls.clear();
+  setFocus(focusKey);
+  toolbar();
+  status();
+});
 
 function saveState(patch: Record<string, unknown>) {
   api.setState({ ...(api.getState() ?? {}), ...patch });
@@ -62,6 +107,7 @@ window.addEventListener('message', (ev) => {
   if (m.type === 'state') {
     busy = !!m.busy;
     excludeGlobs = m.exclude ?? excludeGlobs;
+    excludeRx = excludeGlobs.map(globToRegExp);
     const st = JSON.stringify(m.style);
     if (m.text === text && st === styleText && doc) { status(); toolbar(); return; }
     text = m.text;
@@ -244,7 +290,7 @@ function render() {
   measure(style);
   applyColors(style);
   try {
-    scene = buildScene(doc, style);
+    scene = buildScene(doc, style, excludeRx);
   } catch (e) {
     showError(`layout failed: ${(e as Error).message}`);
     return;
@@ -451,7 +497,11 @@ function render() {
   heads.call(dragUnit((d) => d.key) as any);
 
   root.append('g').attr('class', 'drag');
-  svg.on('click', () => { selected.clear(); selCalls.clear(); optsOpen = false; toolbar(); setFocus(undefined); });
+  // a background click clears the selection; not the click that ends a selection window, nor a Shift+click
+  svg.on('click', (ev: MouseEvent) => {
+    if (bandEnded || ev.shiftKey) { bandEnded = false; return; }
+    selected.clear(); selCalls.clear(); optsOpen = false; toolbar(); setFocus(undefined);
+  });
   if (!placed) placeView();
   highlight(focusKey);
   toolbar();
@@ -583,7 +633,7 @@ function isolateCalls(calls: { from: NodeKey; to: NodeKey }[]) {
   const keep = new Set<NodeKey>();
   for (const c of calls) { keep.add(c.from); for (const k of reachDrawn(c.to, 'down')) keep.add(k); }
   selCalls.clear();
-  isolate(keep);
+  isolate(keep, calls[0].from);
 }
 
 /** Vertices reachable along the drawn graph: down = what lies below, up = what lies above. */
@@ -599,8 +649,11 @@ function reachDrawn(start: NodeKey, dir: 'up' | 'down'): Set<NodeKey> {
   return out;
 }
 
-function isolate(keep: Set<NodeKey>) {
+/** Hide everything but `keep` (and its paths from the seeds); `pin` (else the focus, else a kept function) keeps its place on screen. */
+function isolate(keep: Set<NodeKey>, pin?: NodeKey) {
   const all = withPath(keep);
+  const at = [pin, focusKey, ...keep].find((k) => k && keep.has(k) && scene!.placement.pos.has(k));
+  if (at) anchorAt(at);
   hide([...scene!.vg.nodes.keys()].filter((x) => !all.has(x)));
 }
 
@@ -664,8 +717,22 @@ function tooltip(d: LabelSpan): string {
 }
 
 // ---- dragging units ------------------------------------------------------------------------------
+/**
+ * Units a drag moves: the dragged one; a selected function dragged while others are selected moves them
+ * all, each with its tree below (a function under another selected one moves with that one, not twice).
+ */
+function topUnits(sc: Scene, keys: Set<NodeKey>): string[] {
+  const up = (k: NodeKey) => sc.placement.blockOf.get(k)?.L.parent.get(k) ?? null;
+  return [...keys].filter((k) => {
+    if (!sc.placement.pos.has(k)) return false;
+    for (let p = up(k); p; p = up(p)) if (keys.has(p)) return false;
+    return true;
+  });
+}
+
 function dragUnit(unitOf: (d: LabelSpan) => string) {
   let box: { x: number; y: number; w: number; h: number } | undefined;
+  let units: string[] = [];
   return drag<SVGGElement, LabelSpan>()
     // the default subject is the datum, which has no x, y: pointer position instead
     .subject((ev) => ({ x: ev.x, y: ev.y }))
@@ -673,19 +740,19 @@ function dragUnit(unitOf: (d: LabelSpan) => string) {
     .on('start', (_ev, d) => {
       const sc = scene!;
       const unit = unitOf(d);
-      if (unit.startsWith('box:')) {
-        const f = sc.placement.frames.find((x) => x.unit === unit)!;
-        box = { x: X(f.c0), y: Y(f.r0), w: X(f.c1 - f.c0 + 1), h: Y(f.r1 - f.r0 + 1) };
-      } else {
-        let c0 = Infinity, r0 = Infinity, c1 = -Infinity, r1 = -Infinity;
-        for (const k of unitMembers(sc, unit)) {
+      units = !unit.startsWith('box:') && selected.has(d.key) && selected.size > 1 ? topUnits(sc, selected) : [unit];
+      let c0 = Infinity, r0 = Infinity, c1 = -Infinity, r1 = -Infinity;
+      for (const u of units) {
+        const f = u.startsWith('box:') ? sc.placement.frames.find((x) => x.unit === u) : undefined;
+        if (f) { c0 = Math.min(c0, f.c0); r0 = Math.min(r0, f.r0); c1 = Math.max(c1, f.c1 + 1); r1 = Math.max(r1, f.r1); continue; }
+        for (const k of unitMembers(sc, u)) {
           const p = sc.placement.pos.get(k);
           if (!p) continue;
           c0 = Math.min(c0, p.col); r0 = Math.min(r0, p.row);
           c1 = Math.max(c1, sc.placement.end.get(k)!); r1 = Math.max(r1, p.row);
         }
-        box = { x: X(c0), y: Y(r0), w: X(c1 - c0), h: Y(r1 - r0 + 1) };
       }
+      box = { x: X(c0), y: Y(r0), w: X(c1 - c0), h: Y(r1 - r0 + 1) };
     })
     .on('drag', (ev) => {
       if (!box) return;
@@ -694,15 +761,21 @@ function dragUnit(unitOf: (d: LabelSpan) => string) {
       o.append('rect').attr('x', box.x + ev.x - ev.subject.x).attr('y', box.y + ev.y - ev.subject.y)
         .attr('width', box.w).attr('height', box.h).attr('rx', 3);
     })
-    .on('end', (ev, d) => {
+    .on('end', (ev) => {
       root.select('.drag').selectAll('*').remove();
       const dc = Math.round((ev.x - ev.subject.x) / cw), dr = Math.round((ev.y - ev.subject.y) / ch);
       box = undefined;
       if (!dc && !dr) return;
-      const unit = unitOf(d);
-      anchor = undefined;   // a moved unit is not pulled back to its old screen position
-      const [a, b] = settleDrop(unit, dc, dr);
-      commit((x) => moveUnit(x, unit, a, b));
+      const sc = scene!;
+      // the picture stays still around what moved: the anchor goes to a function that does not move (a
+      // unit moved above or left of everything shifts the grid origin, which the anchor compensates)
+      const moved = new Set(units.flatMap((u) => unitMembers(sc, u)));
+      const still = [...doc!.view.seeds, ...sc.placement.pos.keys()].find((k) => !moved.has(k) && !isStub(k) && sc.placement.pos.has(k));
+      if (still) anchorAt(still); else anchor = undefined;
+      const [a, b] = settleDrop(units, dc, dr);
+      const us = units;
+      commit((x) => { for (const u of us) moveUnit(x, u, a, b); });
+      if (!still) svg.call(zoomer.translateBy, a * cw, b * ch);   // everything moved: the same as a pan
     });
 }
 
@@ -747,16 +820,16 @@ function collisions(sc: Scene, keys: Set<NodeKey>): number {
  * drop moves on in the drag direction, else sideways, one cell at a time, to the nearest clean spot
  * (at most 12 cells, 1.5 s of layouts); none found: the drop stays where it was let go.
  */
-function settleDrop(unit: string, dc: number, dr: number): [number, number] {
+function settleDrop(units: string[], dc: number, dr: number): [number, number] {
   if (!doc || !scene || !style) return [dc, dr];
-  const keys = new Set(unitMembers(scene, unit));
+  const keys = new Set(units.flatMap((u) => unitMembers(scene!, u)));
   const unrouted = scene.grid.unrouted;
   const t0 = performance.now();
   const clean = (a: number, b: number) => {
     const probe = structuredClone(doc!);
-    moveUnit(probe, unit, a, b);
+    for (const u of units) moveUnit(probe, u, a, b);
     try {
-      const sc = buildScene(probe, style!);
+      const sc = buildScene(probe, style!, excludeRx);
       return sc.grid.unrouted <= unrouted && collisions(sc, keys) === 0;
     } catch { return false; }
   };
@@ -784,7 +857,7 @@ function unlockUnit(unit: string) {
   const probe = structuredClone(doc);
   delete probe.view.lock[unit];
   delete probe.view.offset[unit];
-  const auto = unitAnchor(buildScene(probe, style!), unit);
+  const auto = unitAnchor(buildScene(probe, style!, excludeRx), unit);
   commit((x) => {
     delete x.view.lock[unit];
     if (auto && (here[0] !== auto[0] || here[1] !== auto[1])) x.view.offset[unit] = [here[0] - auto[0], here[1] - auto[1]];
@@ -906,6 +979,24 @@ function runCmd(cmd: string, key?: NodeKey, unit?: string, to?: NodeKey) {
       if (k && hid) api.postMessage({ type: 'hiddenNeighbors', key: k, keys: hid });
       return;
     }
+    case 'makeSeed':
+      // a seed opens both sides; the host asks the language server for the side not asked yet
+      if (k && !doc.view.seeds.includes(k)) { anchorAt(k); commit((x) => { x.view.seeds.push(k); }); }
+      return;
+    case 'removeSeed':
+      // the last seed stays: without one, a view shows nothing
+      if (k && doc.view.seeds.includes(k) && doc.view.seeds.length > 1) { anchorAt(k); commit((x) => { x.view.seeds = x.view.seeds.filter((s0) => s0 !== k); }); }
+      return;
+    case 'rearrangeSelection': {
+      // the selected functions (else the one right clicked) go back to their computed place: moves and
+      // locks dropped; the rest of the picture stays still
+      const keys = new Set(selected.size ? selected : k ? [k] : []);
+      if (!keys.size) return;
+      const still = [...doc.view.seeds, ...scene.placement.pos.keys()].find((x) => !keys.has(x) && !isStub(x) && scene!.placement.pos.has(x));
+      if (still) anchorAt(still);
+      commit((x) => { for (const s0 of keys) { delete x.view.offset[s0]; delete x.view.lock[s0]; } });
+      return;
+    }
     case 'rearrange':
       // selected nodes only, else every unlocked move
       commit((x) => {
@@ -1011,6 +1102,7 @@ svg.on('keydown', (ev: KeyboardEvent) => {
     case 'ArrowRight': if (k && scene?.vg.nodes.get(k)?.collapsed) commit((d) => { d.view.collapsed = d.view.collapsed.filter((x) => x !== k); }); break;
     case 'Delete': case 'Backspace': runCmd('remove'); break;
     case 'h': runCmd('hideSelection'); break;
+    case 'a': runCmd(selected.size ? 'rearrangeSelection' : 'rearrange'); break;
     case 'i': runCmd('isolate'); break;
     case 'Escape':
       // a selection first, then everything hidden or removed
@@ -1036,7 +1128,7 @@ type Section = { caption: string; items: Btn[]; radio?: boolean };
 
 function folders(): { path: string; label: string; excluded: boolean }[] {
   if (!doc) return [];
-  const ex = excludedBy(doc.view, excludeGlobs.map(globToRegExp));
+  const ex = excludedBy(doc.view, excludeRx);
   const dirs = Object.values(doc.graph.nodes).filter((n) => n.path && !isContainer(n)).map((n) => n.path!.split('/').slice(0, -1));
   if (!dirs.length && !doc.view.exclude.length && !doc.view.include.length) return [];
   let prefix = dirs[0] ?? [];
@@ -1155,7 +1247,8 @@ function toolbar() {
         : 'back to the starting call depths: drop hidden, collapsed, moves, locks, grouping', act: () => runCmd('resetView') },
       { label: 'Reset layout', title: 'drop every move, lock, sibling order and straightened call', act: () => runCmd('resetLayout') },
       { label: selected.size ? `Re-arrange selected (${selected.size})` : `Re-arrange (${Object.keys(v.offset).length})`,
-        title: 'drop the moves of the selected functions, or of every unlocked item', act: () => runCmd('rearrange') },
+        title: 'the selected functions back to their computed place (moves and locks dropped), or every unlocked move (a)',
+        act: () => runCmd(selected.size ? 'rearrangeSelection' : 'rearrange') },
       { label: `Unlock all (${Object.keys(v.lock).length})`, title: 'unlock every locked function and box', act: () => runCmd('unlockAll') },
       { label: `Expand collapsed (${v.collapsed.length})`, title: 'expand every collapsed container', act: () => commit((x) => { x.view.collapsed = []; }) },
       { label: `Straightened calls (${(v.straight ?? []).length}): clear`, title: 'route every call in the usual order again', act: () => commit((x) => { x.view.straight = []; }) },

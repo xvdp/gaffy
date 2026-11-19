@@ -20,7 +20,7 @@ import { Marker, place, Placement } from './place';
 import { induced, quotient, VEdge, VGraph } from './quotient';
 import { cutKey, opens, reveal, Reveal, revealDepth } from './reveal';
 import { Style } from './style';
-import { ViewDoc } from './viewdoc';
+import { excludedBy, ViewDoc } from './viewdoc';
 
 export interface Scene {
   graph: Subgraph;
@@ -77,12 +77,23 @@ export function sortKeyOf(n: GNode | undefined, key: NodeKey): string {
   return `${n?.path ?? ''}\u0000${String(n?.line ?? 0).padStart(9, '0')}\u0000${key}`;
 }
 
-export function buildScene(doc: ViewDoc, style: Style): Scene {
+/**
+ * Functions of excluded folders (view folders, `gaffy.exclude` globs): off screen like hidden ones, but
+ * without markers, and back as soon as the folder is included again (their calls stay in the data).
+ */
+function excludedKeys(doc: ViewDoc, exclude: readonly RegExp[]): Set<NodeKey> {
+  const ex = excludedBy(doc.view, exclude);
+  const seeds = new Set(doc.view.seeds);
+  return new Set(Object.values(doc.graph.nodes).filter((n) => !isContainer(n) && !seeds.has(n.key) && ex(n.path)).map((n) => n.key));
+}
+
+export function buildScene(doc: ViewDoc, style: Style, exclude: readonly RegExp[] = []): Scene {
   const view = doc.view;
   const graph = doc.graph;
   const collapsed = new Set(view.collapsed);
   const hidden = new Set(view.hidden);
-  const vq = quotient(graph, collapsed, hidden, view.seeds);
+  const out = excludedKeys(doc, exclude);
+  const vq = quotient(graph, collapsed, new Set([...hidden, ...out]), view.seeds);
   const grows = view.arrange === 'grow';
   const cut = new Set(grows ? (view.cut ?? []).map(([a, b]) => cutKey(a, b)) : []);
   const rev = revealView(vq, doc);
@@ -90,7 +101,7 @@ export function buildScene(doc: ViewDoc, style: Style): Scene {
   let vg = keep.size < vq.nodes.size ? induced(vq, keep) : vq;
   if (cut.size) vg = dropCalls(vg, cut);
   // a side the vertex may open with a neighbor off screen (closed side, beyond the depth, hidden, cut call) shows a marker
-  const full = hidden.size ? quotient(graph, collapsed, new Set(), view.seeds) : vq;
+  const full = hidden.size ? quotient(graph, collapsed, out, view.seeds) : vq;
   const hasMore = (k: NodeKey, side: 'up' | 'down') => opens(rev.allowed.get(k), side) &&
     (side === 'down' ? full.out.get(k) ?? [] : full.inc.get(k) ?? [])
       .some((e) => !keep.has(side === 'down' ? e.to : e.from) || cut.has(cutKey(e.from, e.to)));
@@ -101,7 +112,6 @@ export function buildScene(doc: ViewDoc, style: Style): Scene {
   // hidden neighbors: compare with the quotient that hides nothing
   const hiddenOf = new Map<NodeKey, NodeKey[]>();
   if (hidden.size) {
-    const full = quotient(graph, collapsed, new Set(), view.seeds);
     for (const k of vg.nodes.keys()) {
       const nb = new Set<NodeKey>();
       for (const e of full.out.get(k) ?? []) if (!vq.nodes.has(e.to)) nb.add(e.to);
@@ -209,19 +219,19 @@ function revealView(vq: VGraph, doc: ViewDoc): Reveal {
   return reveal(vq, v.seeds, v.open ?? {}, v.direction, new Set((v.cut ?? []).map(([a, b]) => cutKey(a, b))));
 }
 
-function revealOf(doc: ViewDoc): Reveal {
+function revealOf(doc: ViewDoc, exclude: readonly RegExp[]): Reveal {
   const v = doc.view;
-  return revealView(quotient(doc.graph, new Set(v.collapsed), new Set(v.hidden), v.seeds), doc);
+  return revealView(quotient(doc.graph, new Set(v.collapsed), new Set([...v.hidden, ...excludedKeys(doc, exclude)]), v.seeds), doc);
 }
 
-/** Definitions on screen under the stable arrangement; containers excluded. */
-export function visibleOf(doc: ViewDoc): NodeKey[] {
-  return [...revealOf(doc).visible].filter((k) => !isContainer(doc.graph.nodes[k]));
+/** Definitions on screen; containers excluded. */
+export function visibleOf(doc: ViewDoc, exclude: readonly RegExp[] = []): NodeKey[] {
+  return [...revealOf(doc, exclude).visible].filter((k) => !isContainer(doc.graph.nodes[k]));
 }
 
 /** Directions each definition on screen may open: seeds both, others the side that revealed them. */
-export function frontierOf(doc: ViewDoc): { key: NodeKey; dir: 'in' | 'out' }[] {
-  const rev = revealOf(doc);
+export function frontierOf(doc: ViewDoc, exclude: readonly RegExp[] = []): { key: NodeKey; dir: 'in' | 'out' }[] {
+  const rev = revealOf(doc, exclude);
   return [...rev.visible].filter((k) => !isContainer(doc.graph.nodes[k])).flatMap((key) => {
     const a = rev.allowed.get(key);
     return [...(opens(a, 'up') ? ['in' as const] : []), ...(opens(a, 'down') ? ['out' as const] : [])].map((dir) => ({ key, dir }));

@@ -241,6 +241,22 @@ describe('one layer at a time: open sides, direction, markers, removal', () => {
   });
 });
 
+describe('folder filters apply when drawing', () => {
+  it('an excluded folder leaves the picture without markers; included again it is back, no new data', () => {
+    const doc = fixtureDoc(SH, { seeds: [k('gutai.render.harmonics:sh_eval')], direction: 'out' });
+    const rt = (sc: Scene) => [...sc.vg.nodes.keys()].filter((x) => x.includes('/runtime/')).length;
+    const all = buildScene(doc, boxed());
+    const out = buildScene(doc, boxed(), [globToRegExp('**/runtime/**')]);
+    invariants(out);
+    expect(rt(all)).toBeGreaterThan(0);
+    expect(rt(out)).toBe(0);
+    expect(out.grid.markers.some((m) => m.key === k('gutai.render.harmonics:sh_eval'))).toBe(false);
+    const back = structuredClone(doc);
+    back.view.include = ['gutai/runtime'];
+    expect(rt(buildScene(back, boxed(), [globToRegExp('**/runtime/**')]))).toBe(rt(all));
+  });
+});
+
 describe('tree parent rule joint: shared functions take one path, from the left', () => {
   const S = 'gutai.render.harmonics:sh_eval';
   const MANY: [string, string][] = [

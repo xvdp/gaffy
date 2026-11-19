@@ -5,12 +5,15 @@
  * answers and asks the language server for the rest; `fresh` asks the language server and refreshes
  * the cache. Requests run with bounded concurrency.
  *
+ * Every answer is kept whole: folder filters apply when a view is drawn, so including a folder again
+ * needs no language server.
+ *
  * No answer is not an empty answer: a definition the language server does not resolve (still
  * analyzing, request failed) keeps the calls the view already holds, and its answer is not cached.
  */
 import * as vscode from 'vscode';
 import { GEdge, GNode, isContainer, NodeKey, Subgraph } from '../core/model';
-import { Direction, excludedBy, ViewDoc } from '../core/viewdoc';
+import { Direction, ViewDoc } from '../core/viewdoc';
 import { CallCache } from './cache';
 import { LspProvider } from './lsp';
 
@@ -43,11 +46,9 @@ export interface Extension {
  */
 export async function extendGraph(
   p: LspProvider, doc: ViewDoc, queries: Pair[],
-  opts: { cache?: CallCache; mode: BuildMode; exclude?: RegExp[]; token?: vscode.CancellationToken;
+  opts: { cache?: CallCache; mode: BuildMode; token?: vscode.CancellationToken;
     progress?: (p: BuildProgress) => void; maxNodes?: number },
 ): Promise<Extension> {
-  const excluded = excludedBy(doc.view, opts.exclude ?? []);
-  const seeds = new Set(doc.view.seeds);
   const nodes: Record<NodeKey, GNode> = { ...doc.graph.nodes };
   let edges = doc.graph.edges.slice();
   const explored: Record<NodeKey, Direction> = { ...(doc.explored ?? {}) };
@@ -77,7 +78,6 @@ export async function extendGraph(
       opts.cache?.put(key, dir, es, nodes);
     }
     asked++;
-    es = es.filter((e) => { const other = dir === 'out' ? e.to : e.from; return seeds.has(other) || !excluded(nodes[other]?.path); });
     edges = edges.filter((e) => !(dir === 'out' ? e.from === key : e.to === key)).concat(es);
     mark(key, dir);
     stats.definitions = defs();

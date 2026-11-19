@@ -10,7 +10,7 @@ import { toHtmlPre, toText } from '../core/grid';
 import { ancestors, GNode, NodeKey } from '../core/model';
 import { buildScene, siblingsOf } from '../core/scene';
 import { DEFAULT_STYLE, glyphSet } from '../core/style';
-import { Direction, emptyDoc, ROOTS, serializeDoc, ViewDoc } from '../core/viewdoc';
+import { Direction, emptyDoc, globToRegExp, ROOTS, serializeDoc, ViewDoc } from '../core/viewdoc';
 import { GaffyEditor, Session } from './editor';
 import { folderOf, gaffyDir } from './style';
 
@@ -210,13 +210,16 @@ export function registerCommands(ctx: vscode.ExtensionContext, editor: GaffyEdit
   reg('gaffy.sel.through', forward('through'));
   reg('gaffy.sel.between', forward('between'));
   reg('gaffy.sel.hide', forward('hideSelection'));
+  reg('gaffy.sel.rearrange', forward('rearrangeSelection'));
   reg('gaffy.sel.isolate', forward('isolate'));
   reg('gaffy.sel.clear', forward('clearSelection'));
+
+  const excludes = (s: Session) => (vscode.workspace.getConfiguration('gaffy', s.document.uri).get<string[]>('exclude') ?? []).map(globToRegExp);
 
   const exportView = async (s: Session) => {
     const doc = s.doc();
     const style = await editor.styles.get(s.folder);
-    const sc = buildScene(doc, style);
+    const sc = buildScene(doc, style, excludes(s));
     const gs = glyphSet(style);
     const outDir = gaffyDir(s.folder);
     await vscode.workspace.fs.createDirectory(outDir);
@@ -306,8 +309,9 @@ export function registerCommands(ctx: vscode.ExtensionContext, editor: GaffyEdit
   reg('gaffy.node.expandContainer', node((s, _d, k) =>
     s.update((doc) => { doc.view.collapsed = doc.view.collapsed.filter((c) => c !== k); })));
   reg('gaffy.node.hide', node((s, _d, k) => s.update((doc) => { if (!doc.view.hidden.includes(k)) doc.view.hidden.push(k); })));
-  reg('gaffy.node.makeSeed', node((s, _d, k) => s.refresh((doc) => { if (!doc.view.seeds.includes(k)) doc.view.seeds.push(k); })));
-  reg('gaffy.node.removeSeed', node((s, _d, k) => s.refresh((doc) => { doc.view.seeds = doc.view.seeds.filter((x) => x !== k); })));
+  // seeds change in the webview (the function keeps its place); its edit asks the language server for what is missing
+  reg('gaffy.node.makeSeed', forward('makeSeed'));
+  reg('gaffy.node.removeSeed', forward('removeSeed'));
   reg('gaffy.node.tag', node(async (s, d, k) => {
     const v = await vscode.window.showInputBox({ prompt: 'tag (empty removes)', value: d.view.tags[k] ?? '' });
     if (v === undefined) return;
@@ -315,7 +319,7 @@ export function registerCommands(ctx: vscode.ExtensionContext, editor: GaffyEdit
   }));
 
   const move = (delta: -1 | 1) => node(async (s, d, k) => {
-    const sc = buildScene(d, await editor.styles.get(s.folder));
+    const sc = buildScene(d, await editor.styles.get(s.folder), excludes(s));
     const { slot, list } = siblingsOf(sc, k);
     const i = list.indexOf(k);
     const j = i + delta;

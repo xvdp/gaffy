@@ -164,7 +164,7 @@ export class Session {
   private async neighbors(show: (t: string) => void, token: vscode.CancellationToken): Promise<void> {
     const rounds = this.doc().view.arrange === 'grow' ? 8 : 64;
     for (let i = 0; i < rounds && !token.isCancellationRequested; i++) {
-      const qs = this.unaskedPairs(this.doc(), frontierOf(this.doc()));
+      const qs = this.unaskedPairs(this.doc(), frontierOf(this.doc(), this.opts().exclude));
       if (!qs.length || !(await this.ask(qs, 'cached', 'checking neighbors', show, token))?.asked) break;
     }
   }
@@ -172,7 +172,7 @@ export class Session {
   ensure(): Promise<void> {
     return this.enqueue(async () => {
       const doc = this.doc();
-      if (!this.unaskedPairs(doc, frontierOf(doc)).length) return;
+      if (!this.unaskedPairs(doc, frontierOf(doc, this.opts().exclude)).length) return;
       await this.progress((show, token) => this.neighbors(show, token));
       this.settle();
     });
@@ -226,7 +226,7 @@ export class Session {
       if (!Object.keys(doc.explored ?? {}).length) { void this.grow(); return; }
       const o = this.opts();
       await o.cache.ready();
-      const vis = new Set(visibleOf(doc));
+      const vis = new Set(visibleOf(doc, this.opts().exclude));
       const pairs = Object.entries(doc.explored ?? {}).flatMap(([key, d]) =>
         (d === 'both' ? ['in', 'out'] as const : [d as 'in' | 'out']).map((dir) => ({ key, dir })));
       const shown = pairs.filter((q) => vis.has(q.key));
@@ -248,7 +248,7 @@ export class Session {
       }
       const visStale = force ? shown : (r?.missed ?? []).filter((q) => vis.has(q.key));
       doc = this.doc();
-      const neighbors = this.unaskedPairs(doc, frontierOf(doc));
+      const neighbors = this.unaskedPairs(doc, frontierOf(doc, this.opts().exclude));
       if (visStale.length || neighbors.length) {
         await this.progress(async (show, token) => {
           await this.ask(visStale, force ? 'fresh' : 'cached', force ? 'asking the language server' : 'updating changed files', show, token);
