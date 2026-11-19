@@ -16,6 +16,7 @@ import * as vscode from 'vscode';
 import { EXTERNAL, extsOf, LANG, langOf, segments, TEXT_LANGS } from '../core/langs';
 import { bodyHash, GEdge, GNode, Kind, NodeKey } from '../core/model';
 import { callSites, mask, outline, TextSym } from '../core/textcalls';
+import { Bridges } from './bridges';
 
 // symbols that enclose a qualified name: types, functions, namespaces, impl blocks (Object), object
 // literals and their variables (TypeScript `const obj = { run() {} }` → `obj.run`)
@@ -110,13 +111,23 @@ export class LspProvider {
   private symbols = new Map<string, Promise<Sym[]>>();
   private packages = new Map<string, Promise<boolean>>();
 
+  /** Calls across languages (pybind11, nanobind, torch, slangpy, slangtorch); `gaffy.bridges`. */
+  readonly bridges = new Bridges(this, () => vscode.workspace.getConfiguration('gaffy').get<boolean>('bridges') ?? true);
+
   constructor(private includeExternal: () => boolean) {}
+
+  /** The function enclosing `pos`, as a call hierarchy item (Python callers of a binding). */
+  async callerAt(uri: vscode.Uri, pos: vscode.Position): Promise<vscode.CallHierarchyItem | undefined> {
+    const fn = functionSymAt(await this.symbolsOf(uri), pos);
+    return fn ? (await this.prepare(uri, fn.selectionRange.start))[0] : undefined;
+  }
 
   invalidate(uri: vscode.Uri): void {
     const u = uri.toString();
     this.symbols.delete(u);
     for (const [k, it] of this.items) if (it.uri.toString() === u) this.items.delete(k);
     this.index.delete(langOf(uri.path));
+    this.bridges.invalidate(uri);
   }
 
   /** Call hierarchy items at a position; for text languages without a call hierarchy, the enclosing function. */
@@ -365,7 +376,12 @@ export class LspProvider {
   async outgoing(key: NodeKey, acc: Record<NodeKey, GNode>): Promise<GEdge[] | undefined> {
     const it = await this.item(key, acc[key]).catch(() => undefined);
     if (!it) return undefined;
-    if (this.textItems.has(it)) return this.textOutgoing(key, it, acc).catch(() => undefined);
+    const own = this.textItems.has(it) ? await this.textOutgoing(key, it, acc).catch(() => undefined) : await this.lspOutgoing(key, it, acc);
+    // calls across languages join the answer (a Python function calling bound C++/CUDA or Slang)
+    return own && own.concat(await this.bridges.outgoing(key, it, acc).catch(() => []));
+  }
+
+  private async lspOutgoing(key: NodeKey, it: vscode.CallHierarchyItem, acc: Record<NodeKey, GNode>): Promise<GEdge[] | undefined> {
     let calls: vscode.CallHierarchyOutgoingCall[] | undefined;
     try {
       calls = await timed(vscode.commands.executeCommand<vscode.CallHierarchyOutgoingCall[]>('vscode.provideOutgoingCalls', it));
@@ -383,7 +399,12 @@ export class LspProvider {
   async incoming(key: NodeKey, acc: Record<NodeKey, GNode>): Promise<GEdge[] | undefined> {
     const it = await this.item(key, acc[key]).catch(() => undefined);
     if (!it) return undefined;
-    if (this.textItems.has(it)) return this.textIncoming(key, it, acc).catch(() => undefined);
+    const own = this.textItems.has(it) ? await this.textIncoming(key, it, acc).catch(() => undefined) : await this.lspIncoming(key, it, acc);
+    // Python callers across bindings join the answer
+    return own && own.concat(await this.bridges.incoming(key, it, acc).catch(() => []));
+  }
+
+  private async lspIncoming(key: NodeKey, it: vscode.CallHierarchyItem, acc: Record<NodeKey, GNode>): Promise<GEdge[] | undefined> {
     let calls: vscode.CallHierarchyIncomingCall[] | undefined;
     try {
       calls = await timed(vscode.commands.executeCommand<vscode.CallHierarchyIncomingCall[]>('vscode.provideIncomingCalls', it));

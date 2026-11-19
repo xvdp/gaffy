@@ -24,7 +24,7 @@ export interface TextSym {
   children: TextSym[];
 }
 
-export function mask(text: string): string {
+export function mask(text: string, keepStrings = false): string {
   const out = text.split('');
   const blank = (a: number, b: number) => { for (let i = a; i < b; i++) if (out[i] !== '\n') out[i] = ' '; };
   let i = 0;
@@ -41,7 +41,7 @@ export function mask(text: string): string {
     lineStart = c === '\n';
     if (c === '/' && d === '/') { let j = i; while (j < n && text[j] !== '\n') j++; blank(i, j); i = j; continue; }
     if (c === '/' && d === '*') { const j = text.indexOf('*/', i + 2); const e = j < 0 ? n : j + 2; blank(i, e); i = e; continue; }
-    if (c === '"' || c === "'") {
+    if (!keepStrings && (c === '"' || c === "'")) {
       let j = i + 1;
       while (j < n && text[j] !== c && text[j] !== '\n') j += text[j] === '\\' ? 2 : 1;
       blank(i + 1, Math.min(j, n)); i = j + 1; continue;
@@ -104,7 +104,8 @@ export interface Site { name: string; at: number }
 export function callSites(text: string, from: number, to: number, masked = false): Site[] {
   const m = (masked ? text : mask(text)).slice(from, to);
   const out: Site[] = [];
-  const re = /\b([A-Za-z_]\w*)\s*(?:<[^<>;{}()]*>\s*)?\(/g;
+  // `f(…)`, `f<T>(…)`, and CUDA kernel launches `k<<<grid, block>>>(…)`
+  const re = /\b([A-Za-z_]\w*)\s*(?:<<<[^;]*?>>>\s*|<[^<>;{}()]*>\s*)?\(/g;
   for (let r = re.exec(m); r; r = re.exec(m)) {
     if (KEYWORDS.has(r[1])) continue;
     // a declaration inside the body (`float3 f(…)` of a local prototype) is rare in shaders: kept

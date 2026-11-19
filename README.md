@@ -30,17 +30,31 @@ Development: open `gaffy/` in VS Code and press F5 (Extension Development Host).
 
 Text calls ([src/core/textcalls.ts](src/core/textcalls.ts)): comments, strings and preprocessor lines are masked; functions and containers (`struct`, `class`, `namespace`, `interface`, `extension`, `cbuffer`) come from the server's document symbols, else from brace matching; a call site is a name followed by `(` (with optional `<…>`), minus control keywords. Calls through function pointers or macros are missed; a constructor call of a project type counts when a function of that name exists. Name rules per language: [src/core/langs.ts](src/core/langs.ts). External code (installed packages, `target/`, `_deps/`, `/usr/include`) stays out unless `gaffy.includeExternal` is on.
 
+### Across languages
+
+No language server sees both sides of a binding (Python and C++/CUDA, Python and Slang, TypeScript and Rust). The binding declarations name both sides, so gaffy links them ([src/core/bindings.ts](src/core/bindings.ts), [src/host/bridges.ts](src/host/bridges.ts); setting `gaffy.bridges`). Calls across languages draw dash-dot in vector mode; their tooltip names the binding (`via pybind11: ext.cpp:16`).
+
+| Layer | Declarations read | Python call that links |
+|---|---|---|
+| pybind11, nanobind | `PYBIND11_MODULE(mod, m)` / `NB_MODULE(mod, m)`: `m.def("fn", &cpp_fn)`, `py::overload_cast<…>(&fn)`, `m.def_submodule("sub")`, `py::class_<T>(m, "T").def("meth", &T::meth)`, `def_static` | `mod.fn(…)`, `fn(…)` after `from mod import fn`, `mod.T.meth(…)`, through the file's imports |
+| torch extensions | `PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)`, its module named by `load(name=…, sources=[…])` or `CUDAExtension("pkg._C", […])` in setup.py | `_C.fn(…)` after `from . import _C` |
+| torch operators | `TORCH_LIBRARY(ns, m)`, `TORCH_LIBRARY_IMPL(ns, CUDA, m)`: `m.impl("op", &op_cuda)` | `torch.ops.ns.op(…)` |
+| slangpy, slangtorch | `spy.Module.load_from_file(device, "x.slang")`, `device.load_module("x")`, `slangtorch.loadModule("x.slang")` in the Python file | `….fn(…)` where x.slang defines `fn`; a function calling `getattr(h, …)` on a name that held the module (`module`, `self.module`) reaches each function of x.slang the file names in a string literal (marked "by name, getattr") |
+| wasm-bindgen (Rust ↔ TypeScript, JavaScript) | `#[wasm_bindgen]` on `pub fn` (functions, `js_name`), on `impl T`: `#[wasm_bindgen(constructor)]`, methods, statics, `js_class`; `getter`/`setter` methods are property reads, not calls; the crate is the nearest `Cargo.toml` `[package]` | `f(…)` after `import { f } from '…/pkg'` (the crate's wasm-pack folder, `pkg/<crate>.js`, or the package name, which is the crate name), `ns.f(…)` after `import * as ns`, `new T(…)`, `T.s(…)`, dynamic `import(…)`, `require(…)`; the generated glue `pkg/*.js` counts as external code, so each call shows once, from the caller to the Rust function |
+
+The C++/CUDA end is the definition go to definition finds at the binding's target (C/C++ extension or clangd), else a workspace symbol of that name; CUDA host functions in `.cu` files link the same way, and kernel launches `k<<<grid, block>>>(…)` count as calls in text calls. Not linked: calls on instances (`obj.meth(…)`: the type is unknown in the text), lambdas in bindings, constructors (`py::init`), registrations built in loops. Both sides must be in the workspace: for a package installed from a source repository, open the repository as a second workspace folder and install it editable (`pip install -e`), so Pylance resolves its Python code into that folder rather than `site-packages`.
+
 ## Create a view
 
-Right click on a function name in the editor; the gaffy entries sit below Go to Definition, references and Call Hierarchy:
+Right click on a function name in the editor; the gaffy entries sit in the section of Find All References and Show Call Hierarchy (menu group `0_navigation`, after Show Type Hierarchy):
 
-| entry | seeds | traversal |
+| entry | seeds | first side opened |
 |---|---|---|
-| gaffy: Upstream callers | the function | incoming calls, `gaffy.depth` hops |
-| gaffy: Calls downstream | the function | outgoing calls |
-| gaffy: Add to view | appended to the open view | view direction |
+| gaffy: Call Hierarchy (up) | the function | its callers |
+| gaffy: Call Hierarchy (dn) | the function | its calls |
+| gaffy: Add to Call Graph | appended to the open view | as the view's direction |
 
-`gaffy: Upstream callers and calls downstream` is in the command palette. With `gaffy.openCallHierarchy` (default on) VS Code's own Call Hierarchy opens in the References view as well. Explorer, right click on a file, **gaffy** > New View: Functions of File. The view file goes to `.gaffy/views/<symbol>_<short commit hash>.gaffy` (`<symbol>_<YYYYMMDD-HHMM>` outside git).
+`style.json` `view.traverse: "both"` starts every new view with callers and calls. With `gaffy.openCallHierarchy` (default on) VS Code's own Call Hierarchy opens in the References view as well. Explorer, right click on a file, **gaffy** > New View: Functions of File. The view file goes to `.gaffy/views/<symbol>_<short commit hash>.gaffy` (`<symbol>_<YYYYMMDD-HHMM>` outside git).
 
 A new view asks the language server for one layer, shows it, then in the background asks every function on screen for its callers and calls (so the open markers know what lies beyond) and prefetches `gaffy.depth` layers along the traversal direction. Reopening a view shows the stored graph at once and asks the language server only for calls that changed files made stale (see [Building, progress, cache](#building-progress-cache)).
 

@@ -30,7 +30,9 @@ describe('languages and external paths', () => {
   it('marks packages, build output and system headers external', () => {
     for (const p of ['/w/node_modules/x/a.js', '/w/.venv/lib/a.py', '/w/target/debug/build/x.rs', '/w/build/_deps/fmt/a.h', '/usr/include/stdio.h'])
       expect(EXTERNAL.test(p), p).toBe(true);
-    for (const p of ['/w/src/target.rs', '/w/src/main.rs', '/w/lib/a.cpp']) expect(EXTERNAL.test(p), p).toBe(false);
+    for (const p of ['/w/src/target.rs', '/w/src/main.rs', '/w/lib/a.cpp', '/w/src/pkg.js', '/w/pkg/sub/x.ts', '/w/src/pkg/index.ts']) expect(EXTERNAL.test(p), p).toBe(false);
+    // wasm-pack output: the glue between a caller and the Rust function
+    for (const p of ['/w/rust/mote-core/pkg/mote_core.js', '/w/rust/mote-core/pkg/mote_core_bg.js']) expect(EXTERNAL.test(p), p).toBe(true);
   });
 });
 

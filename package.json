@@ -2,7 +2,7 @@
   "name": "gaffy",
   "displayName": "gaffy",
   "description": "Persistent, manipulable call graphs on a character grid, rendered with D3",
-  "version": "0.8.1",
+  "version": "0.9.1",
   "publisher": "xvdp",
   "license": "UNLICENSED",
   "private": true,
@@ -93,25 +93,26 @@
           "type": "boolean",
           "default": true,
           "description": "Also open the VS Code Call Hierarchy (References view) when a gaffy view is created from the editor."
+        },
+        "gaffy.bridges": {
+          "type": "boolean",
+          "default": true,
+          "description": "Calls across languages, found from binding declarations in the workspace: Python calling C++/CUDA through pybind11, nanobind or torch operators; Python calling Slang through slangpy or slangtorch; TypeScript/JavaScript calling Rust through wasm-bindgen."
         }
       }
     },
     "commands": [
       {
         "command": "gaffy.graphCallers",
-        "title": "gaffy: Upstream callers"
+        "title": "gaffy: Call Hierarchy (up)"
       },
       {
         "command": "gaffy.graphCallees",
-        "title": "gaffy: Calls downstream"
-      },
-      {
-        "command": "gaffy.graphBoth",
-        "title": "gaffy: Upstream callers and calls downstream"
+        "title": "gaffy: Call Hierarchy (dn)"
       },
       {
         "command": "gaffy.addToView",
-        "title": "gaffy: Add to view"
+        "title": "gaffy: Add to Call Graph"
       },
       {
         "command": "gaffy.graphFile",
@@ -349,17 +350,17 @@
         {
           "command": "gaffy.graphCallers",
           "when": "editorHasCallHierarchyProvider || resourceExtname =~ /^\\.(glsl|vert|frag|geom|comp|tesc|tese|rgen|rint|rahit|rchit|rmiss|rcall|mesh|task|hlsl|hlsli|fx|fxh|slang|slangh|wgsl|metal)$/",
-          "group": "navigation@90"
+          "group": "0_navigation@5"
         },
         {
           "command": "gaffy.graphCallees",
           "when": "editorHasCallHierarchyProvider || resourceExtname =~ /^\\.(glsl|vert|frag|geom|comp|tesc|tese|rgen|rint|rahit|rchit|rmiss|rcall|mesh|task|hlsl|hlsli|fx|fxh|slang|slangh|wgsl|metal)$/",
-          "group": "navigation@91"
+          "group": "0_navigation@6"
         },
         {
           "command": "gaffy.addToView",
           "when": "editorHasCallHierarchyProvider || resourceExtname =~ /^\\.(glsl|vert|frag|geom|comp|tesc|tese|rgen|rint|rahit|rchit|rmiss|rcall|mesh|task|hlsl|hlsli|fx|fxh|slang|slangh|wgsl|metal)$/",
-          "group": "navigation@92"
+          "group": "0_navigation@7"
         }
       ],
       "gaffy.editor": [
@@ -370,10 +371,6 @@
         {
           "command": "gaffy.graphCallees",
           "group": "1@2"
-        },
-        {
-          "command": "gaffy.graphBoth",
-          "group": "1@3"
         },
         {
           "command": "gaffy.addToView",

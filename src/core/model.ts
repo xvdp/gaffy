@@ -36,6 +36,7 @@ export interface GEdge {
   from: NodeKey;           // caller
   to: NodeKey;             // callee
   line?: number;           // first call-site line in the caller, 0-based; orders siblings
+  via?: string;            // a call across languages: the binding layer (pybind11, nanobind, torch, slangpy, slangtorch) and where it binds
 }
 
 export interface Subgraph {

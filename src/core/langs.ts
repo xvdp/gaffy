@@ -43,6 +43,7 @@ export const EXTERNAL = new RegExp([
   '\\.d\\.ts$',
   '(^|[\\\\/])target[\\\\/](debug|release|[\\w-]+-[\\w-]+-[\\w-]+)[\\\\/]',      // Rust build output
   '(^|[\\\\/])(_deps|vcpkg_installed|\\.conan2?|\\.cargo|\\.rustup)[\\\\/]',          // fetched C/C++ and Rust dependencies
+  '(^|[\\\\/])pkg[\\\\/][\\w-]+(_bg)?\\.js$',                                    // wasm-pack glue (calls show from the caller to the Rust function)
   '^/usr/(include|lib|local/include)/',
 ].join('|'));
 

@@ -353,7 +353,7 @@ function render() {
   } else {
     for (const p of g.paths) {
       if (p.fallback) continue;
-      ge.append('path').attr('class', 'net').attr('data-from', p.from).attr('data-to', p.to).attr('d', curvePath(p, curve));
+      ge.append('path').attr('class', viaOf(p) ? 'net bridge' : 'net').attr('data-from', p.from).attr('data-to', p.to).attr('d', curvePath(p, curve));
       if (style.edges.arrow) {
         const [x, y] = p.pts[p.pts.length - 1];
         arrowhead(ge, x - (p.arrive === 'E' ? 0.5 : -0.5), y, p.arrive === 'E' ? 1 : -1);
@@ -522,10 +522,16 @@ function asCall(p: { from: NodeKey; to: NodeKey }): { caller: NodeKey; callee: N
   return { caller: p.from, callee: p.to };
 }
 
+/** Binding layer of a call across languages (`pybind11: src/ext.cpp:42`), from the stored edge. */
+function viaOf(p: { from: NodeKey; to: NodeKey }): string | undefined {
+  return doc?.graph.edges.find((e) => e.from === p.from && e.to === p.to)?.via;
+}
+
 function callTitle(p: EdgePath): string {
   const { caller, callee } = asCall(p);
   const name = (k: NodeKey) => scene!.graph.nodes[k]?.name ?? k;
-  return `${name(caller)}() → ${name(callee)}()\nclick select · double click: show only what lies below · right click: more`;
+  const via = viaOf(p);
+  return `${name(caller)}() → ${name(callee)}()${via ? `\nacross languages, via ${via}` : ''}\nclick select · double click: show only what lies below · right click: more`;
 }
 
 /** Side of a vertex: open entry, or the traversal side for a seed without one. */

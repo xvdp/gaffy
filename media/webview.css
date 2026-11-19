@@ -146,6 +146,8 @@ text { dominant-baseline: central; white-space: pre; }
 .arrowhits rect:hover { fill: var(--g-selection); fill-opacity: 0.25; }
 /* calls without a route */
 .edges path.net.fallback { stroke-dasharray: 3 3; }
+/* calls across languages (pybind11, nanobind, torch, slangpy, slangtorch) */
+.edges path.net.bridge { stroke-dasharray: 8 3 2 3; }
 #toolbar .depth { padding: 0 6px; font-variant-numeric: tabular-nums; color: var(--vscode-descriptionForeground); }
 .labels g.collapsed text { font-weight: 600; }
 .labels g.external text { fill: var(--g-external); font-style: italic; }

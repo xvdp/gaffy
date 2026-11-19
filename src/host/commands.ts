@@ -132,7 +132,6 @@ export function registerCommands(ctx: vscode.ExtensionContext, editor: GaffyEdit
 
   reg('gaffy.graphCallers', () => graphAtCursor('in'));
   reg('gaffy.graphCallees', () => graphAtCursor('out'));
-  reg('gaffy.graphBoth', () => graphAtCursor('both'));
 
   reg('gaffy.addToView', async () => {
     const sess = active();
