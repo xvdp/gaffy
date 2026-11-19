@@ -4,6 +4,34 @@
   "type": "object",
   "additionalProperties": false,
   "properties": {
+    "view": {
+      "type": "object",
+      "description": "Choices a new view starts with; written into the view file at creation. Options in the view change them per view.",
+      "properties": {
+        "arrange": {
+          "enum": [
+            "grow",
+            "auto"
+          ],
+          "description": "Layout: grow, one layer at a time (markers open sides); auto, every function to gaffy.depth, with folds."
+        },
+        "order": {
+          "enum": [
+            "callers",
+            "callees"
+          ],
+          "description": "callers: caller above callee, `└─>` arrows; callees: callee above its callers, as in the VS Code call hierarchy."
+        },
+        "traverse": {
+          "enum": [
+            "command",
+            "both"
+          ],
+          "description": "command: Upstream callers opens callers, Calls downstream opens calls; both: every new view opens callers and calls of its seed."
+        }
+      },
+      "additionalProperties": false
+    },
     "font": {
       "type": "object",
       "properties": {
@@ -38,9 +66,10 @@
         "parentRule": {
           "enum": [
             "dfs",
-            "nearest"
+            "nearest",
+            "joint"
           ],
-          "description": "Tree parent: DFS discoverer, or the caller closest above that passes the stem check."
+          "description": "Tree parent: dfs, the DFS discoverer; nearest, the caller closest above that passes the stem check; joint, no caller privileged for functions with several callers in a box: a caller right above joins the elbow (├───┴─>), otherwise every call joins one collector entering from the left."
         }
       }
     },

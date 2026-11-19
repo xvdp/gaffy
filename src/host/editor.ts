@@ -143,7 +143,7 @@ export class Session {
       this.retries = 0;
       this.note(`language server: ${n} calls lists unresolved, stored calls kept`);
       void vscode.window.showWarningMessage(`gaffy: ${this.name}: the language server resolved no answer for ${n} (definition, direction) pairs `
-        + '(still analyzing, renamed or removed). The view keeps their stored calls; Options > Ask the language server again retries.');
+        + '(still analyzing, renamed or removed). The view keeps their stored calls; Options > Refresh from Language Server retries.');
       return;
     }
     const sec = RETRY_S[this.retries++];
@@ -378,7 +378,7 @@ export class GaffyEditor implements vscode.CustomTextEditorProvider {
             const doc = s.doc();
             // stable views: stored data at once, then only what changed since (no language server when nothing did)
             if (doc.view.arrange === 'grow') { if (doc.view.seeds.length) void s.revalidate(); }
-            else if (doc.view.seeds.length && !Object.keys(doc.graph.nodes).length) await s.refresh();
+            else if (doc.view.seeds.length && !Object.keys(doc.explored ?? {}).length) await s.refresh();
           } else if (m.type === 'edit') {
             const doc = parseDoc(m.text, s.name);
             await s.write(doc);

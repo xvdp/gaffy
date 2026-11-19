@@ -2,7 +2,7 @@
   "name": "gaffy",
   "displayName": "gaffy",
   "description": "Persistent, manipulable call graphs on a character grid, rendered with D3",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "publisher": "xvdp",
   "license": "UNLICENSED",
   "private": true,
@@ -89,8 +89,10 @@
           "default": [
             "**/tests/**",
             "**/test/**",
+            "**/__tests__/**",
             "**/test_*.py",
-            "**/*_test.py",
+            "**/*_test.*",
+            "**/*_unittest.*",
             "**/*.test.*",
             "**/*.spec.*"
           ],
@@ -127,7 +129,7 @@
       },
       {
         "command": "gaffy.refresh",
-        "title": "Ask the Language Server Again",
+        "title": "Refresh from Language Server",
         "category": "gaffy"
       },
       {
@@ -368,17 +370,17 @@
       "editor/context": [
         {
           "command": "gaffy.graphCallers",
-          "when": "editorHasCallHierarchyProvider",
+          "when": "editorHasCallHierarchyProvider || resourceExtname =~ /^\\.(glsl|vert|frag|geom|comp|tesc|tese|rgen|rint|rahit|rchit|rmiss|rcall|mesh|task|hlsl|hlsli|fx|fxh|slang|slangh|wgsl|metal)$/",
           "group": "navigation@90"
         },
         {
           "command": "gaffy.graphCallees",
-          "when": "editorHasCallHierarchyProvider",
+          "when": "editorHasCallHierarchyProvider || resourceExtname =~ /^\\.(glsl|vert|frag|geom|comp|tesc|tese|rgen|rint|rahit|rchit|rmiss|rcall|mesh|task|hlsl|hlsli|fx|fxh|slang|slangh|wgsl|metal)$/",
           "group": "navigation@91"
         },
         {
           "command": "gaffy.addToView",
-          "when": "editorHasCallHierarchyProvider",
+          "when": "editorHasCallHierarchyProvider || resourceExtname =~ /^\\.(glsl|vert|frag|geom|comp|tesc|tese|rgen|rint|rahit|rchit|rmiss|rcall|mesh|task|hlsl|hlsli|fx|fxh|slang|slangh|wgsl|metal)$/",
           "group": "navigation@92"
         }
       ],

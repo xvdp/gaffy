@@ -94,8 +94,13 @@ export function registerCommands(ctx: vscode.ExtensionContext, editor: GaffyEdit
     await vscode.workspace.fs.createDirectory(views);
     // <symbol>_<short commit hash, or date>.gaffy
     const uri = await uniqueUri(views, `${stem}_${(await gitShort(folder.fsPath)) ?? dateSlug()}`, '.gaffy');
-    doc.view.arrange = 'grow';
-    doc.view.open = {};
+    // starting choices from style.json `view`
+    const start = (await editor.styles.get(folder)).view;
+    doc.view.arrange = start.arrange;
+    doc.view.order = start.order;
+    if (start.traverse === 'both') doc.view.direction = 'both';
+    if (start.arrange === 'grow') doc.view.open = {};
+    else delete doc.view.open;
     doc.view.depth = cfg().get<number>('depth') ?? 3;
     doc.name = path.basename(uri.path, '.gaffy');
     await vscode.workspace.fs.writeFile(uri, new TextEncoder().encode(serializeDoc(doc)));

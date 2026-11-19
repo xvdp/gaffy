@@ -496,6 +496,7 @@ function anchorAt(k: NodeKey) {
  */
 function setSide(k: NodeKey, side: 'up' | 'down', on: boolean, restore = false) {
   if (!doc || !scene) return;
+  if (doc.view.arrange !== 'grow') { foldSide(k, side, on); return; }
   anchorAt(k);
   const cur = effSide(k);
   const up = side === 'up' ? on : opens(cur, 'up');
@@ -512,6 +513,13 @@ function setSide(k: NodeKey, side: 'up' | 'down', on: boolean, restore = false) 
   const ex = doc.explored?.[k];
   const dir = side === 'down' ? 'out' : 'in';
   if (on && ex !== dir && ex !== 'both') api.postMessage({ type: 'expand', key: k, dir });
+}
+
+/** Automatic arrangement: closing folds that side; opening unfolds it, or asks the language server for it. */
+function foldSide(k: NodeKey, side: 'up' | 'down', on: boolean) {
+  if (!on) { if (doc!.view.fold[k] !== side) commit((x) => { x.view.fold[k] = side; }); return; }
+  if (doc!.view.fold[k] === side) { commit((x) => { delete x.view.fold[k]; }); return; }
+  api.postMessage({ type: 'expand', key: k, dir: side === 'down' ? 'out' : 'in' });
 }
 
 /** A marker (`>> ` before a label, `└─>>` row below it): open that side with everything removed from it. */
@@ -593,8 +601,26 @@ function reachDrawn(start: NodeKey, dir: 'up' | 'down'): Set<NodeKey> {
 }
 
 function isolate(keep: Set<NodeKey>) {
-  const drop = [...scene!.vg.nodes.keys()].filter((x) => !keep.has(x));
-  commit((x) => { for (const s of drop) if (!x.view.hidden.includes(s)) x.view.hidden.push(s); });
+  const all = withPath(keep);
+  hide([...scene!.vg.nodes.keys()].filter((x) => !all.has(x)));
+}
+
+/**
+ * Hide functions; seeds never: they anchor the view (one layer at a time reveals everything from them).
+ * Right click > Remove Seed takes a seed out.
+ */
+function hide(keys: NodeKey[]) {
+  const seeds = new Set(doc!.view.seeds);
+  const drop = keys.filter((k) => !seeds.has(k));
+  if (drop.length) commit((x) => { for (const s of drop) if (!x.view.hidden.includes(s)) x.view.hidden.push(s); });
+}
+
+/** One layer at a time: `keep` plus the functions that reveal them from the seeds, so they stay reachable. */
+function withPath(keep: Set<NodeKey>): Set<NodeKey> {
+  const out = new Set(keep);
+  if (doc!.view.arrange !== 'grow') return out;
+  for (const k of keep) for (let o = scene!.rev.opener.get(k); o && !out.has(o.by); o = scene!.rev.opener.get(o.by)) out.add(o.by);
+  return out;
 }
 
 function popcount(m: number) { let n = 0; while (m) { n += m & 1; m >>= 1; } return n; }
@@ -801,8 +827,9 @@ function runCmd(cmd: string, key?: NodeKey, unit?: string, to?: NodeKey) {
     }
     case 'fold': if (k) toggleFold(k); return;
     case 'unlock': if (unit ?? k) unlockUnit(unit ?? k!); return;
-    case 'upstream': if (k) selected = reach(k, 'up'); break;
-    case 'downstream': if (k) selected = reach(k, 'down'); break;
+    // callers or callees only: the function itself stays out of the selection
+    case 'upstream': if (k) { selected = reach(k, 'up'); selected.delete(k); } break;
+    case 'downstream': if (k) { selected = reach(k, 'down'); selected.delete(k); } break;
     case 'through': if (k) selected = new Set([...reach(k, 'up'), ...reach(k, 'down')]); break;
     case 'between': {
       const [a, b] = [...selected];
@@ -816,13 +843,11 @@ function runCmd(cmd: string, key?: NodeKey, unit?: string, to?: NodeKey) {
     case 'hideSelection': {
       const sel = selected.size ? [...selected] : k ? [k] : [];
       selected.clear();
-      commit((x) => { for (const s of sel) if (!x.view.hidden.includes(s)) x.view.hidden.push(s); });
+      hide(sel);
       return;
     }
     case 'isolate': {
-      const keep = selected.size ? selected : new Set(k ? [k] : []);
-      const drop = [...scene.vg.nodes.keys()].filter((x) => !keep.has(x));
-      commit((x) => { for (const s of drop) if (!x.view.hidden.includes(s)) x.view.hidden.push(s); });
+      isolate(selected.size ? new Set(selected) : new Set(k ? [k] : []));
       return;
     }
     case 'clearSelection': selected.clear(); selCalls.clear(); break;
@@ -1047,8 +1072,10 @@ function toolbar() {
     ...(mode === 'vector' ? [{ caption: 'Curve', radio: true, items: (['orthogonal', 'rounded', 'sigmoid', 'spline'] as Curve[]).map((c) => ({
       label: c, title: 'curve style of vector edges', on: curve === c, act: () => commit((x) => { x.view.curve = c; }),
     })) } as Section] : []),
-    { caption: 'Tree parent', radio: true, items: (['dfs', 'nearest'] as const).map((m) => ({
-      label: m === 'dfs' ? 'First caller found (dfs)' : 'Nearest caller above', title: 'which caller a shared function hangs under', on: rule === m,
+    { caption: 'Tree parent', radio: true, items: (['dfs', 'nearest', 'joint'] as const).map((m) => ({
+      label: m === 'dfs' ? 'First caller found (dfs)' : m === 'nearest' ? 'Nearest caller above' : 'Joint: shared functions entered from the left',
+      title: m === 'joint' ? 'no caller privileged: a caller right above joins the elbow (├───┴─>), several callers join one collector (┌──┘ └─>)'
+        : 'which caller a shared function hangs under', on: rule === m,
       act: () => commit((x) => { x.view.parentRule = m; }) })) },
     { caption: 'Arrange', items: [
       v.arrange === 'grow'
@@ -1075,7 +1102,7 @@ function toolbar() {
         }
       }, true) })) } as Section] : []),
     { caption: 'File', items: [
-      { label: 'Ask the language server again', title: v.arrange === 'grow'
+      { label: 'Refresh from Language Server', title: v.arrange === 'grow'
         ? 'calls of the functions on screen from the language server; the others when a side opens onto them. Unanswered functions keep their calls (r)'
         : 'from the cache at once, then every function from the language server. Unanswered functions keep their calls (r)',
       act: () => api.postMessage({ type: 'refresh' }) },

@@ -13,6 +13,12 @@
  *    col(p). Under `dfs` the check always holds: the DFS subtree of p occupies a contiguous block of
  *    rows starting at p (parenthesis theorem, CLRS Thm 22.7) and its members sit at col ≥ col(p) + indent.
  *    col(v) = col(parent) + indent; roots at column 0.
+ *    Rule `joint` (no caller privileged when several call one function), for v with ≥ 2 callers in the block:
+ *    merge: the callers are p and u, u a tree child of p on the row right above v; v becomes p's child one
+ *    indent further right, so u's stem drops into v's elbow (`├───┴─> v()`).
+ *    collector: otherwise v takes no tree parent; an approach row above v carries its lane back left to
+ *    a collector column one indent left of v, and every call enters v from the left (`┌──┘`, `└─> v()`).
+ *    Else as `dfs`.
  * 4. Cross edges: edges outside the tree and not back. Edges into one target bundle into one lane,
  *    rows [min source row, target row]. A vertex that is both a lane target and a lane source gets a
  *    port row below it; its outgoing lane connections leave from the port row, so an arrival `<─┘` and a
@@ -47,7 +53,7 @@ export interface LayoutInput {
 }
 
 export interface Row {
-  kind: 'node' | 'port';
+  kind: 'node' | 'port' | 'approach';
   key: NodeKey;
   col: number;
   text: string;
@@ -60,6 +66,7 @@ export interface Lane {
   lo: number;
   hi: number;
   sources: { key: NodeKey; row: number; port: boolean }[];
+  left?: { col: number; row: number };   // rule `joint`, collector: column left of the target, approach row above it
 }
 
 export interface Layout {
@@ -71,6 +78,7 @@ export interface Layout {
   roots: NodeKey[];
   lanes: Lane[];
   back: Map<NodeKey, NodeKey[]>;
+  merges: Set<string>;   // rule `joint`: calls `caller\u0000callee` drawn by a stem into the callee's elbow
   indent: number;
   width: number;
 }
@@ -158,11 +166,33 @@ export function layout(inp: LayoutInput): Layout {
     for (let r = nodeRow0.get(p)! + 1; r < nodeRow0.get(v)!; r++) if (col.get(order[r])! <= cp) return false;
     return true;
   };
+  const joint = inp.parentRule === 'joint';
+  const dfsKids = new Map<NodeKey, NodeKey[]>();
+  for (const v of order) { const d = dfsParent.get(v); if (d) { if (!dfsKids.has(d)) dfsKids.set(d, []); dfsKids.get(d)!.push(v); } }
+  const merges = new Set<string>();
+  const collector = new Map<NodeKey, number>();   // rule `joint`: target → collector column
   for (const v of order) {
     const callers = vg.inc.get(v)!
       .map((e) => e.from)
       .filter((u) => !backSet.has(`${u}\u0000${v}`) && nodeRow0.get(u)! < nodeRow0.get(v)!);
     const dp = dfsParent.get(v) ?? null;
+    if (joint && callers.length >= 2) {
+      const [a, b] = callers;
+      const pair = callers.length === 2 ? (parent.get(b) === a ? [a, b] : parent.get(a) === b ? [b, a] : undefined) : undefined;
+      if (pair && nodeRow0.get(pair[1])! === nodeRow0.get(v)! - 1 && stemOk(pair[0], v)) {
+        parent.set(v, pair[0]);
+        col.set(v, col.get(pair[0])! + 2 * indent);
+        merges.add(`${pair[1]}\u0000${v}`);
+        continue;
+      }
+      // the DFS parent's trunk continues below v when it has later children: keep the collector off its column
+      const later = !!dp && dfsKids.get(dp)!.some((c) => nodeRow0.get(c)! > nodeRow0.get(v)!);
+      const c = dp ? col.get(dp)! + (later ? 2 : 1) * indent : Math.min(...callers.map((u) => col.get(u)!)) + indent;
+      parent.set(v, null);
+      col.set(v, c);
+      collector.set(v, c - indent);
+      continue;
+    }
     const cands: NodeKey[] = inp.parentRule === 'nearest'
       ? [...callers].sort((a, b) => nodeRow0.get(b)! - nodeRow0.get(a)!)
       : dp ? [dp] : [];
@@ -180,7 +210,7 @@ export function layout(inp: LayoutInput): Layout {
   const crossIn = new Map<NodeKey, NodeKey[]>();
   const crossOut = new Set<NodeKey>();
   for (const e of vg.edges) {
-    if (parent.get(e.to) === e.from || backSet.has(`${e.from}\u0000${e.to}`)) continue;
+    if (parent.get(e.to) === e.from || backSet.has(`${e.from}\u0000${e.to}`) || merges.has(`${e.from}\u0000${e.to}`)) continue;
     if (!crossIn.has(e.to)) crossIn.set(e.to, []);
     crossIn.get(e.to)!.push(e.from);
     crossOut.add(e.from);
@@ -189,7 +219,13 @@ export function layout(inp: LayoutInput): Layout {
   const rows: Row[] = [];
   const rowOf = new Map<NodeKey, number>();
   const portOf = new Map<NodeKey, number>();
+  const approachOf = new Map<NodeKey, number>();
   for (const k of order) {
+    const cc = collector.get(k);
+    if (cc !== undefined && crossIn.has(k)) {
+      approachOf.set(k, rows.length);
+      rows.push({ kind: 'approach', key: k, col: cc, text: '', end: cc + 1 });
+    }
     const tags = [
       vg.selfLoops.has(k) ? ' ↻' : '',
       ...(back.get(k) ?? []).map((t) => ` ↻ ${inp.shortName(t)}`),
@@ -199,7 +235,7 @@ export function layout(inp: LayoutInput): Layout {
     rowOf.set(k, rows.length);
     rows.push({ kind: 'node', key: k, col: c, text, end: c + text.length });
     // arrivals land at the right end unless the vertex is a block root (then from the left)
-    const inRight = crossIn.has(k) || (!!inp.extIn?.has(k) && !!parent.get(k));
+    const inRight = (crossIn.has(k) && !approachOf.has(k)) || (!!inp.extIn?.has(k) && !!parent.get(k));
     if (inRight && (crossOut.has(k) || !!inp.extOut?.has(k))) {
       portOf.set(k, rows.length);
       rows.push({ kind: 'port', key: k, col: c, text: '', end: c + 1 });
@@ -223,7 +259,8 @@ export function layout(inp: LayoutInput): Layout {
     });
     const lo = Math.min(...sources.map((s) => s.row));
     const hi = rowOf.get(t)!;
-    lanes.push({ target: t, col: 0, lo, hi, sources });
+    const via = approachOf.get(t);
+    lanes.push({ target: t, col: 0, lo, hi, sources, ...(via !== undefined ? { left: { col: collector.get(t)!, row: via } } : {}) });
   }
   lanes.sort((a, b) => a.hi - a.lo - (b.hi - b.lo) || a.lo - b.lo || cmp(sk.get(a.target)!, sk.get(b.target)!));
   const placed: Lane[] = [];
@@ -248,5 +285,5 @@ export function layout(inp: LayoutInput): Layout {
   for (const r of rows) width = Math.max(width, r.end);
   for (const l of lanes) width = Math.max(width, l.col + 1);
 
-  return { rows, rowOf, portOf, parent, children, roots, lanes, back, indent, width };
+  return { rows, rowOf, portOf, parent, children, roots, lanes, back, merges, indent, width };
 }

@@ -2,27 +2,30 @@
  * Call graph provider over the LSP call hierarchy exposed by VS Code built-in commands:
  * `vscode.prepareCallHierarchy`, `vscode.provideIncomingCalls`, `vscode.provideOutgoingCalls`,
  * `vscode.executeDocumentSymbolProvider`. Works for every language whose server implements call
- * hierarchy (TS/JS built in, Python via Pylance, C/C++, Rust, Go).
+ * hierarchy (TS/JS built in, Python via Pylance, C/C++, Rust, Go, …). Languages whose server has none
+ * (shader languages, `TEXT_LANGS`) get calls found in the text (textcalls.ts): call sites in a function
+ * body resolved by go to definition, else by name among the functions of that language in the workspace;
+ * callers by references, else by the same scan over the workspace.
  *
- * Node keys: `<lang>:<relpath>#<qual>`; qual = names of the document-symbol chain enclosing the item's
- * name position. Containers: file `<lang>:<relpath>`, class `<lang>:<relpath>#<Class>`, folder
+ * Node keys: `<lang>:<relpath>#<qual>`; qual = segments (langs.ts) of the document-symbol chain enclosing
+ * the item's name position. Containers: file `<lang>:<relpath>`, class `<lang>:<relpath>#<Class>`, folder
  * `dir:<reldir>` (Python packages when the folder holds `__init__.py`).
  */
 import * as path from 'node:path';
 import * as vscode from 'vscode';
+import { EXTERNAL, extsOf, LANG, langOf, segments, TEXT_LANGS } from '../core/langs';
 import { bodyHash, GEdge, GNode, Kind, NodeKey } from '../core/model';
+import { callSites, mask, outline, TextSym } from '../core/textcalls';
 
-const LANG: Record<string, string> = {
-  py: 'py', pyi: 'py', ts: 'ts', tsx: 'ts', mts: 'ts', cts: 'ts', js: 'js', jsx: 'js', mjs: 'js', cjs: 'js',
-  c: 'c', h: 'c', cpp: 'cpp', cc: 'cpp', cxx: 'cpp', hpp: 'cpp', hh: 'cpp', hxx: 'cpp', cu: 'cpp',
-  rs: 'rs', go: 'go', jl: 'jl', java: 'java', rb: 'rb', cs: 'cs', swift: 'swift', kt: 'kt',
-};
-const EXTERNAL = /(^|[\\/])(node_modules|site-packages|dist-packages|\.venv|venv|typeshed|typeshed-fallback)([\\/]|$)|\.d\.ts$/;
+// symbols that enclose a qualified name: types, functions, namespaces, impl blocks (Object), object
+// literals and their variables (TypeScript `const obj = { run() {} }` → `obj.run`)
 const SCOPE = new Set([
   vscode.SymbolKind.Class, vscode.SymbolKind.Interface, vscode.SymbolKind.Struct, vscode.SymbolKind.Enum,
   vscode.SymbolKind.Function, vscode.SymbolKind.Method, vscode.SymbolKind.Constructor,
-  vscode.SymbolKind.Namespace, vscode.SymbolKind.Module,
+  vscode.SymbolKind.Namespace, vscode.SymbolKind.Module, vscode.SymbolKind.Package, vscode.SymbolKind.Object,
+  vscode.SymbolKind.Variable, vscode.SymbolKind.Constant,
 ]);
+const FUNCTIONS = new Set([vscode.SymbolKind.Function, vscode.SymbolKind.Method, vscode.SymbolKind.Constructor]);
 
 function kindOf(k: vscode.SymbolKind): Kind {
   switch (k) {
@@ -37,6 +40,7 @@ function kindOf(k: vscode.SymbolKind): Kind {
 }
 
 type Sym = vscode.DocumentSymbol;
+interface TextFile { uri: vscode.Uri; doc: vscode.TextDocument; masked: string; fns: Sym[] }
 
 function chainAt(syms: readonly Sym[], pos: vscode.Position): Sym[] {
   const chain: Sym[] = [];
@@ -51,22 +55,42 @@ function chainAt(syms: readonly Sym[], pos: vscode.Position): Sym[] {
   return chain.filter((s, i) => i === chain.length - 1 || SCOPE.has(s.kind));
 }
 
+/** Symbol whose chain of segments spells `parts`; non-scope symbols are skipped in quals, so search through them. */
 function findQual(syms: readonly Sym[], parts: string[]): Sym | undefined {
-  let level: readonly Sym[] = syms;
-  let hit: Sym | undefined;
-  for (let i = 0; i < parts.length; i++) {
-    // non-scope symbols are skipped in quals; search through them
-    const queue = [...level];
-    hit = undefined;
-    while (queue.length) {
-      const s = queue.shift()!;
-      if (s.name === parts[i] || s.name.replace(/\(.*$/, '') === parts[i]) { hit = s; break; }
-      if (!SCOPE.has(s.kind)) queue.push(...(s.children ?? []));
+  const queue = [...syms];
+  while (queue.length) {
+    const s = queue.shift()!;
+    const seg = segments(s.name);
+    if (seg.every((x, i) => parts[i] === x)) {
+      if (seg.length === parts.length) return s;
+      const hit = findQual(s.children ?? [], parts.slice(seg.length));
+      if (hit) return hit;
     }
-    if (!hit) return undefined;
-    level = hit.children ?? [];
+    if (!SCOPE.has(s.kind)) queue.push(...(s.children ?? []));
   }
-  return hit;
+  return undefined;
+}
+
+/** Innermost function or method symbol containing `pos`. */
+function functionSymAt(syms: readonly Sym[], pos: vscode.Position): Sym | undefined {
+  for (const s of syms) {
+    if (!s.range.contains(pos)) continue;
+    const inner = functionSymAt(s.children ?? [], pos);
+    if (inner) return inner;
+    if (FUNCTIONS.has(s.kind)) return s;
+  }
+  return undefined;
+}
+
+/** Text outline as document symbols (servers without document symbols). */
+function toSymbols(doc: vscode.TextDocument, syms: TextSym[]): Sym[] {
+  return syms.map((t) => {
+    const name = new vscode.Range(doc.positionAt(t.nameAt), doc.positionAt(t.nameAt + t.name.length));
+    const s = new vscode.DocumentSymbol(t.name, '', t.kind === 'function' ? vscode.SymbolKind.Function : vscode.SymbolKind.Struct,
+      new vscode.Range(doc.positionAt(t.start), doc.positionAt(t.end)), name);
+    s.children = toSymbols(doc, t.children);
+    return s;
+  });
 }
 
 export class LspProvider {
@@ -80,12 +104,19 @@ export class LspProvider {
     const u = uri.toString();
     this.symbols.delete(u);
     for (const [k, it] of this.items) if (it.uri.toString() === u) this.items.delete(k);
+    this.index.delete(langOf(uri.path));
   }
 
+  /** Call hierarchy items at a position; for text languages without a call hierarchy, the enclosing function. */
   async prepare(uri: vscode.Uri, pos: vscode.Position): Promise<vscode.CallHierarchyItem[]> {
-    const r = await vscode.commands.executeCommand<vscode.CallHierarchyItem[] | vscode.CallHierarchyItem>(
-      'vscode.prepareCallHierarchy', uri, pos);
-    return !r ? [] : Array.isArray(r) ? r : [r];
+    let r: vscode.CallHierarchyItem[] | vscode.CallHierarchyItem | undefined;
+    try {
+      r = await vscode.commands.executeCommand<vscode.CallHierarchyItem[] | vscode.CallHierarchyItem>('vscode.prepareCallHierarchy', uri, pos);
+    } catch { r = undefined; }
+    const items = !r ? [] : Array.isArray(r) ? r : [r];
+    if (items.length || !TEXT_LANGS.has(langOf(uri.path))) return items;
+    const it = await this.textItem(uri, pos);
+    return it ? [it] : [];
   }
 
   async symbolsOf(uri: vscode.Uri): Promise<Sym[]> {
@@ -95,10 +126,118 @@ export class LspProvider {
       p = Promise.resolve(vscode.commands.executeCommand<(Sym | vscode.SymbolInformation)[]>(
         'vscode.executeDocumentSymbolProvider', uri))
         .then((r) => (r ?? []).filter((s): s is Sym => 'selectionRange' in s))
-        .catch(() => []);
+        .catch(() => [] as Sym[])
+        .then(async (syms) => {
+          // text languages without a symbol provider: the text outline
+          if (syms.length || !TEXT_LANGS.has(langOf(uri.path))) return syms;
+          try {
+            const doc = await vscode.workspace.openTextDocument(uri);
+            return toSymbols(doc, outline(doc.getText()));
+          } catch { return []; }
+        });
       this.symbols.set(u, p);
     }
     return p;
+  }
+
+  // ---- calls found in the text (TEXT_LANGS) ----------------------------------------------------------
+  private textItems = new WeakSet<vscode.CallHierarchyItem>();
+  private index = new Map<string, Promise<TextFile[]>>();
+
+  /** The function at `pos` as a call hierarchy item built from document symbols (or the text outline). */
+  private async textItem(uri: vscode.Uri, pos: vscode.Position): Promise<vscode.CallHierarchyItem | undefined> {
+    const fn = functionSymAt(await this.symbolsOf(uri), pos);
+    if (!fn) return undefined;
+    const it = new vscode.CallHierarchyItem(fn.kind, fn.name, fn.detail ?? '', uri, fn.range, fn.selectionRange);
+    this.textItems.add(it);
+    return it;
+  }
+
+  /** Functions of one text language in the workspace, with their masked text for call sites. */
+  private files(lang: string): Promise<TextFile[]> {
+    let p = this.index.get(lang);
+    if (!p) {
+      p = (async () => {
+        const uris = await vscode.workspace.findFiles(`**/*.{${extsOf(lang).join(',')}}`, '**/{node_modules,.git,.gaffy}/**', 3000);
+        const out: TextFile[] = [];
+        for (const uri of uris) {
+          try {
+            const doc = await vscode.workspace.openTextDocument(uri);
+            const fns: Sym[] = [];
+            const walk = (ss: readonly Sym[]) => { for (const x of ss) { if (FUNCTIONS.has(x.kind)) fns.push(x); walk(x.children ?? []); } };
+            walk(await this.symbolsOf(uri));
+            out.push({ uri, doc, masked: mask(doc.getText()), fns });
+          } catch { /* unreadable */ }
+        }
+        return out;
+      })();
+      this.index.set(lang, p);
+    }
+    return p;
+  }
+
+  /** Functions a call site names: go to definition, else every function of that name (same file first). */
+  private async resolve(uri: vscode.Uri, pos: vscode.Position, name: string): Promise<vscode.CallHierarchyItem[]> {
+    let locs: (vscode.Location | vscode.LocationLink)[] = [];
+    try { locs = await vscode.commands.executeCommand<(vscode.Location | vscode.LocationLink)[]>('vscode.executeDefinitionProvider', uri, pos) ?? []; } catch { /* none */ }
+    for (const l of locs) {
+      const tu = 'targetUri' in l ? l.targetUri : l.uri;
+      const tp = 'targetUri' in l ? (l.targetSelectionRange ?? l.targetRange).start : l.range.start;
+      const it = await this.textItem(tu, tp);
+      if (it && segments(it.name).pop() === name) return [it];
+    }
+    const files = await this.files(langOf(uri.path));
+    const hits = files.flatMap((f) => f.fns.filter((x) => segments(x.name).pop() === name).map((x) => ({ f, x })));
+    const local = hits.filter((h) => h.f.uri.toString() === uri.toString());
+    return (local.length ? local : hits).map(({ f, x }) => {
+      const it = new vscode.CallHierarchyItem(x.kind, x.name, x.detail ?? '', f.uri, x.range, x.selectionRange);
+      this.textItems.add(it);
+      return it;
+    });
+  }
+
+  private async textOutgoing(key: NodeKey, it: vscode.CallHierarchyItem, acc: Record<NodeKey, GNode>): Promise<GEdge[]> {
+    const doc = await vscode.workspace.openTextDocument(it.uri);
+    const edges: GEdge[] = [];
+    for (const site of callSites(doc.getText(), doc.offsetAt(it.selectionRange.end), doc.offsetAt(it.range.end))) {
+      const pos = doc.positionAt(site.at);
+      for (const t of await this.resolve(it.uri, pos, site.name)) {
+        const to = await this.describe(t, acc);
+        if (to) edges.push({ from: key, to, line: pos.line });
+      }
+    }
+    return edges;
+  }
+
+  private async textIncoming(key: NodeKey, it: vscode.CallHierarchyItem, acc: Record<NodeKey, GNode>): Promise<GEdge[]> {
+    const name = segments(it.name).pop()!;
+    const edges: GEdge[] = [];
+    const callerAt = async (uri: vscode.Uri, pos: vscode.Position) => {
+      const c = await this.textItem(uri, pos);
+      const from = c && (await this.describe(c, acc));
+      if (from) edges.push({ from, to: key, line: pos.line });
+    };
+    // references, where the server has them
+    let refs: vscode.Location[] = [];
+    try { refs = await vscode.commands.executeCommand<vscode.Location[]>('vscode.executeReferenceProvider', it.uri, it.selectionRange.start) ?? []; } catch { /* none */ }
+    refs = refs.filter((r) => !(r.uri.toString() === it.uri.toString() && r.range.intersection(it.selectionRange)));
+    if (refs.length) {
+      for (const r of refs) await callerAt(r.uri, r.range.start);
+      return edges;
+    }
+    // else every call site of that name in the language's files that resolves here (or does not resolve)
+    for (const f of await this.files(langOf(it.uri.path))) {
+      for (const fn of f.fns) {
+        for (const site of callSites(f.masked, f.doc.offsetAt(fn.selectionRange.end), f.doc.offsetAt(fn.range.end), true)) {
+          if (site.name !== name) continue;
+          const pos = f.doc.positionAt(site.at);
+          const to = await this.resolve(f.uri, pos, name);
+          if (to.length && !to.some((t) => t.uri.toString() === it.uri.toString() && t.range.contains(it.selectionRange.start))) continue;
+          await callerAt(f.uri, pos);
+        }
+      }
+    }
+    return edges;
   }
 
   private isPackage(dir: vscode.Uri): Promise<boolean> {
@@ -135,7 +274,7 @@ export class LspProvider {
     const root = folder?.uri ?? vscode.Uri.file(path.dirname(item.uri.fsPath));
     const rel = folder ? path.posix.relative(root.path, item.uri.path) : item.uri.path;
     const ext = path.posix.extname(rel).slice(1).toLowerCase();
-    const lang = LANG[ext] ?? (ext || 'txt');
+    const lang = LANG[ext] ?? (ext || 'txt');   // langs.ts
     const py = lang === 'py';
 
     const reldir = path.posix.dirname(rel);
@@ -157,20 +296,23 @@ export class LspProvider {
       qual = '<module>';
       kind = 'other';
     } else if (chain.length && chain[chain.length - 1].selectionRange.contains(item.selectionRange.start)) {
-      const names = chain.map((s) => s.name.replace(/\(.*$/, ''));
-      for (let i = 0; i < chain.length - 1; i++) {
-        const ck = `${fileKey}#${names.slice(0, i + 1).join('.')}`;
+      // one symbol may carry several segments (`Foo::bar` in C++): the leading ones become containers
+      const segs = chain.flatMap((s, i) => segments(s.name).map((name, j, all) => ({ name, sym: s, last: i === chain.length - 1 && j === all.length - 1, lead: j < all.length - 1 })));
+      for (let i = 0; i < segs.length - 1; i++) {
+        const q = segs.slice(0, i + 1).map((x) => x.name).join('.');
+        const ck = `${fileKey}#${q}`;
         if (!acc[ck]) {
-          acc[ck] = { key: ck, kind: kindOf(chain[i].kind), name: names[i], qual: names.slice(0, i + 1).join('.'),
-            module, parent, uri: item.uri.toString(), path: rel, line: chain[i].selectionRange.start.line,
-            character: chain[i].selectionRange.start.character, external };
+          const sym = segs[i].sym;
+          acc[ck] = { key: ck, kind: segs[i].lead ? 'class' : kindOf(sym.kind), name: segs[i].name, qual: q,
+            module, parent, uri: item.uri.toString(), path: rel, line: sym.selectionRange.start.line,
+            character: sym.selectionRange.start.character, external };
         }
         parent = ck;
       }
-      qual = names.join('.');
+      qual = segs.map((x) => x.name).join('.');
       kind = kindOf(chain[chain.length - 1].kind);
     } else {
-      qual = item.name.replace(/\(.*$/, '');
+      qual = segments(item.name).join('.');
       kind = kindOf(item.kind);
     }
 
@@ -199,7 +341,7 @@ export class LspProvider {
     else if (node.line !== undefined) pos = new vscode.Position(node.line, node.character ?? 0);
     if (!pos) return undefined;
     const items = await this.prepare(uri, pos);
-    const it = items.find((i) => i.name.replace(/\(.*$/, '') === node.name) ?? (sym ? items[0] : undefined);
+    const it = items.find((i) => segments(i.name).pop() === node.name) ?? (sym ? items[0] : undefined);
     if (it) this.items.set(key, it);
     return it;
   }
@@ -211,6 +353,7 @@ export class LspProvider {
   async outgoing(key: NodeKey, acc: Record<NodeKey, GNode>): Promise<GEdge[] | undefined> {
     const it = await this.item(key, acc[key]).catch(() => undefined);
     if (!it) return undefined;
+    if (this.textItems.has(it)) return this.textOutgoing(key, it, acc).catch(() => undefined);
     let calls: vscode.CallHierarchyOutgoingCall[] | undefined;
     try {
       calls = await vscode.commands.executeCommand<vscode.CallHierarchyOutgoingCall[]>('vscode.provideOutgoingCalls', it);
@@ -228,6 +371,7 @@ export class LspProvider {
   async incoming(key: NodeKey, acc: Record<NodeKey, GNode>): Promise<GEdge[] | undefined> {
     const it = await this.item(key, acc[key]).catch(() => undefined);
     if (!it) return undefined;
+    if (this.textItems.has(it)) return this.textIncoming(key, it, acc).catch(() => undefined);
     let calls: vscode.CallHierarchyIncomingCall[] | undefined;
     try {
       calls = await vscode.commands.executeCommand<vscode.CallHierarchyIncomingCall[]>('vscode.provideIncomingCalls', it);

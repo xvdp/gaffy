@@ -106,9 +106,12 @@ export function place(inp: PlaceInput): Placement {
       const map: number[] = [];
       let prev = t - 1;
       L.rows.forEach((r, i) => {
-        const rows = r.kind === 'node' && !L.parent.get(r.key) ? crows.get(r.key) : undefined;
-        const want = rows?.find((x) => x >= prev + 1);
-        prev = Math.max(prev + 1, want ?? -Infinity);
+        // an approach row (rule `joint`) stays right above the root it leads into
+        const at = r.kind === 'approach' ? L.rows[i + 1] : r;
+        const lead = r.kind === 'approach' ? 1 : 0;
+        const rows = at?.kind === 'node' && !L.parent.get(at.key) ? crows.get(at.key) : undefined;
+        const want = rows?.find((x) => x - lead >= prev + 1);
+        prev = Math.max(prev + 1, want !== undefined ? want - lead : -Infinity);
         map[i] = prev;
       });
       return map;

@@ -193,6 +193,7 @@ export function buildScene(doc: ViewDoc, style: Style): Scene {
   const grid = buildGrid(placement, drawn, {
     arrow: style.edges.arrow && view.order !== 'callees',
     first: view.straight,
+    joint: (view.parentRule ?? style.grid.parentRule) === 'joint',
     cost: { bend: style.route.bend, cross: style.route.cross, border: style.route.border, adjacent: style.route.adjacent },
   });
   return { graph, vg, drawn, tree, placement, grid, seeds: new Set(view.seeds), hiddenOf, folds, decor, rev, hasMore, below };

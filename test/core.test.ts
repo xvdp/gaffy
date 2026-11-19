@@ -283,6 +283,36 @@ describe('one layer at a time: open sides, direction, markers, removal', () => {
   });
 });
 
+describe('tree parent rule joint: shared functions take one path, from the left', () => {
+  const S = 'gutai.render.harmonics:sh_eval';
+  const MANY: [string, string][] = [
+    ['gutai.fit.design:_basis', S], ['gutai.fit.probe_field:angular_basis', S], ['gutai.gett.materials:_sky_fit', S],
+    ['gutai.render.g_raster:view_colors', S], ['gutai.render.g_raster:sky', S], ['gutai.render.harmonics:fit_sh', S],
+    ['gutai.render.harmonics:evaluate', S], ['gutai.render.harmonics:irradiance_sh', S],
+    [S, 'gutai.render.harmonics:resolve_backend'], [S, 'gutai.render.harmonics:_in_type'], ['gutai.render.harmonics:resolve_backend', 'gutai.render.harmonics:_in_type'],
+    [S, 'gutai.runtime.interop:to_torch'], [S, 'gutai.render.harmonics:_wrapped_mi'], [S, 'gutai.render.harmonics:sh_eval_mi'],
+    ['gutai.render.harmonics:_wrapped_mi', 'gutai.render.harmonics:sh_eval_mi'], ['gutai.cost.frameworks:sh_eval_mitsuba', S],
+  ];
+  const joint = (o: unknown = {}) => boxed(deepMerge({ grid: { parentRule: 'joint' } } as never, o));
+
+  it('a caller right above merges into the elbow; many callers join one collector entering from the left', () => {
+    const sc = buildScene(fixtureDoc(MANY, { seeds: [k(S)], direction: 'both' }), joint());
+    invariants(sc);
+    const t = text(sc, joint({ edges: { mode: 'glyph' } }));
+    expect(t).toMatch(/├───┴─> harmonics\._in_type\(\)/);
+    expect(t).toMatch(/└───┴─> harmonics\.sh_eval_mi\(\)/);
+    expect(t).toMatch(/┴─> harmonics\.sh_eval\(\)/);
+    expect(t).not.toMatch(/sh_eval\(\) </);                    // nothing arrives at the label end
+    golden('joint_many', t);
+  });
+
+  it('the SH example stays routed and conflict free', () => {
+    const sc = buildScene(fixtureDoc(SH, { seeds: [k(S)], direction: 'out' }), joint());
+    invariants(sc);
+    golden('joint_sh', text(sc, joint({ edges: { mode: 'glyph' } })));
+  });
+});
+
 describe('example (*)', () => {
   const seeds = [k('fit.surfel:linear_harmonics'), k('scripts/mote_paths:streamed')];
 

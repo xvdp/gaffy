@@ -13,7 +13,7 @@ import type { Curve } from './style';
 export type Direction = 'in' | 'out' | 'both';
 export type Order = 'callers' | 'callees';
 export type EdgeMode = 'glyph' | 'vector';
-export type ParentRule = 'dfs' | 'nearest';
+export type ParentRule = 'dfs' | 'nearest' | 'joint';
 export type Cell = [number, number];        // [column, row]
 export type FoldSide = 'down' | 'up';       // down: what a vertex calls; up: what calls it
 export type OpenSide = 'up' | 'down' | 'both' | 'none';

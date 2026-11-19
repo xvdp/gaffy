@@ -96,7 +96,12 @@ function bends(cells: number[]): [number, number][] {
   return out;
 }
 
-export function buildGrid(P: Placement, vg: VGraph, opts: { arrow: boolean; cost: RouteCost; first?: string[] }): Grid {
+/**
+ * `joint` (tree parent rule `joint`): elbow tails belong to the callee's net, so other calls into the callee
+ * can join them; collector lanes enter their target from the left; routed calls arrive from the left
+ * whenever the two cells before the label are free (callers' positions do not vote).
+ */
+export function buildGrid(P: Placement, vg: VGraph, opts: { arrow: boolean; cost: RouteCost; first?: string[]; joint?: boolean }): Grid {
   const cells = new Map<number, Map<string, number>>();
   const srcOf = new Map<number, Set<NodeKey>>();
   const marks: Mark[] = [];
@@ -180,17 +185,70 @@ export function buildGrid(P: Placement, vg: VGraph, opts: { arrow: boolean; cost
     for (let r = pp.row + 1; r <= last; r++) add(r, pp.col, net, N | (r < last ? S : 0) | (childRows.has(r) ? E : 0), p);
     for (const c of ok) {
       const pc = P.pos.get(c)!;
-      hline(pc.row, pp.col + 1, pc.col - 3, net, p);
-      if (opts.arrow) { add(pc.row, pc.col - 2, net, W, p); mark({ row: pc.row, col: pc.col - 2, ch: '>', net, role: 'arrowE' }); }
-      else add(pc.row, pc.col - 2, net, E | W, p);
+      // joint: the tail after the stem belongs to the callee's net, where its other calls may join
+      const tn = opts.joint ? lane(c) : net;
+      hline(pc.row, pp.col + 1, pc.col - 3, tn, p);
+      if (opts.arrow) { add(pc.row, pc.col - 2, tn, W, p); mark({ row: pc.row, col: pc.col - 2, ch: '>', net: tn, role: 'arrowE' }); }
+      else add(pc.row, pc.col - 2, tn, E | W, p);
+      if (tn !== net && !roots.has(tn)) roots.set(tn, cellId(pc.row, pc.col - 2));
       arrowTo.set(cellId(pc.row, pc.col - 2), c);
       drawn.add(eid(p, c));
       elbowInto.add(c);
-      paths.push({ from: p, to: c, net, start: 'S', arrive: 'E',
+      paths.push({ from: p, to: c, net: tn, start: 'S', arrive: 'E',
         pts: [[pp.col + 0.5, pp.row + 1], [pp.col + 0.5, pc.row + 0.5], [pc.col - 1, pc.row + 0.5]],
         cells: [...colCells(pp.col, pp.row + 1, pc.row), ...row(pc.row, pp.col + 1, pc.col - 2)] });
     }
   };
+  /**
+   * Collector lane (rule `joint`): down the lane column to the approach row above the target, back left
+   * to the collector column, down into the target's row, and in from the left.
+   */
+  const leftLane = (ln: Placement['blocks'][number]['L']['lanes'][number], B: Placement['blocks'][number], col: number, srcRows: number[]) => {
+    const s0 = B.shift.get(ln.target)!;
+    const tp = P.pos.get(ln.target)!;
+    const via = B.rowMap[ln.left!.row] + s0[1];
+    const cc = B.col0 + ln.left!.col + s0[0];
+    const lo = Math.min(...srcRows);
+    if (via !== tp.row - 1 || cc > tp.col - 3) return;
+    const free = (r: number, c: number) => !blocked.has(cellId(r, c));
+    for (let r = lo; r <= via; r++) if (!free(r, col)) return;
+    for (const [i, s] of ln.sources.entries()) {
+      const from = s.port ? P.port.get(s.key)!.col : P.end.get(s.key)! + 1;
+      for (let c = from; c < col; c++) if (!free(srcRows[i], c)) return;
+    }
+    for (let c = cc; c < col; c++) if (!free(via, c)) return;
+    for (let c = cc; c <= tp.col - 2; c++) if (!free(tp.row, c)) return;
+    const net = lane(ln.target);
+    roots.set(net, cellId(tp.row, tp.col - 2));
+    const srcAt = new Map(ln.sources.map((s, i) => [srcRows[i], s.key] as const));
+    for (let r = lo; r <= via; r++) add(r, col, net, (r > lo ? N : 0) | (r < via ? S : 0) | (srcAt.has(r) || r === via ? W : 0), srcAt.get(r));
+    hline(via, cc + 1, col - 1, net);
+    add(via, cc, net, E | S);
+    add(tp.row, cc, net, N | E);
+    hline(tp.row, cc + 1, tp.col - 3, net);
+    if (opts.arrow) { add(tp.row, tp.col - 2, net, W); mark({ row: tp.row, col: tp.col - 2, ch: '>', net, role: 'arrowE' }); }
+    else add(tp.row, tp.col - 2, net, E | W);
+    arrowTo.set(cellId(tp.row, tp.col - 2), ln.target);
+    const tail = (r: number) => [...colCells(col, r, via), ...row(via, col - 1, cc), cellId(tp.row, cc), ...row(tp.row, cc + 1, tp.col - 2)];
+    const tailPts: [number, number][] = [[col + 0.5, via + 0.5], [cc + 0.5, via + 0.5], [cc + 0.5, tp.row + 0.5], [tp.col - 1, tp.row + 0.5]];
+    for (const [i, s] of ln.sources.entries()) {
+      const r = srcRows[i];
+      if (s.port) {
+        const pr = P.port.get(s.key)!;
+        add(pr.row, pr.col, net, N | E, s.key);
+        hline(pr.row, pr.col + 1, col - 1, net, s.key);
+        paths.push({ from: s.key, to: ln.target, net, start: 'S', arrive: 'E',
+          pts: [[pr.col + 0.5, pr.row], [pr.col + 0.5, pr.row + 0.5], [col + 0.5, pr.row + 0.5], ...tailPts], cells: [...row(pr.row, pr.col, col - 1), ...tail(r)] });
+      } else {
+        const se = P.end.get(s.key)!;
+        hline(r, se + 1, col - 1, net, s.key);
+        paths.push({ from: s.key, to: ln.target, net, start: 'E', arrive: 'E',
+          pts: [[se + 1, r + 0.5], [col + 0.5, r + 0.5], ...tailPts], cells: [...row(r, se + 1, col - 1), ...tail(r)] });
+      }
+      drawn.add(eid(s.key, ln.target));
+    }
+  };
+
   // markers of the stable placement: obstacles for the router, clickable in the webview
   const markers = P.markers ?? [];
   for (const m of markers) {
@@ -211,6 +269,7 @@ export function buildGrid(P: Placement, vg: VGraph, opts: { arrow: boolean; cost
       const tp = P.pos.get(ln.target)!;
       const tEnd = P.end.get(ln.target)!;
       const srcRows = ln.sources.map((s) => (s.port ? P.port.get(s.key)! : P.pos.get(s.key)!).row);
+      if (ln.left) { leftLane(ln, B, col, srcRows); continue; }
       const lo = Math.min(...srcRows), hi = tp.row;
       // a lane crossing a moved label is routed instead
       let clear = true;
@@ -283,9 +342,11 @@ export function buildGrid(P: Placement, vg: VGraph, opts: { arrow: boolean; cost
     if (leftArrival.has(v)) continue;
     const pv = P.pos.get(v)!;
     const free = (r: number, c: number) => c >= 0 && !blocked.has(cellId(r, c)) && !border.has(cellId(r, c)) && !cells.has(cellId(r, c)) && !reserved.has(cellId(r, c));
-    const left = !elbowInto.has(v) && (votes.get(v)! >= 0 || departs.has(v)) && pv.col >= 2 && free(pv.row, pv.col - 2) && free(pv.row, pv.col - 1);
+    // a collector lane or a joint elbow already enters from the left: join it
+    const own = !!cells.get(cellId(pv.row, pv.col - 2))?.has(`l:${v}`) && !elbowInto.has(v);
+    const left = own || (!elbowInto.has(v) && (opts.joint || votes.get(v)! >= 0 || departs.has(v)) && pv.col >= 2 && free(pv.row, pv.col - 2) && free(pv.row, pv.col - 1));
     leftArrival.set(v, left);
-    if (left) { reserved.set(cellId(pv.row, pv.col - 2), `l:${v}`); reserved.set(cellId(pv.row, pv.col - 1), `l:${v}`); }
+    if (left && !own) { reserved.set(cellId(pv.row, pv.col - 2), `l:${v}`); reserved.set(cellId(pv.row, pv.col - 1), `l:${v}`); }
   }
   // departure cells reserved for their caller: two cells right of the label, or right of the port
   for (const e of todo) {
@@ -383,6 +444,11 @@ export function buildGrid(P: Placement, vg: VGraph, opts: { arrow: boolean; cost
     }
     const startDir = new Map(starts.map((s) => [s.id, s.d] as const));
     let goal = -1;
+    // a stem that starts on a trunk of this net alone joins it there (`├───┴─>`: the caller sits right above)
+    const onNet = starts.find((s) => s.d !== 2 && cells.get(cellId(s.r, s.c))?.has(net) && cells.get(cellId(s.r, s.c))!.size === 1);
+    if (onNet) { goal = onNet.id; g[onNet.id] = 0; touched.push(onNet.id); }
+    // the arrival cell already drawn for this net (collector lane): reaching it is a merge
+    const drawnGoal = !!cells.get(cellId(gr, gc))?.has(net);
     // pass 0 strict; pass 1 relaxed: running along or turning on another net costs RELAX instead of being blocked
     for (let pass = 0; pass < 2 && goal < 0; pass++) {
     const relaxed = pass === 1;
@@ -474,7 +540,7 @@ export function buildGrid(P: Placement, vg: VGraph, opts: { arrow: boolean; cost
       }
       seq.reverse();
       const startKind = seq[0].d === 2 ? 'E' : seq[0].d === 1 ? 'S' : 'N';
-      const merged = !(seq[seq.length - 1].r === gr && seq[seq.length - 1].c === gc);
+      const merged = drawnGoal || !(seq[seq.length - 1].r === gr && seq[seq.length - 1].c === gc);
       if (startKind === 'E') {
         add(sr, sc, net, port ? W : W | E, u);
         if (port) add(port.row, port.col, net, N | E, u);
@@ -500,17 +566,19 @@ export function buildGrid(P: Placement, vg: VGraph, opts: { arrow: boolean; cost
       pts.push(merged ? [lastC.c + 0.5, lastC.r + 0.5] : [left ? gc + 1 : gc, gr + 0.5]);
       let own = (port && startKind === 'E' ? [cellId(port.row, port.col)] : []).concat(seq.map((x) => cellId(x.r, x.c)));
       let end = pts[pts.length - 1];
+      let arrive: 'E' | 'W' = left ? 'E' : 'W';
       if (merged) {
-        // continue along the trunk this call joined, to the callee
+        // continue along the trunk this call joined, to the callee, arriving as that trunk does
         const j = own[own.length - 1];
         const host = paths.find((q) => q.to === v && q.net === net && q.cells.includes(j));
         if (host) {
           own = own.concat(host.cells.slice(host.cells.indexOf(j) + 1));
           end = host.pts[host.pts.length - 1];
+          arrive = host.arrive;
         }
       } else if (!roots.has(net)) roots.set(net, cellId(gr, gc));
       const full: [number, number][] = [pts[0], ...(startKind === 'E' && port ? [pts[1]] : []), ...bends(own), end];
-      paths.push({ from: u, to: v, net, pts: full, cells: own, start: startKind === 'E' ? (port ? 'S' : 'E') : startKind, arrive: left ? 'E' : 'W' });
+      paths.push({ from: u, to: v, net, pts: full, cells: own, start: startKind === 'E' ? (port ? 'S' : 'E') : startKind, arrive });
       for (const s of seq) { width = Math.max(width, s.c + 1); height = Math.max(height, s.r + 1); }
     }
     for (const t of touched) { g[t] = Infinity; came[t] = -1; }

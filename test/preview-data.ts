@@ -18,6 +18,10 @@ sh.explored = { [k('gutai.render.harmonics:sh_eval')]: 'out', [k('gutai.render.h
 const grow = fixtureDoc(SH, { seeds: [k('gutai.render.harmonics:sh_eval')], direction: 'out', arrange: 'grow', open: {} });
 grow.name = 'grow';
 
+// two seeds: a function and one of its upstream callers' callers, upstream view
+const two = fixtureDoc(SH, { seeds: [k('gutai.runtime.interop:to_torch'), k('gutai.render.harmonics:_from_columns')], direction: 'in', arrange: 'grow', open: {} });
+two.name = 'two';
+
 process.stdout.write(JSON.stringify({
-  docs: { exp4: serializeDoc(exp4), star: serializeDoc(star), sh: serializeDoc(sh), grow: serializeDoc(grow) }, style: DEFAULT_STYLE,
+  docs: { exp4: serializeDoc(exp4), star: serializeDoc(star), sh: serializeDoc(sh), grow: serializeDoc(grow), two: serializeDoc(two) }, style: DEFAULT_STYLE,
 }));

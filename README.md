@@ -1,6 +1,6 @@
 # gaffy
 
-VS Code extension: persistent, manipulable call graphs laid out on a character grid and rendered with D3. Each view is a `.gaffy` file under `<workspace>/.gaffy/views/` and opens as a tab. Call data comes from the language server's call hierarchy (LSP[^lsp]), so every language with a call-hierarchy server works: TypeScript and JavaScript (built into VS Code), Python (Pylance), C/C++, Rust, Go.
+VS Code extension: persistent, manipulable call graphs laid out on a character grid and rendered with D3. Each view is a `.gaffy` file under `<workspace>/.gaffy/views/` and opens as a tab. Call data comes from the language server's call hierarchy (LSP[^lsp]); shader languages whose servers have none get calls found in the text. See [Languages](#languages).
 
 ## Install
 
@@ -14,6 +14,21 @@ Development: open `gaffy/` in VS Code and press F5 (Extension Development Host).
 
 ## Test installed .vsix extension
 `Ctrl+Shift+P > **Developer: Reload Window**`
+
+## Languages
+
+| Language | Server (VS Code extension) | Call hierarchy | gaffy |
+|---|---|---|---|
+| Python | Pylance | yes | language server |
+| TypeScript, JavaScript | built in | yes (TypeScript 5.9 LanguageService, measured) | language server; a constructor's item carries its class name; object-literal methods are qualified by their variable (`obj.run`) |
+| Rust | rust-analyzer | yes (not measured here) | language server; `impl Foo` → `Foo`, `impl Display for Foo` → `Foo[Display]`, so `fmt` of two trait impls stay apart |
+| C, C++, CUDA, Objective-C | Microsoft C/C++ (registers a provider) or clangd | yes | language server; `ns::Foo::bar` → `ns` › `Foo` › `bar`; template arguments dropped; operators kept whole |
+| Go, Java, C#, Kotlin, Swift, Dart | gopls, and the others' servers | per server (not measured here) | language server; Go `(*T).M` → `T` › `M` |
+| GLSL | WebGL GLSL Editor (registers a provider) | yes | language server; without that extension: text |
+| Slang | Slang (slangd 1.8): no call hierarchy, no references; definitions and document symbols (measured) | no | text: call sites resolved by go to definition; callers by a scan of the workspace's Slang files |
+| HLSL, WGSL, Metal | depends on the extension | usually no | text: document symbols, else a C-like text outline; go to definition when offered, else by name |
+
+Text calls ([src/core/textcalls.ts](src/core/textcalls.ts)): comments, strings and preprocessor lines are masked; functions and containers (`struct`, `class`, `namespace`, `interface`, `extension`, `cbuffer`) come from the server's document symbols, else from brace matching; a call site is a name followed by `(` (with optional `<…>`), minus control keywords. Calls through function pointers or macros are missed; a constructor call of a project type counts when a function of that name exists. Name rules per language: [src/core/langs.ts](src/core/langs.ts). External code (installed packages, `target/`, `_deps/`, `/usr/include`) stays out unless `gaffy.includeExternal` is on.
 
 ## Create a view
 
@@ -98,7 +113,7 @@ Algorithms: [src/core/layout.ts](src/core/layout.ts) (rows and lanes in a block)
 | ↑ ↓, Alt+↑ ↓ | move focus; move the focused function among its siblings |
 | e, f, c or ←, → | expand through the language server; fold or unfold; collapse innermost container; expand collapsed |
 | Delete or Backspace, h, i, k | remove selection (calls cut, functions hidden; automatic arrangement: hide); hide selection; show only selection; lock or unlock the focused function |
-| u, o, g, b, r, 0, x | unhide all; toggle order; glyph or vector edges; group namespaces; ask the language server again; fit; export |
+| u, o, g, b, r, 0, x | unhide all; toggle order; glyph or vector edges; group namespaces; refresh from language server; fit; export |
 
 Toolbar: **Isolate** (when nothing is hidden: isolates the selection) or **Show all (n)** (when something is hidden), depth − n +, fit, and **☰ Options**, a pulldown with checkmarks:
 
@@ -106,10 +121,10 @@ Toolbar: **Isolate** (when nothing is hidden: isolates the selection) or **Show 
 - Order: callers on top, callees on top (VS Code call hierarchy)
 - Namespaces: ✓ Group namespaces, reset per-box grouping
 - Edges: glyphs (UTF box drawing) or vector; curve for vector: orthogonal, rounded, sigmoid, spline
-- Tree parent: first caller found (dfs), nearest caller above
+- Tree parent: first caller found (dfs), nearest caller above, joint (shared functions: a caller right above joins the elbow `├───┴─>`; several callers in a box join one collector that enters from the left, `┌──┘` then `└─>`; calls between boxes arrive from the left whenever the cells are free)
 - Arrange: reset view (back to seeds, direction and depth), reset layout (moves, locks, sibling order), re-arrange (the selected functions, else every unlocked item), unlock all, expand collapsed, open folds
 - Folders: per top-level folder, included or excluded
-- File: ask the language server again, export ASCII, edit style.json
+- File: Refresh from Language Server, export ASCII, edit style.json
 
 The toolbar and the pulldown are plain HTML elements in the webview, built with d3-selection and styled with VS Code's theme variables (`--vscode-menu-*`); the graph itself is SVG drawn with D3.
 
@@ -124,7 +139,7 @@ Locks: a locked function or box keeps its absolute position; re-arrange and auto
 - A saved, renamed, or externally changed source file drops the cached outgoing calls of its definitions and all cached incoming calls. Files whose extension no cached definition has (logs, bytecode, build output) drop nothing. `gaffy: Clear Call Cache` drops everything.
 - No answer differs from an empty answer. A definition the language server does not resolve (still analyzing after a window reload, renamed, removed) keeps the calls the view holds; its answer is neither cached nor recorded as explored. The view retries after 2, 4, 8, 15, 30 and 60 s and shows `language server not ready` in the status line meanwhile; after the last retry a warning names the count.
 - Opening a stable view: every explored (definition, direction) pair takes its cached answer without the language server. Pairs without a cached answer are stale: on-screen ones are asked again in the background; the others keep their calls, lose the explored mark, and are asked when a side opens onto them. Nothing changed since the last save: no language-server request.
-- **Ask the language server again** (Options > File, `r`, `gaffy: Ask the Language Server Again`): stable views ask every on-screen pair from the language server and drop the cached answers of the others (asked when a side opens onto them); automatic views redraw from the cache, then ask every definition.
+- **Refresh from Language Server** (Options > File, `r`, `gaffy: Refresh from Language Server`): stable views ask every on-screen pair from the language server and drop the cached answers of the others (asked when a side opens onto them); automatic views redraw from the cache, then ask every definition.
 
 ## Change tracking
 
@@ -152,6 +167,7 @@ Locks: a locked function or box keeps its absolute position; re-arrange and auto
 
 ```json
 {
+  "view":   { "arrange": "grow", "order": "callers", "traverse": "command" },
   "font":   { "family": "'JetBrains Mono', monospace", "size": 13, "lineHeight": 1.25 },
   "grid":   { "indent": 4, "laneGap": 2, "parentRule": "dfs" },
   "edges":  { "mode": "vector", "curve": "rounded", "lead": 3, "tension": 0.5, "arrow": true, "width": 1, "glyphs": "unicode", "cross": "│" },
@@ -162,6 +178,7 @@ Locks: a locked function or box keeps its absolute position; re-arrange and auto
 }
 ```
 
+- Defaults of the Options menu. Read when a view is created, then stored in the view file: `view.arrange` (Layout: `grow` one layer at a time, `auto` automatic), `view.order` (Order), `view.traverse` (`command`: the editor command decides the side; `both`: callers and calls). Read on every render, for views without their own choice in Options: `edges.mode` (Edges: `vector`, `glyph`), `edges.curve` (Curve), `grid.parentRule` (Tree parent: `dfs`, `nearest`, `joint`), `boxes.enabled` (Group namespaces). The `gaffy.depth` setting sets the prefetch depth (one layer at a time) and the hop limit (automatic).
 - `edges.lead`: straight lead-out and lead-in of the sigmoid, in cells; `edges.tension`: how far the S-curve's control points reach (0 sharp, 1 wide).
 - `route.adjacent`: cost of a vertical run in the column next to an unrelated vertical line; `route.cross`: cost of a crossing.
 
