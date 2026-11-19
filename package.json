@@ -2,7 +2,7 @@
   "name": "gaffy",
   "displayName": "gaffy",
   "description": "Persistent, manipulable call graphs on a character grid, rendered with D3",
-  "version": "0.9.2",
+  "version": "0.9.3",
   "publisher": "xvdp",
   "license": "UNLICENSED",
   "private": true,
@@ -54,7 +54,7 @@
         "gaffy.includeExternal": {
           "type": "boolean",
           "default": false,
-          "description": "Include definitions outside the workspace (site-packages, node_modules, library stubs)."
+          "description": "Show external code (installed packages, system headers, build output, wasm-pack glue). Options > Settings in a view toggles it; turning it on asks the language server again."
         },
         "gaffy.autoSave": {
           "type": "boolean",
@@ -98,6 +98,19 @@
           "type": "boolean",
           "default": true,
           "description": "Calls across languages, found from binding declarations in the workspace: Python calling C++/CUDA through pybind11, nanobind or torch operators; Python calling Slang through slangpy or slangtorch; TypeScript/JavaScript calling Rust through wasm-bindgen."
+        },
+        "gaffy.newViews": {
+          "type": "string",
+          "enum": [
+            "saved",
+            "unsaved"
+          ],
+          "default": "saved",
+          "enumDescriptions": [
+            "a new view is written to .gaffy/views/ at once",
+            "a new view opens unsaved (an untitled document bound to its .gaffy/views/ path): Save keeps it, closing without saving discards it"
+          ],
+          "description": "Whether new views are saved files or unsaved, temporary documents."
         }
       }
     },
@@ -116,7 +129,7 @@
       },
       {
         "command": "gaffy.graphFile",
-        "title": "New View: Functions of File",
+        "title": "New View: Callers of the Functions of File",
         "category": "gaffy"
       },
       {

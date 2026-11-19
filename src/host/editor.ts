@@ -40,13 +40,17 @@ export class Session {
     const end = this.document.lineAt(Math.max(0, this.document.lineCount - 1)).range.end;
     edit.replace(this.document.uri, new vscode.Range(new vscode.Position(0, 0), end), text);
     await vscode.workspace.applyEdit(edit);
-    if (vscode.workspace.getConfiguration('gaffy').get<boolean>('autoSave')) await this.document.save();
+    // an unsaved (untitled) view stays unsaved until the user saves it
+    if (!this.document.isUntitled && vscode.workspace.getConfiguration('gaffy').get<boolean>('autoSave')) await this.document.save();
   }
 
   async post(): Promise<void> {
     const style = await this.host.styles.get(this.folder);
-    const exclude = vscode.workspace.getConfiguration('gaffy', this.document.uri).get<string[]>('exclude') ?? [];
-    void this.panel.webview.postMessage({ type: 'state', text: this.document.getText(), name: this.name, style, exclude, busy: this.busy });
+    const cfg = vscode.workspace.getConfiguration('gaffy', this.document.uri);
+    const exclude = cfg.get<string[]>('exclude') ?? [];
+    // settings the Options panel shows and toggles
+    const settings = { includeExternal: cfg.get<boolean>('includeExternal') ?? false, newViews: cfg.get<string>('newViews') ?? 'saved', untitled: this.document.isUntitled };
+    void this.panel.webview.postMessage({ type: 'state', text: this.document.getText(), name: this.name, style, exclude, settings, busy: this.busy });
   }
 
   private queue: Promise<void> = Promise.resolve();
@@ -95,6 +99,7 @@ export class Session {
     return {
       maxNodes: cfg.get<number>('maxNodes') ?? 400,
       exclude: (cfg.get<string[]>('exclude') ?? []).map(globToRegExp),
+      external: cfg.get<boolean>('includeExternal') ?? false,
       cache: this.host.cacheFor(this.folder),
     };
   }
@@ -164,7 +169,7 @@ export class Session {
   private async neighbors(show: (t: string) => void, token: vscode.CancellationToken): Promise<void> {
     const rounds = this.doc().view.arrange === 'grow' ? 8 : 64;
     for (let i = 0; i < rounds && !token.isCancellationRequested; i++) {
-      const qs = this.unaskedPairs(this.doc(), frontierOf(this.doc(), this.opts().exclude));
+      const qs = this.unaskedPairs(this.doc(), frontierOf(this.doc(), this.opts().exclude, this.opts().external));
       if (!qs.length || !(await this.ask(qs, 'cached', 'checking neighbors', show, token))?.asked) break;
     }
   }
@@ -172,7 +177,7 @@ export class Session {
   ensure(): Promise<void> {
     return this.enqueue(async () => {
       const doc = this.doc();
-      if (!this.unaskedPairs(doc, frontierOf(doc, this.opts().exclude)).length) return;
+      if (!this.unaskedPairs(doc, frontierOf(doc, this.opts().exclude, this.opts().external)).length) return;
       await this.progress((show, token) => this.neighbors(show, token));
       this.settle();
     });
@@ -226,7 +231,7 @@ export class Session {
       if (!Object.keys(doc.explored ?? {}).length) { void this.grow(); return; }
       const o = this.opts();
       await o.cache.ready();
-      const vis = new Set(visibleOf(doc, this.opts().exclude));
+      const vis = new Set(visibleOf(doc, this.opts().exclude, this.opts().external));
       const pairs = Object.entries(doc.explored ?? {}).flatMap(([key, d]) =>
         (d === 'both' ? ['in', 'out'] as const : [d as 'in' | 'out']).map((dir) => ({ key, dir })));
       const shown = pairs.filter((q) => vis.has(q.key));
@@ -248,7 +253,7 @@ export class Session {
       }
       const visStale = force ? shown : (r?.missed ?? []).filter((q) => vis.has(q.key));
       doc = this.doc();
-      const neighbors = this.unaskedPairs(doc, frontierOf(doc, this.opts().exclude));
+      const neighbors = this.unaskedPairs(doc, frontierOf(doc, this.opts().exclude, this.opts().external));
       if (visStale.length || neighbors.length) {
         await this.progress(async (show, token) => {
           await this.ask(visStale, force ? 'fresh' : 'cached', force ? 'asking the language server' : 'updating changed files', show, token);
@@ -330,6 +335,9 @@ export class GaffyEditor implements vscode.CustomTextEditorProvider {
     readonly provider: LspProvider,
   ) {
     ctx.subscriptions.push(styles.onDidChange(() => this.sessions.forEach((s) => void s.post())));
+    ctx.subscriptions.push(vscode.workspace.onDidChangeConfiguration((e) => {
+      if (e.affectsConfiguration('gaffy')) this.sessions.forEach((s) => void s.post());
+    }));
   }
 
   async resolveCustomTextEditor(document: vscode.TextDocument, panel: vscode.WebviewPanel): Promise<void> {

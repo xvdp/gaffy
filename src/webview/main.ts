@@ -28,6 +28,7 @@ let style: Style | undefined;
 let styleText = '';
 let excludeGlobs: string[] = [];
 let excludeRx: RegExp[] = [];          // `gaffy.exclude` globs as expressions, for buildScene
+let settings = { includeExternal: false, newViews: 'saved', untitled: false };   // VS Code settings shown in Options
 let scene: Scene | undefined;
 let focusKey: NodeKey | undefined = api.getState()?.focus;
 let selected = new Set<NodeKey>();
@@ -108,6 +109,9 @@ window.addEventListener('message', (ev) => {
     busy = !!m.busy;
     excludeGlobs = m.exclude ?? excludeGlobs;
     excludeRx = excludeGlobs.map(globToRegExp);
+    const was = JSON.stringify(settings);
+    settings = m.settings ?? settings;
+    if (JSON.stringify(settings) !== was && doc) { render(); }
     const st = JSON.stringify(m.style);
     if (m.text === text && st === styleText && doc) { status(); toolbar(); return; }
     text = m.text;
@@ -290,7 +294,7 @@ function render() {
   measure(style);
   applyColors(style);
   try {
-    scene = buildScene(doc, style, excludeRx);
+    scene = buildScene(doc, style, excludeRx, settings.includeExternal);
   } catch (e) {
     showError(`layout failed: ${(e as Error).message}`);
     return;
@@ -835,7 +839,7 @@ function settleDrop(units: string[], dc: number, dr: number): [number, number] {
     const probe = structuredClone(doc!);
     for (const u of units) moveUnit(probe, u, a, b);
     try {
-      const sc = buildScene(probe, style!, excludeRx);
+      const sc = buildScene(probe, style!, excludeRx, settings.includeExternal);
       return sc.grid.unrouted <= unrouted && collisions(sc, keys) === 0;
     } catch { return false; }
   };
@@ -863,7 +867,7 @@ function unlockUnit(unit: string) {
   const probe = structuredClone(doc);
   delete probe.view.lock[unit];
   delete probe.view.offset[unit];
-  const auto = unitAnchor(buildScene(probe, style!, excludeRx), unit);
+  const auto = unitAnchor(buildScene(probe, style!, excludeRx, settings.includeExternal), unit);
   commit((x) => {
     delete x.view.lock[unit];
     if (auto && (here[0] !== auto[0] || here[1] !== auto[1])) x.view.offset[unit] = [here[0] - auto[0], here[1] - auto[1]];
@@ -1270,6 +1274,13 @@ function toolbar() {
           x.view.exclude.push(f.path);
         }
       }) })) } as Section] : []),
+    { caption: 'Settings', items: [
+      { label: 'Include external code', title: 'installed packages, system headers, build output (gaffy.includeExternal, workspace settings); turning it on asks the language server again',
+        on: settings.includeExternal, act: () => api.postMessage({ type: 'setting', key: 'includeExternal', value: !settings.includeExternal }) },
+      { label: 'New views unsaved', title: 'gaffy.newViews: a new view opens as an unsaved document; Save keeps it, closing without saving discards it',
+        on: settings.newViews === 'unsaved', act: () => api.postMessage({ type: 'setting', key: 'newViews', value: settings.newViews === 'unsaved' ? 'saved' : 'unsaved' }) },
+      { label: 'All gaffy settings…', title: 'VS Code Settings, filtered to gaffy', act: () => api.postMessage({ type: 'openSettings' }) },
+    ] },
     { caption: 'File', items: [
       { label: 'Refresh from Language Server', title: v.arrange === 'grow'
         ? 'calls of the functions on screen from the language server; the others when a side opens onto them. Unanswered functions keep their calls (r)'
@@ -1316,6 +1327,7 @@ function status() {
   } else if (selCalls.size) parts.push(`${selCalls.size} calls selected (Enter: isolate)`);
   if (scene.grid.unrouted) parts.push(`${scene.grid.unrouted} calls unrouted`);
   if (doc.truncated) parts.push('truncated at gaffy.maxNodes');
+  if (settings.untitled) parts.push('unsaved view: Save keeps it');
   if (note) parts.push(note);
   if (busy) parts.push('building…');
   else if (doc.updated) parts.push(`built ${new Date(doc.updated).toLocaleString()}`);

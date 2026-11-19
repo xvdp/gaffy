@@ -21,7 +21,7 @@ Development: open `gaffy/` in VS Code and press F5 (Extension Development Host).
 |---|---|---|---|
 | Python | Pylance | yes | language server |
 | TypeScript, JavaScript | built in | yes (TypeScript 5.9 LanguageService, measured) | language server; a constructor's item carries its class name; object-literal methods are qualified by their variable (`obj.run`) |
-| Rust | rust-analyzer | yes (not measured here) | language server; `impl Foo` → `Foo`, `impl Display for Foo` → `Foo[Display]`, so `fmt` of two trait impls stay apart |
+| Rust | rust-analyzer (`rust-lang.rust-analyzer`; code under an inactive `#[cfg]`, such as a module behind a Cargo feature that is off, has no call hierarchy: set `"rust-analyzer.cargo.features"`) | yes (not measured here) | language server; `impl Foo` → `Foo`, `impl Display for Foo` → `Foo[Display]`, so `fmt` of two trait impls stay apart |
 | C, C++, CUDA, Objective-C | Microsoft C/C++ (registers a provider) or clangd | yes | language server; `ns::Foo::bar` → `ns` › `Foo` › `bar`; template arguments dropped; operators kept whole |
 | Go, Java, C#, Kotlin, Swift, Dart | gopls, and the others' servers | per server (not measured here) | language server; Go `(*T).M` → `T` › `M` |
 | GLSL | WebGL GLSL Editor (registers a provider) | yes | language server; without that extension: text |
@@ -60,7 +60,7 @@ Right click on a function name in the editor; the gaffy entries sit in the secti
 | gaffy: Call Hierarchy (dn) | the function | its calls |
 | gaffy: Add to Call Graph | appended to the open view | as the view's direction |
 
-`style.json` `view.traverse: "both"` starts every new view with callers and calls. With `gaffy.openCallHierarchy` (default on) VS Code's own Call Hierarchy opens in the References view as well. Explorer, right click on a file, **gaffy** > New View: Functions of File. The view file goes to `.gaffy/views/<symbol>_<short commit hash>.gaffy` (`<symbol>_<YYYYMMDD-HHMM>` outside git).
+`style.json` `view.traverse: "both"` starts every new view with callers and calls. With `gaffy.openCallHierarchy` (default on) VS Code's own Call Hierarchy opens in the References view as well. Explorer, right click on a file, **gaffy** > New View: Callers of the Functions of File: every function of the file with its callers, one level, in the full layout. The view file goes to `.gaffy/views/<symbol>_<short commit hash>.gaffy` (`<symbol>_<YYYYMMDD-HHMM>` outside git).
 
 A new view asks the language server for one layer, shows it, then in the background asks every function on screen for its callers and calls (so the open markers know what lies beyond) and prefetches `gaffy.depth` layers along the traversal direction. Reopening a view shows the stored graph at once and asks the language server only for calls that changed files made stale (see [Building, progress, cache](#building-progress-cache)).
 
@@ -144,6 +144,7 @@ Toolbar: **Isolate** (when nothing is hidden: isolates the selection) or **Show 
 - Tree parent: first caller found (dfs), nearest caller above, joint (shared functions: a caller right above joins the elbow `├───┴─>`; several callers in a box join one collector that enters from the left, `┌──┘` then `└─>`; calls between boxes arrive from the left whenever the cells are free)
 - Arrange (key `a`, right click > Re-arrange Selection: the selected functions back to their computed place, moves and locks dropped): reset view (one layer at a time: the seeds and their first layer; full: the starting call depths), reset layout (moves, locks, sibling order, straightened calls), re-arrange (the selected functions, else every unlocked item), unlock all, expand collapsed, clear straightened calls
 - Folders: per top-level folder, included or excluded. Filters apply when drawing: calls into an excluded folder are still fetched and kept, so including it again shows them at once, without the language server.
+- Settings: include external code (`gaffy.includeExternal`, written to the workspace settings; turning it on asks the language server again, turning it off hides external code at once), new views unsaved (`gaffy.newViews`), all gaffy settings (VS Code Settings filtered to gaffy)
 - File: Refresh from Language Server, export ASCII, edit style.json
 
 The toolbar and the pulldown are plain HTML elements in the webview, built with d3-selection and styled with VS Code's theme variables (`--vscode-menu-*`); the graph itself is SVG drawn with D3.
@@ -230,8 +231,9 @@ A new UI element gets a color by a CSS rule in `media/webview.css` that reads `v
 | `gaffy.depth` | 3 | one layer at a time: levels prefetched in the background; full: the starting call depths |
 | `gaffy.maxNodes` | 400 | definitions fetched per build |
 | `gaffy.openCallHierarchy` | true | also open VS Code's Call Hierarchy when creating a view |
+| `gaffy.newViews` | saved | `unsaved`: a new view opens as an unsaved document bound to its `.gaffy/views/` path; Save keeps it, closing without saving discards it (VS Code's hot exit keeps unsaved documents across window reloads) |
 | `gaffy.exclude` | none | globs of folders and files views leave off screen (for example `"**/tests/**"`); Options > Folders includes them again per view |
-| `gaffy.includeExternal` | false | include site-packages, node_modules, stubs |
+| `gaffy.includeExternal` | false | show external code: installed packages (site-packages, node_modules), stubs, system headers, build output, wasm-pack glue; Options > Settings toggles it |
 | `gaffy.autoSave` | true | save the view file after each graph change |
 | `gaffy.refreshOnSave` | touched | update policy after a source save |
 | `gaffy.openBeside` | true | open definitions beside the graph |

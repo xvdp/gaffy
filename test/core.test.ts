@@ -255,6 +255,16 @@ describe('folder filters apply when drawing', () => {
     back.view.include = ['gutai/runtime'];
     expect(rt(buildScene(back, boxed(), [globToRegExp('**/runtime/**')]))).toBe(rt(all));
   });
+
+  it('external code is off screen unless shown (gaffy.includeExternal)', () => {
+    const doc = fixtureDoc(SH, { seeds: [k('gutai.render.harmonics:sh_eval')], direction: 'out' });
+    for (const n of Object.values(doc.graph.nodes)) if (n.path?.includes('/runtime/')) n.external = true;
+    const rt = (sc: Scene) => [...sc.vg.nodes.keys()].filter((x) => x.includes('/runtime/')).length;
+    expect(rt(buildScene(doc, boxed(), [], true))).toBeGreaterThan(0);
+    const off = buildScene(doc, boxed(), [], false);
+    invariants(off);
+    expect(rt(off)).toBe(0);
+  });
 });
 
 describe('tree parent rule joint: shared functions take one path, from the left', () => {

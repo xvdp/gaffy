@@ -44,6 +44,12 @@ export const SERVERS: Record<string, string> = {
   glsl: 'WebGL GLSL Editor (raczzalan.webgl-glsl-editor)',
 };
 
+/** Message for a file whose server lists its functions but gives them no call hierarchy. */
+export const noHierarchyHint = (path: string) => langOf(path) === 'rs'
+  ? 'rust-analyzer gives no call hierarchy for code it treats as inactive under #[cfg] (for example a module behind a Cargo feature that is off): '
+    + 'enable the feature for rust-analyzer, "rust-analyzer.cargo.features": ["<feature>"] or "all", in the workspace settings'
+  : `the language server lists the functions but answers no call hierarchy for them (still indexing, or code it treats as inactive); ${serverHint(path)}`;
+
 /** Message for a file whose language answered nothing: the extension that would. */
 export const serverHint = (path: string) => {
   const lang = langOf(path);

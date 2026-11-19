@@ -6,12 +6,12 @@
 import { execFile } from 'node:child_process';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
-import { serverHint } from '../core/langs';
+import { noHierarchyHint, serverHint } from '../core/langs';
 import { toHtmlPre, toText } from '../core/grid';
 import { ancestors, GNode, NodeKey } from '../core/model';
 import { buildScene, siblingsOf } from '../core/scene';
 import { DEFAULT_STYLE, glyphSet } from '../core/style';
-import { Direction, emptyDoc, globToRegExp, ROOTS, serializeDoc, ViewDoc } from '../core/viewdoc';
+import { Direction, emptyDoc, globToRegExp, ROOTS, serializeDoc, ViewDoc, ViewSpec } from '../core/viewdoc';
 import { GaffyEditor, Session } from './editor';
 import { folderOf, gaffyDir } from './style';
 
@@ -82,14 +82,19 @@ export function registerCommands(ctx: vscode.ExtensionContext, editor: GaffyEdit
     const items = await vscode.window.withProgress(
       { location: vscode.ProgressLocation.Notification, title: 'gaffy: asking the language server about the symbol at the cursor…' },
       () => provider.prepare(ed.document.uri, ed.selection.active));
-    if (!items.length) throw new Error(`no call hierarchy at the cursor: ${serverHint(ed.document.uri.path)}`);
+    if (!items.length) throw new Error(`no call hierarchy at the cursor: ${(await provider.symbolsOf(ed.document.uri)).length ? noHierarchyHint(ed.document.uri.path) : serverHint(ed.document.uri.path)}`);
     const acc: Record<NodeKey, GNode> = {};
     const key = await provider.describe(items[0], acc);
     if (!key) throw new Error('symbol outside the workspace (gaffy.includeExternal is off)');
     return { key, acc, uri: ed.document.uri, node: acc[key] };
   };
 
-  const createView = async (base: vscode.Uri, stem: string, doc: ViewDoc) => {
+  /**
+   * A new view under `.gaffy/views/`: the starting choices of style.json `view`, then `over` (a command's own
+   * choices). `gaffy.newViews: "unsaved"`: an untitled document bound to that path; Save keeps it, closing
+   * without saving discards it.
+   */
+  const createView = async (base: vscode.Uri, stem: string, doc: ViewDoc, over: Partial<Pick<ViewSpec, 'arrange' | 'depthUp' | 'depthDown'>> = {}) => {
     const folder = folderOf(base);
     const views = vscode.Uri.joinPath(gaffyDir(folder), 'views');
     await vscode.workspace.fs.createDirectory(views);
@@ -103,11 +108,19 @@ export function registerCommands(ctx: vscode.ExtensionContext, editor: GaffyEdit
     // one layer at a time: the seed's first side; full: the same sides to the configured depth
     doc.view.depthUp = doc.view.direction !== 'out' ? doc.view.depth : 0;
     doc.view.depthDown = doc.view.direction !== 'in' ? doc.view.depth : 0;
-    if (start.arrange === 'grow') doc.view.open = {};
+    Object.assign(doc.view, over);
+    if (doc.view.arrange === 'grow') doc.view.open = {};
     else delete doc.view.open;
     doc.name = path.basename(uri.path, '.gaffy');
-    await vscode.workspace.fs.writeFile(uri, new TextEncoder().encode(serializeDoc(doc)));
-    await vscode.commands.executeCommand('vscode.openWith', uri, GaffyEditor.viewType,
+    let target = uri;
+    if (cfg().get<string>('newViews') === 'unsaved') {
+      target = uri.with({ scheme: 'untitled' });
+      await vscode.workspace.openTextDocument(target);
+      const edit = new vscode.WorkspaceEdit();
+      edit.insert(target, new vscode.Position(0, 0), serializeDoc(doc));
+      await vscode.workspace.applyEdit(edit);
+    } else await vscode.workspace.fs.writeFile(uri, new TextEncoder().encode(serializeDoc(doc)));
+    await vscode.commands.executeCommand('vscode.openWith', target, GaffyEditor.viewType,
       { viewColumn: vscode.ViewColumn.Active });
   };
 
@@ -161,10 +174,11 @@ export function registerCommands(ctx: vscode.ExtensionContext, editor: GaffyEdit
       const key = it && (await provider.describe(it, acc));
       if (key) seeds.push(key);
     }
-    if (!seeds.length) throw new Error(syms.length ? `no function in this file has call hierarchy: ${serverHint(uri.path)}` : `no functions found in this file: ${serverHint(uri.path)}`);
-    const doc = emptyDoc('', { seeds, direction: 'out', depth: 1 });
+    if (!seeds.length) throw new Error(syms.length ? `no function in this file has call hierarchy: ${noHierarchyHint(uri.path)}` : `no functions found in this file: ${serverHint(uri.path)}`);
+    // the file's functions and their callers, one level, all shown (full layout)
+    const doc = emptyDoc('', { seeds, direction: 'in', depth: 1 });
     doc.graph.nodes = acc;
-    await createView(uri, path.basename(uri.path).replace(/\.[^.]+$/, ''), doc);
+    await createView(uri, path.basename(uri.path).replace(/\.[^.]+$/, ''), doc, { arrange: 'auto', depthUp: 1, depthDown: 0 });
   });
 
   // ---- view commands ------------------------------------------------------------------------------
@@ -215,11 +229,12 @@ export function registerCommands(ctx: vscode.ExtensionContext, editor: GaffyEdit
   reg('gaffy.sel.clear', forward('clearSelection'));
 
   const excludes = (s: Session) => (vscode.workspace.getConfiguration('gaffy', s.document.uri).get<string[]>('exclude') ?? []).map(globToRegExp);
+  const external = (s: Session) => vscode.workspace.getConfiguration('gaffy', s.document.uri).get<boolean>('includeExternal') ?? false;
 
   const exportView = async (s: Session) => {
     const doc = s.doc();
     const style = await editor.styles.get(s.folder);
-    const sc = buildScene(doc, style, excludes(s));
+    const sc = buildScene(doc, style, excludes(s), external(s));
     const gs = glyphSet(style);
     const outDir = gaffyDir(s.folder);
     await vscode.workspace.fs.createDirectory(outDir);
@@ -319,7 +334,7 @@ export function registerCommands(ctx: vscode.ExtensionContext, editor: GaffyEdit
   }));
 
   const move = (delta: -1 | 1) => node(async (s, d, k) => {
-    const sc = buildScene(d, await editor.styles.get(s.folder), excludes(s));
+    const sc = buildScene(d, await editor.styles.get(s.folder), excludes(s), external(s));
     const { slot, list } = siblingsOf(sc, k);
     const i = list.indexOf(k);
     const j = i + delta;
@@ -359,6 +374,20 @@ export function registerCommands(ctx: vscode.ExtensionContext, editor: GaffyEdit
       case 'refresh': await s.refresh(undefined, 'revalidate'); break;
       case 'export': await exportView(s); break;
       case 'editStyle': await vscode.commands.executeCommand('gaffy.editStyle'); break;
+      case 'openSettings': await vscode.commands.executeCommand('workbench.action.openSettings', `@ext:${ctx.extension.id}`); break;
+      case 'setting': {
+        // Options > Settings: written to the workspace settings (user settings without a workspace)
+        const k = m.key as string;
+        if (!['includeExternal', 'newViews'].includes(k)) break;
+        const target = vscode.workspace.workspaceFolders?.length ? vscode.ConfigurationTarget.Workspace : vscode.ConfigurationTarget.Global;
+        await vscode.workspace.getConfiguration('gaffy').update(k, m.value, target);
+        // external code turned on: answers fetched without it are asked again (on screen now, the rest when opened)
+        if (k === 'includeExternal' && m.value === true) {
+          for (const c of editor.allCaches()) c.clear();
+          for (const x of new Set(editor.sessions.values())) void x.refresh(undefined, 'revalidate');
+        }
+        break;
+      }
       case 'hiddenNeighbors': {
         const doc = s.doc();
         const keys = (m.keys as NodeKey[] | undefined) ?? [];

@@ -8,6 +8,8 @@ import { deepMerge, DEFAULT_STYLE, Style } from '../core/style';
 export const gaffyDir = (folder: vscode.Uri) => vscode.Uri.joinPath(folder, '.gaffy');
 
 export function folderOf(uri: vscode.Uri): vscode.Uri {
+  // an unsaved view (untitled document) carries the path it will be saved to
+  if (uri.scheme === 'untitled') uri = vscode.Uri.file(uri.path);
   const f = vscode.workspace.getWorkspaceFolder(uri);
   if (f) return f.uri;
   // a view file outside any workspace folder: its .gaffy parent's parent

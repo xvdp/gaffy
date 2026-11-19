@@ -78,21 +78,23 @@ export function sortKeyOf(n: GNode | undefined, key: NodeKey): string {
 }
 
 /**
- * Functions of excluded folders (view folders, `gaffy.exclude` globs): off screen like hidden ones, but
- * without markers, and back as soon as the folder is included again (their calls stay in the data).
+ * Functions of excluded folders (view folders, `gaffy.exclude` globs), and external code unless `external`
+ * (`gaffy.includeExternal`): off screen like hidden ones, but without markers, and back as soon as the
+ * folder is included again (their calls stay in the data).
  */
-function excludedKeys(doc: ViewDoc, exclude: readonly RegExp[]): Set<NodeKey> {
+function excludedKeys(doc: ViewDoc, exclude: readonly RegExp[], external = true): Set<NodeKey> {
   const ex = excludedBy(doc.view, exclude);
   const seeds = new Set(doc.view.seeds);
-  return new Set(Object.values(doc.graph.nodes).filter((n) => !isContainer(n) && !seeds.has(n.key) && ex(n.path)).map((n) => n.key));
+  return new Set(Object.values(doc.graph.nodes)
+    .filter((n) => !isContainer(n) && !seeds.has(n.key) && (ex(n.path) || (!external && n.external))).map((n) => n.key));
 }
 
-export function buildScene(doc: ViewDoc, style: Style, exclude: readonly RegExp[] = []): Scene {
+export function buildScene(doc: ViewDoc, style: Style, exclude: readonly RegExp[] = [], external = true): Scene {
   const view = doc.view;
   const graph = doc.graph;
   const collapsed = new Set(view.collapsed);
   const hidden = new Set(view.hidden);
-  const out = excludedKeys(doc, exclude);
+  const out = excludedKeys(doc, exclude, external);
   const vq = quotient(graph, collapsed, new Set([...hidden, ...out]), view.seeds);
   const grows = view.arrange === 'grow';
   const cut = new Set(grows ? (view.cut ?? []).map(([a, b]) => cutKey(a, b)) : []);
@@ -219,19 +221,19 @@ function revealView(vq: VGraph, doc: ViewDoc): Reveal {
   return reveal(vq, v.seeds, v.open ?? {}, v.direction, new Set((v.cut ?? []).map(([a, b]) => cutKey(a, b))));
 }
 
-function revealOf(doc: ViewDoc, exclude: readonly RegExp[]): Reveal {
+function revealOf(doc: ViewDoc, exclude: readonly RegExp[], external: boolean): Reveal {
   const v = doc.view;
-  return revealView(quotient(doc.graph, new Set(v.collapsed), new Set([...v.hidden, ...excludedKeys(doc, exclude)]), v.seeds), doc);
+  return revealView(quotient(doc.graph, new Set(v.collapsed), new Set([...v.hidden, ...excludedKeys(doc, exclude, external)]), v.seeds), doc);
 }
 
 /** Definitions on screen; containers excluded. */
-export function visibleOf(doc: ViewDoc, exclude: readonly RegExp[] = []): NodeKey[] {
-  return [...revealOf(doc, exclude).visible].filter((k) => !isContainer(doc.graph.nodes[k]));
+export function visibleOf(doc: ViewDoc, exclude: readonly RegExp[] = [], external = true): NodeKey[] {
+  return [...revealOf(doc, exclude, external).visible].filter((k) => !isContainer(doc.graph.nodes[k]));
 }
 
 /** Directions each definition on screen may open: seeds both, others the side that revealed them. */
-export function frontierOf(doc: ViewDoc, exclude: readonly RegExp[] = []): { key: NodeKey; dir: 'in' | 'out' }[] {
-  const rev = revealOf(doc, exclude);
+export function frontierOf(doc: ViewDoc, exclude: readonly RegExp[] = [], external = true): { key: NodeKey; dir: 'in' | 'out' }[] {
+  const rev = revealOf(doc, exclude, external);
   return [...rev.visible].filter((k) => !isContainer(doc.graph.nodes[k])).flatMap((key) => {
     const a = rev.allowed.get(key);
     return [...(opens(a, 'up') ? ['in' as const] : []), ...(opens(a, 'down') ? ['out' as const] : [])].map((dir) => ({ key, dir }));
