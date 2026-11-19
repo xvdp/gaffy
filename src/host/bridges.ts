@@ -27,6 +27,7 @@ import { Binding, extModules, jsCallSites, jsImports, matchBindings, matchWasm, 
 import { langOf, segments } from '../core/langs';
 import { GEdge, GNode, NodeKey } from '../core/model';
 import type { LspProvider } from './lsp';
+import { readable } from './scope';
 
 const SKIP = '{**/node_modules/**,**/.git/**,**/_deps/**,**/.venv/**,**/venv/**,**/site-packages/**,**/.gaffy/**}';
 const MANIFESTS = ['setup.py', 'pyproject.toml', 'setup.cfg', 'CMakeLists.txt', 'Cargo.toml', 'package.json'];
@@ -58,8 +59,12 @@ export class Bridges {
     if (JS.has(lang)) this.js = undefined;
   }
 
+  /** File text; files over 2 MB (generated, minified, data) are not scanned. */
   private async read(uri: vscode.Uri): Promise<string> {
-    try { return new TextDecoder().decode(await vscode.workspace.fs.readFile(uri)); } catch { return ''; }
+    try {
+      if ((await vscode.workspace.fs.stat(uri)).size > 2_000_000) return '';
+      return new TextDecoder().decode(await vscode.workspace.fs.readFile(uri));
+    } catch { return ''; }
   }
 
   /** Project folder of a file: the nearest folder above it holding a manifest, below its workspace folder; '' otherwise (the workspace). */
@@ -157,6 +162,7 @@ export class Bridges {
     for (const l of defs) {
       const tu = 'targetUri' in l ? l.targetUri : l.uri;
       const tp = 'targetUri' in l ? (l.targetSelectionRange ?? l.targetRange).start : l.range.start;
+      if (!readable(tu)) continue;
       const syms = await this.p.symbolsOf(tu);
       const find = (ss: readonly vscode.DocumentSymbol[]): vscode.DocumentSymbol | undefined => {
         for (const x of ss) { if (x.range.contains(tp) && x.kind === vscode.SymbolKind.Class) return x; const c = find(x.children ?? []); if (c) return c; }
@@ -203,7 +209,8 @@ export class Bridges {
   /** The .slang file a Python file loads as `file`: relative to it, else by name anywhere in the workspace (include paths). */
   private async slangFile(from: vscode.Uri, file: string): Promise<vscode.Uri | undefined> {
     const near = vscode.Uri.joinPath(from, '..', file);
-    try { await vscode.workspace.fs.stat(near); return near; } catch { /* include path */ }
+    // a path written in source text resolves only inside a workspace folder
+    try { if (vscode.workspace.getWorkspaceFolder(near)) { await vscode.workspace.fs.stat(near); return near; } } catch { /* include path */ }
     return (await vscode.workspace.findFiles(`**/${path.posix.basename(file)}`, SKIP, 1))[0];
   }
 

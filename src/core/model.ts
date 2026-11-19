@@ -92,3 +92,18 @@ export function fnv1a(text: string): string {
 export function bodyHash(text: string): string {
   return fnv1a(text.replace(/\s+/g, ' ').trim());
 }
+
+/**
+ * Characters that make a label show something other than it is: C0/C1 controls, zero-width and
+ * joiner characters, bidirectional embeddings, overrides and isolates ("Trojan Source", CVE-2021-42574),
+ * the byte-order mark. Text from a language server or a view file is shown with them as `\u{…}` instead.
+ */
+const HIDDEN = /[\u0000-\u001f\u007f-\u009f\u00ad\u061c\u180e\u200b-\u200f\u2028-\u202e\u2060-\u206f\ufeff]/g;
+export const visible = (s: string) => s.replace(HIDDEN, (c) => `\\u{${c.codePointAt(0)!.toString(16)}}`);
+
+/**
+ * Text for a VS Code notification or progress message: `visible`, and every `](` split, since
+ * notifications render `[label](command:…|file:…|https:…)` as links. Names, paths and error messages
+ * from language servers and workspace files pass through it.
+ */
+export const plain = (s: string) => visible(s).replace(/\]\(/g, '] (');

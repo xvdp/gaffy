@@ -17,6 +17,7 @@ import { EXTERNAL, extsOf, LANG, langOf, segments, TEXT_LANGS } from '../core/la
 import { bodyHash, GEdge, GNode, Kind, NodeKey } from '../core/model';
 import { callSites, mask, outline, TextSym } from '../core/textcalls';
 import { Bridges } from './bridges';
+import { readable } from './scope';
 
 // symbols that enclose a qualified name: types, functions, namespaces, impl blocks (Object), object
 // literals and their variables (TypeScript `const obj = { run() {} }` → `obj.run`)
@@ -47,6 +48,8 @@ type Sym = vscode.DocumentSymbol;
  * stalled request would otherwise hold a view's request queue, and every open, close and refresh behind it.
  */
 const REQUEST_MS = 30000;
+/** Calls taken from one answer: a function with more callers or callees than this is a hub; an answer this long is not read whole. */
+const MAX_CALLS = 5000;
 function timed<T>(p: Thenable<T>, ms = REQUEST_MS): Promise<T | undefined> {
   return new Promise((res) => {
     const t = setTimeout(() => res(undefined), ms);
@@ -132,17 +135,19 @@ export class LspProvider {
 
   /** Call hierarchy items at a position; for text languages without a call hierarchy, the enclosing function. */
   async prepare(uri: vscode.Uri, pos: vscode.Position): Promise<vscode.CallHierarchyItem[]> {
+    if (!readable(uri)) return [];
     let r: vscode.CallHierarchyItem[] | vscode.CallHierarchyItem | undefined;
     try {
       r = await timed(vscode.commands.executeCommand<vscode.CallHierarchyItem[] | vscode.CallHierarchyItem>('vscode.prepareCallHierarchy', uri, pos));
     } catch { r = undefined; }
-    const items = !r ? [] : Array.isArray(r) ? r : [r];
+    const items = (!r ? [] : Array.isArray(r) ? r : [r]).filter((i) => readable(i.uri));
     if (items.length || !TEXT_LANGS.has(langOf(uri.path))) return items;
     const it = await this.textItem(uri, pos);
     return it ? [it] : [];
   }
 
   async symbolsOf(uri: vscode.Uri): Promise<Sym[]> {
+    if (!readable(uri)) return [];
     const u = uri.toString();
     let p = this.symbols.get(u);
     if (!p) {
@@ -185,6 +190,7 @@ export class LspProvider {
         const out: TextFile[] = [];
         for (const uri of uris) {
           try {
+            if ((await vscode.workspace.fs.stat(uri)).size > 2_000_000) continue;   // generated or minified: not scanned
             const doc = await vscode.workspace.openTextDocument(uri);
             const fns: Sym[] = [];
             const walk = (ss: readonly Sym[]) => { for (const x of ss) { if (FUNCTIONS.has(x.kind)) fns.push(x); walk(x.children ?? []); } };
@@ -206,6 +212,7 @@ export class LspProvider {
     for (const l of locs) {
       const tu = 'targetUri' in l ? l.targetUri : l.uri;
       const tp = 'targetUri' in l ? (l.targetSelectionRange ?? l.targetRange).start : l.range.start;
+      if (!readable(tu)) continue;
       const it = await this.textItem(tu, tp);
       if (it && segments(it.name).pop() === name) return [it];
     }
@@ -243,7 +250,7 @@ export class LspProvider {
     // references, where the server has them
     let refs: vscode.Location[] = [];
     try { refs = await vscode.commands.executeCommand<vscode.Location[]>('vscode.executeReferenceProvider', it.uri, it.selectionRange.start) ?? []; } catch { /* none */ }
-    refs = refs.filter((r) => !(r.uri.toString() === it.uri.toString() && r.range.intersection(it.selectionRange)));
+    refs = refs.filter((r) => readable(r.uri) && !(r.uri.toString() === it.uri.toString() && r.range.intersection(it.selectionRange)));
     if (refs.length) {
       for (const r of refs) await callerAt(r.uri, r.range.start);
       return edges;
@@ -342,8 +349,10 @@ export class LspProvider {
     const key = `${fileKey}#${qual}`;
     let hash: string | undefined;
     try {
-      const doc = await vscode.workspace.openTextDocument(item.uri);
-      hash = bodyHash(doc.getText(item.range));
+      if (readable(item.uri)) {
+        const doc = await vscode.workspace.openTextDocument(item.uri);
+        hash = bodyHash(doc.getText(item.range));
+      }
     } catch { /* unreadable: no MOD tracking */ }
     acc[key] = { key, kind, name: qual.split('.').pop() || item.name, qual, module, parent, uri: item.uri.toString(),
       path: rel, line: item.selectionRange.start.line, character: item.selectionRange.start.character,
@@ -390,7 +399,7 @@ export class LspProvider {
     } catch { return undefined; }
     if (!calls) return undefined;
     const edges: GEdge[] = [];
-    for (const c of calls) {
+    for (const c of calls.filter((x) => readable(x.to.uri)).slice(0, MAX_CALLS)) {
       if (bound && c.fromRanges.length && c.fromRanges.every(bound)) continue;
       const to = await this.describe(c.to, acc);
       if (to) edges.push({ from: key, to, line: c.fromRanges[0]?.start.line });
@@ -415,7 +424,7 @@ export class LspProvider {
     if (!calls) return undefined;
     const edges: GEdge[] = [];
     const boundBy = new Map<string, Promise<((r: vscode.Range) => boolean) | undefined>>();
-    for (const c of calls) {
+    for (const c of calls.filter((x) => readable(x.from.uri)).slice(0, MAX_CALLS)) {
       // a caller whose only call ranges are binding call sites called the binding, not this same-named function
       const u = c.from.uri.toString();
       if (!boundBy.has(u)) boundBy.set(u, this.bridges.boundIn(c.from.uri).catch(() => undefined));

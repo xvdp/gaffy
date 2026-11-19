@@ -6,6 +6,7 @@
  */
 import * as path from 'node:path';
 import * as vscode from 'vscode';
+import { checkOnStart, showReport } from './servers';
 import { registerCommands } from './commands';
 import { GaffyEditor, Session } from './editor';
 import { LspProvider } from './lsp';
@@ -23,6 +24,9 @@ export function activate(ctx: vscode.ExtensionContext): void {
     }),
   );
   registerCommands(ctx, editor);
+  ctx.subscriptions.push(vscode.commands.registerCommand('gaffy.checkServers', () => showReport()));
+  // language servers for this workspace's languages: a notification when one is missing (once per version)
+  setTimeout(() => void checkOnStart(ctx).catch(() => undefined), 4000);
 
   const isGaffy = (u: vscode.Uri) => u.path.endsWith('.gaffy') || u.path.includes('/.gaffy/');
   const pending = new Set<string>();

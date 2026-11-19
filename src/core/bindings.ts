@@ -219,7 +219,7 @@ export interface SlangLoad { target: string; file: string; via: 'slangpy' | 'sla
 export function slangLoads(text: string): SlangLoad[] {
   const m = maskPy(text, true);
   const out: SlangLoad[] = [];
-  for (const r of m.matchAll(/((?:self\.)?\w+)\s*=\s*([^\n]*\b(load_from_file|loadModule|load_module)\s*\()/g)) {
+  for (const r of m.matchAll(/((?:self\.)?\w+)\s*=\s*([^\n]{0,240}?\b(load_from_file|loadModule|load_module)\s*\()/g)) {
     const open = r.index! + r[0].length - 1;
     const args = m.slice(open + 1, close(m, open) - 1);
     const file = /["']([^"']+?)["']/.exec(args.replace(/^\s*\w+\s*,/, ''))?.[1] ?? /["']([^"']+?)["']/.exec(args)?.[1];

@@ -269,10 +269,11 @@ export function place(inp: PlaceInput): Placement {
         const off = inp.offset[unit];
         if (lock) r = placeBox(it.box, lock[0], lock[1], []);
         else if (off) {
-          const at = Math.max(0, (top - 1) + off[1]);
-          r = placeBox(it.box, col + off[0], at, []);
-          for (const v of inside) addMove(v, off[0], at - (top - 1));
-          r = { ...r, base: shifted(r.base, -off[0], -(at - (top - 1))) };
+          // the offset counts from the row the box takes unmoved (its trial row)
+          const home = Math.max(cr, top - 1);
+          r = placeBox(it.box, col + off[0], home + off[1], []);
+          for (const v of inside) addMove(v, off[0], off[1]);
+          r = { ...r, base: shifted(r.base, -off[0], -off[1]) };
         } else {
           // trial placement, then descend below overlapped siblings
           let rr = Math.max(cr, top - 1);

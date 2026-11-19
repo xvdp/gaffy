@@ -9,7 +9,7 @@
  * `strip` removes leading module prefixes when no box applies, e.g. "gutai.".
  */
 import { relativeName } from './boxes';
-import { GNode, isContainer } from './model';
+import { GNode, isContainer, visible } from './model';
 
 export interface LabelOptions {
   strip: string[];
@@ -27,6 +27,10 @@ export function containerLabel(n: GNode, strip: readonly string[], ns = ''): str
 }
 
 export function nodeLabel(n: GNode, opts: LabelOptions, ns = '', members = 0, collapsed = false): string {
+  return visible(rawLabel(n, opts, ns, members, collapsed));
+}
+
+function rawLabel(n: GNode, opts: LabelOptions, ns: string, members: number, collapsed: boolean): string {
   if (collapsed) return `[${containerLabel(n, opts.strip, ns)}] (${members})`;
   if (isContainer(n) && n.kind !== 'class') return containerLabel(n, opts.strip, ns);
   const call = opts.parens && n.qual !== '<module>' ? '()' : '';

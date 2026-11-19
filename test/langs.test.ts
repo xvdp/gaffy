@@ -87,3 +87,13 @@ describe('text calls (shader languages)', () => {
     expect(qualOf(syms, f.nameAt)).toEqual(['lighting', 'lambert']);
   });
 });
+
+describe('hostile input', () => {
+  it('a long header without declarations stays fast (bounded regex work)', () => {
+    const junk = 'x'.repeat(50) + 'a('.repeat(40000) + ' -> ' + 'b'.repeat(40000) + ' {';
+    const t0 = performance.now();
+    outline(junk);
+    callSites(junk, 0, junk.length);
+    expect(performance.now() - t0).toBeLessThan(2000);
+  });
+});

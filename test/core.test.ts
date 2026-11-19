@@ -2,9 +2,12 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { toHtmlPre, toText } from '../src/core/grid';
+import { nodeLabel } from '../src/core/labels';
+import { GNode, plain, visible } from '../src/core/model';
 import { buildScene, Scene, unitAnchor } from '../src/core/scene';
 import { deepMerge, DEFAULT_STYLE, glyphSet, Style } from '../src/core/style';
-import { boxUnit, excludedBy, globToRegExp, ViewDoc } from '../src/core/viewdoc';
+import { boxUnit, excludedBy, globToRegExp, parseDoc, serializeDoc, ViewDoc } from '../src/core/viewdoc';
+import { frontierOf } from '../src/core/scene';
 import { EXP4, fixtureDoc, k, SH, STAR } from './fixtures';
 
 const GOLDEN = join(__dirname, 'golden');
@@ -46,6 +49,13 @@ function invariants(sc: Scene) {
   for (const e of drawn.edges) {
     const id = `${e.from}>${e.to}`;
     expect((paths.get(id) ?? 0) + (back.has(id) ? 1 : 0), id).toBe(1);
+  }
+  // every call path is orthogonal: each segment horizontal or vertical (a curve style rounds the corners)
+  for (const p of grid.paths) {
+    for (let i = 1; i < p.pts.length; i++) {
+      const [a, b] = [p.pts[i - 1], p.pts[i]];
+      expect(a[0] === b[0] || a[1] === b[1], `${p.from} → ${p.to}: diagonal ${a} → ${b}`).toBe(true);
+    }
   }
   // frames nest and do not overlap siblings
   for (const f of P.frames) {
@@ -392,5 +402,85 @@ describe('folder filters', () => {
     expect(ex('gutai/tests/test_a.py')).toBe(false);
     expect(ex('other/tests/test_a.py')).toBe(true);
     expect(ex('gutai/src/a.py')).toBe(false);
+  });
+});
+
+describe('hostile data from language servers and view files', () => {
+  it('labels show bidirectional, invisible and control characters as escapes', () => {
+    // U+202E (right-to-left override) shows `fn_txt.exe` as `fn_exe.txt`; U+200B is zero-width
+    const n: GNode = { key: 'py:a.py#fn', kind: 'function', name: 'fn', qual: 'fn_\u202etxt.exe\u200b', module: 'a', parent: null };
+    expect(nodeLabel(n, { strip: [], parens: false })).toBe('a.fn_\\u{202e}txt.exe\\u{200b}');
+    expect(visible(visible('x\u2066y\u0007'))).toBe('x\\u{2066}y\\u{7}');
+    expect(visible('héllo wörld · └─>> 名前')).toBe('héllo wörld · └─>> 名前');
+  });
+  it('notification text forms no link', () => {
+    expect(plain('gaffy: [Fix](command:workbench.action.terminal.sendSequence)')).toBe('gaffy: [Fix] (command:workbench.action.terminal.sendSequence)');
+  });
+  it('view files: node keys naming a prototype are dropped, edges must be a list', () => {
+    const d = parseDoc('{"gaffy":1,"name":"v","view":{"seeds":[]},"graph":{"nodes":{"__proto__":{"polluted":1},"constructor":{"key":"constructor"},"py:a.py#f":{"key":"py:a.py#f"}},"edges":{"length":1}}}');
+    expect(Object.getPrototypeOf(d.graph.nodes)).toBe(Object.prototype);
+    expect(Object.keys(d.graph.nodes)).toEqual(['py:a.py#f']);
+    expect(({} as Record<string, unknown>).polluted).toBeUndefined();
+    expect(d.graph.edges).toEqual([]);
+  });
+  it('html export: a quote in a link stays inside its attribute', () => {
+    const sc = buildScene(fixtureDoc(STAR, { seeds: [k('fit.surfel:linear_harmonics')] }), flat());
+    const html = toHtmlPre(sc.grid, glyphSet(flat()), () => 'x" onclick="y');
+    expect(html).toContain('href="x&quot; onclick=&quot;y"');
+    expect(html).not.toContain('onclick="');
+  });
+});
+
+describe('style merge', () => {
+  it('keys naming a prototype are ignored', () => {
+    const evil = JSON.parse('{"__proto__": {"polluted": 1}, "constructor": {"x": 1}, "grid": {"indent": 6}}');
+    const st = deepMerge(DEFAULT_STYLE, evil) as unknown as Record<string, unknown>;
+    expect(({} as Record<string, unknown>).polluted).toBeUndefined();
+    expect(st.polluted).toBeUndefined();
+    expect((st.grid as { indent: number }).indent).toBe(6);
+  });
+});
+
+describe('view documents', () => {
+  it('a full view from before per-side call depths takes them from its direction and depth; removed options drop', () => {
+    const old = parseDoc(JSON.stringify({ gaffy: 1, name: 'v', view: { seeds: ['k'], direction: 'in', depth: 3, arrange: 'auto', order: 'callees', fold: { k: 'down' }, expanded: { k: 'in' } }, graph: { nodes: {}, edges: [] } }));
+    expect([old.view.depthUp, old.view.depthDown, old.view.depthRule]).toEqual([3, 0, 'shortest']);
+    const text = serializeDoc(old);
+    expect(text).not.toMatch(/"order"|"fold"|"expanded"/);
+    const both = parseDoc(JSON.stringify({ gaffy: 1, name: 'v', view: { seeds: [], direction: 'both', depth: 2, depthUp: 'all' }, graph: { nodes: {}, edges: [] } }));
+    expect([both.view.depthUp, both.view.depthDown]).toEqual(['all', 2]);
+  });
+  it('removed calls keep only [caller, callee] pairs', () => {
+    const d = parseDoc(JSON.stringify({ gaffy: 1, name: 'v', view: { seeds: [], cut: [['a', 'b'], ['bad'], 'x'] }, graph: { nodes: {}, edges: [] } }));
+    expect(d.view.cut).toEqual([['a', 'b']]);
+  });
+});
+
+describe('moves leave the rest in place', () => {
+  it('moving the first box (the one every other box is placed from) moves only that box', () => {
+    const seed = k('gutai.render.harmonics:sh_eval');
+    const base = fixtureDoc(SH, { seeds: [seed], direction: 'out' });
+    const s0 = buildScene(base, boxed());
+    const moved = structuredClone(base);
+    moved.view.offset[boxUnit('dir:gutai/render')] = [6, 3];   // the box labelled render.harmonics
+    const s1 = buildScene(moved, boxed());
+    invariants(s1);
+    const at = (sc: Scene, x: string) => sc.placement.pos.get(k(x))!;
+    // the moved box's function shifts by the move
+    expect(at(s1, 'gutai.render.harmonics:sh_eval').col - at(s0, 'gutai.render.harmonics:sh_eval').col).toBe(6);
+    expect(at(s1, 'gutai.render.harmonics:sh_eval').row - at(s0, 'gutai.render.harmonics:sh_eval').row).toBe(3);
+    // a box it calls stays where it was
+    expect(at(s1, 'gutai.runtime.variant:pick_parallel')).toEqual(at(s0, 'gutai.runtime.variant:pick_parallel'));
+  });
+});
+
+describe('what the language server is asked', () => {
+  it('seeds both directions; a function shown as a call only its calls; as a caller only its callers', () => {
+    const seed = k('gutai.runtime.interop:to_torch');
+    const d = fixtureDoc(SH, { seeds: [seed], direction: 'both', arrange: 'grow', open: {} });
+    const pairs = new Set(frontierOf(d).map((p) => `${p.dir}:${p.key.split('#')[1]}`));
+    expect(pairs.has('in:to_torch') && pairs.has('out:to_torch')).toBe(true);
+    expect(pairs.has('in:sh_eval')).toBe(true);           // shown as a caller
+    expect(pairs.has('out:sh_eval')).toBe(false);
   });
 });

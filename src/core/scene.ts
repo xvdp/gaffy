@@ -15,7 +15,7 @@ import { BoxNode, boxOf, boxTree, boxVertices } from './boxes';
 import { buildGrid, Grid } from './grid';
 import { nodeLabel } from './labels';
 import { Layout } from './layout';
-import { GNode, isContainer, NodeKey, Subgraph } from './model';
+import { GNode, isContainer, NodeKey, Subgraph, visible } from './model';
 import { Marker, place, Placement } from './place';
 import { induced, quotient, VEdge, VGraph } from './quotient';
 import { cutKey, opens, reveal, Reveal, revealDepth } from './reveal';
@@ -137,12 +137,12 @@ export function buildScene(doc: ViewDoc, style: Style, exclude: readonly RegExp[
     if (isStub(k)) return '';
     const v = vg.nodes.get(k)!;
     const d = decor.get(k)!;
-    return d.pre + nodeLabel(v.node ?? fallbackNode(k), labelOpts, boxes.get(k)?.ns ?? '', v.members, v.collapsed) + d.post + d.badge;
+    return visible(d.pre + nodeLabel(v.node ?? fallbackNode(k), labelOpts, boxes.get(k)?.ns ?? '', v.members, v.collapsed) + d.post + d.badge);
   };
   const shortName = (k: NodeKey) => {
     if (isStub(k)) return '';
     const n = graph.nodes[k];
-    return n ? `${n.name}${style.labels.parens && !isContainer(n) ? '()' : ''}` : k;
+    return visible(n ? `${n.name}${style.labels.parens && !isContainer(n) ? '()' : ''}` : k);
   };
 
   const placement: Placement = place({

@@ -659,7 +659,7 @@ export function toText(g: Grid, gs: GlyphSet): string {
   return charRows(g, gs).map((r) => r.join('').trimEnd()).join('\n');
 }
 
-const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 
 /** `<pre>` body with vertex labels wrapped in links; `href` returns undefined for unlinked labels. */
 export function toHtmlPre(g: Grid, gs: GlyphSet, href: (key: NodeKey) => string | undefined): string {

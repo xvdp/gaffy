@@ -11,7 +11,7 @@ import { select } from 'd3-selection';
 import { curveBasis, line } from 'd3-shape';
 import { zoom, zoomIdentity } from 'd3-zoom';
 import { cellId, cellRC, charRows, EdgePath, Grid, LabelSpan } from '../core/grid';
-import { ancestors, isContainer, NodeKey } from '../core/model';
+import { ancestors, isContainer, NodeKey, visible } from '../core/model';
 import { buildScene, isStub, Scene, siblingsOf, unitAnchor, unitMembers } from '../core/scene';
 import { Curve, E, glyphSet, N, S, Style, W } from '../core/style';
 import { Depth, excludedBy, globToRegExp, OpenSide, parseDoc, ROOTS, serializeDoc, ViewDoc } from '../core/viewdoc';
@@ -533,7 +533,7 @@ function viaOf(p: { from: NodeKey; to: NodeKey }): string | undefined {
 
 function callTitle(p: EdgePath): string {
   const { caller, callee } = asCall(p);
-  const name = (k: NodeKey) => scene!.graph.nodes[k]?.name ?? k;
+  const name = (k: NodeKey) => visible(scene!.graph.nodes[k]?.name ?? k);
   const via = viaOf(p);
   return `${name(caller)}() → ${name(callee)}()${via ? `\nacross languages, via ${via}` : ''}\nclick select · double click: show only what lies below · right click: more`;
 }
@@ -606,7 +606,7 @@ function markerTitle(side: 'up' | 'down'): string {
 function closingOf(sc: Scene, to: NodeKey, cell: number): { run: () => void; title: string } | undefined {
   const callers = [...new Set(sc.grid.paths.filter((q) => q.to === to && q.cells.includes(cell)).map((q) => q.from))];
   const op = (k: NodeKey) => sc.rev.opener.get(k);
-  const name = (k: NodeKey) => sc.graph.nodes[k]?.name ?? k;
+  const name = (k: NodeKey) => visible(sc.graph.nodes[k]?.name ?? k);
   const up = () => ({ run: () => setSide(to, 'up', false), title: `close the callers of ${name(to)}()` });
   if (opens(effSide(to), 'up') && callers.some((c) => op(c)?.by === to && op(c)?.side === 'up')) return up();
   const by = op(to);
@@ -723,7 +723,7 @@ function tooltip(d: LabelSpan): string {
     ? '>> or └─>> open a side · an arrowhead closes the level it points into · double click: open or close · Delete: remove the selection'
     : 'full: the call depth buttons choose the levels shown · Delete hides the selection');
   if (doc!.view.lock[d.key]) lines.push('locked');
-  return lines.join('\n');
+  return lines.map(visible).join('\n');
 }
 
 // ---- dragging units ------------------------------------------------------------------------------

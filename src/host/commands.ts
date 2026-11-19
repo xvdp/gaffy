@@ -8,11 +8,12 @@ import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { noHierarchyHint, serverHint } from '../core/langs';
 import { toHtmlPre, toText } from '../core/grid';
-import { ancestors, GNode, NodeKey } from '../core/model';
+import { ancestors, GNode, NodeKey, plain, visible } from '../core/model';
 import { buildScene, siblingsOf } from '../core/scene';
 import { DEFAULT_STYLE, glyphSet } from '../core/style';
 import { Direction, emptyDoc, globToRegExp, ROOTS, serializeDoc, ViewDoc, ViewSpec } from '../core/viewdoc';
 import { GaffyEditor, Session } from './editor';
+import { readable } from './scope';
 import { folderOf, gaffyDir } from './style';
 
 interface NodeArg { key?: NodeKey; unit?: string; to?: NodeKey; webviewSection?: string }
@@ -31,8 +32,12 @@ async function uniqueUri(dir: vscode.Uri, stem: string, ext: string): Promise<vs
   }
 }
 
-/** Short commit hash of HEAD in `cwd`, undefined outside git. */
+/**
+ * Short commit hash of HEAD in `cwd`, undefined outside git. Runs only in a trusted workspace: a cloned
+ * or downloaded folder can carry a `.git/config` whose settings make git run programs.
+ */
 function gitShort(cwd: string): Promise<string | undefined> {
+  if (!vscode.workspace.isTrusted) return Promise.resolve(undefined);
   return new Promise((res) => execFile('git', ['rev-parse', '--short', 'HEAD'], { cwd, timeout: 3000 },
     (err, out) => res(err ? undefined : out.trim() || undefined)));
 }
@@ -43,6 +48,8 @@ const dateSlug = (d = new Date()) =>
 async function openNode(n: GNode | undefined, focus: boolean): Promise<vscode.TextEditor | undefined> {
   if (!n?.uri) return undefined;
   const uri = vscode.Uri.parse(n.uri);
+  // a view file is data: it names no document outside the schemes of the workspace
+  if (!readable(uri)) return undefined;
   if (n.kind === 'package' || n.kind === 'folder') {
     await vscode.commands.executeCommand('revealInExplorer', uri);
     return undefined;
@@ -67,7 +74,7 @@ export function registerCommands(ctx: vscode.ExtensionContext, editor: GaffyEdit
   const provider = editor.provider;
   const reg = (id: string, fn: (...a: any[]) => unknown) =>
     ctx.subscriptions.push(vscode.commands.registerCommand(id, async (...a: any[]) => {
-      try { await fn(...a); } catch (e) { void vscode.window.showErrorMessage(`gaffy: ${(e as Error).message}`); }
+      try { await fn(...a); } catch (e) { void vscode.window.showErrorMessage(plain(`gaffy: ${(e as Error).message}`)); }
     }));
 
   const active = (): Session => {
@@ -241,7 +248,9 @@ export function registerCommands(ctx: vscode.ExtensionContext, editor: GaffyEdit
     const href = (key: NodeKey) => {
       const n = nodeOf(doc, key);
       if (!n?.uri) return undefined;
-      const rel = path.posix.relative(outDir.path, vscode.Uri.parse(n.uri).path);
+      // `./` keeps a path whose first segment looks like a scheme (`command:…`) a relative link
+      const p = path.posix.relative(outDir.path, vscode.Uri.parse(n.uri).path);
+      const rel = p.startsWith('.') ? p : `./${p}`;
       return n.line !== undefined && n.kind !== 'package' && n.kind !== 'folder' ? `${rel}#L${n.line + 1}` : rel;
     };
     const md = `# ${doc.name}\n\n<pre>\n${toHtmlPre(sc.grid, gs, href)}\n</pre>\n`;
@@ -366,19 +375,21 @@ export function registerCommands(ctx: vscode.ExtensionContext, editor: GaffyEdit
       case 'open': await openNode(key ? nodeOf(s.doc(), key) : undefined, false); break;
       case 'openAt': {
         const n = key ? nodeOf(s.doc(), key) : undefined;
-        const line = m.line as number | undefined;
+        const line = Number.isInteger(m.line) && (m.line as number) >= 0 ? m.line as number : undefined;
         await openNode(n && line !== undefined ? { ...n, line, character: 0 } : n, false);
         break;
       }
-      case 'expand': if (key) await s.expand(key, (m.dir as 'in' | 'out') ?? 'out'); break;
+      case 'expand': if (key) await s.expand(key, m.dir === 'in' ? 'in' : 'out'); break;
       case 'refresh': await s.refresh(undefined, 'revalidate'); break;
       case 'export': await exportView(s); break;
       case 'editStyle': await vscode.commands.executeCommand('gaffy.editStyle'); break;
       case 'openSettings': await vscode.commands.executeCommand('workbench.action.openSettings', `@ext:${ctx.extension.id}`); break;
       case 'setting': {
         // Options > Settings: written to the workspace settings (user settings without a workspace)
+        // only these keys, only values of their type
         const k = m.key as string;
-        if (!['includeExternal', 'newViews'].includes(k)) break;
+        const ok = (k === 'includeExternal' && typeof m.value === 'boolean') || (k === 'newViews' && (m.value === 'saved' || m.value === 'unsaved'));
+        if (!ok) break;
         const target = vscode.workspace.workspaceFolders?.length ? vscode.ConfigurationTarget.Workspace : vscode.ConfigurationTarget.Global;
         await vscode.workspace.getConfiguration('gaffy').update(k, m.value, target);
         // external code turned on: answers fetched without it are asked again (on screen now, the rest when opened)
@@ -393,7 +404,7 @@ export function registerCommands(ctx: vscode.ExtensionContext, editor: GaffyEdit
         const keys = (m.keys as NodeKey[] | undefined) ?? [];
         const items = keys.map((k) => {
           const n = nodeOf(doc, k);
-          return { label: n ? (n.qual ? `${n.module}.${n.qual}` : n.module) : k, description: n?.path, key: k, picked: true };
+          return { label: visible(n ? (n.qual ? `${n.module}.${n.qual}` : n.module) : k), description: n?.path && visible(n.path), key: k, picked: true };
         });
         const pick = await vscode.window.showQuickPick(items, { canPickMany: true, title: 'Unhide neighbors', placeHolder: 'selected entries become visible' });
         if (!pick?.length) break;

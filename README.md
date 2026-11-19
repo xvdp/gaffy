@@ -7,7 +7,7 @@ VS Code extension: persistent, manipulable call graphs laid out on a character g
 ```bash
 npm install
 npm run package                              # typecheck, tests, bundles, gaffy-<version>.vsix
-code --install-extension gaffy-0.5.0.vsix
+code --install-extension gaffy-0.9.3.vsix
 ```
 
 Development: open `gaffy/` in VS Code and press F5 (Extension Development Host). `npm run watch` rebuilds on change.
@@ -60,7 +60,7 @@ Right click on a function name in the editor; the gaffy entries sit in the secti
 | gaffy: Call Hierarchy (dn) | the function | its calls |
 | gaffy: Add to Call Graph | appended to the open view | as the view's direction |
 
-`style.json` `view.traverse: "both"` starts every new view with callers and calls. With `gaffy.openCallHierarchy` (default on) VS Code's own Call Hierarchy opens in the References view as well. Explorer, right click on a file, **gaffy** > New View: Callers of the Functions of File: every function of the file with its callers, one level, in the full layout. The view file goes to `.gaffy/views/<symbol>_<short commit hash>.gaffy` (`<symbol>_<YYYYMMDD-HHMM>` outside git).
+`style.json` `view.traverse: "both"` starts every new view with callers and calls. `gaffy: Check Language Servers` lists the languages of the workspace, the extension that gives each call hierarchy, and what to install; after start-up gaffy shows the same as a notification once per version when a required one is missing (Install, Show Report, Don't Show Again). With `gaffy.openCallHierarchy` (default on) VS Code's own Call Hierarchy opens in the References view as well. Explorer, right click on a file, **gaffy** > New View: Callers of the Functions of File: every function of the file with its callers, one level, in the full layout. The view file goes to `.gaffy/views/<symbol>_<short commit hash>.gaffy` (`<symbol>_<YYYYMMDD-HHMM>` outside git).
 
 A new view asks the language server for one layer, shows it, then in the background asks every function on screen for its callers and calls (so the open markers know what lies beyond) and prefetches `gaffy.depth` layers along the traversal direction. Reopening a view shows the stored graph at once and asks the language server only for calls that changed files made stale (see [Building, progress, cache](#building-progress-cache)).
 

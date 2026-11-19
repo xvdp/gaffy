@@ -55,7 +55,8 @@ function mergeOne(a: unknown, b: unknown): unknown {
   if (b === undefined || b === null) return a;
   if (isPlain(a) && isPlain(b)) {
     const r: Plain = { ...a };
-    for (const [k, v] of Object.entries(b)) r[k] = mergeOne(a[k], v);
+    // a key that names an object's prototype would change what the merged style inherits: skipped
+    for (const [k, v] of Object.entries(b)) if (k !== '__proto__' && k !== 'constructor' && k !== 'prototype') r[k] = mergeOne(a[k], v);
     return r;
   }
   return b;

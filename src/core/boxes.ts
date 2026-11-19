@@ -11,7 +11,7 @@
  * 5. Namespace `ns` of a box: dotted package or module name, or folder path. Labels of members and
  *    child boxes are relative to it: `sh_eval()` in `render.harmonics`, `variant.pick_parallel()` in `runtime`.
  */
-import { ancestors, GNode, NodeKey } from './model';
+import { ancestors, GNode, NodeKey, visible } from './model';
 
 export interface BoxNode {
   key: string;             // 'root', or the innermost container key of the compressed chain
@@ -89,7 +89,7 @@ export function boxTree(vertices: Iterable<NodeKey>, nodes: Record<NodeKey, GNod
     const ns = t.module ?? nsOfChain(t.chain);
     return {
       key: t.chain[t.chain.length - 1].key,
-      label: relativeName(ns, parentNs) || chainName(t.chain, t.module),
+      label: visible(relativeName(ns, parentNs) || chainName(t.chain, t.module)),
       ns,
       members: t.members,
       children: [...t.children.values()].map((c) => toBox(c, ns)),

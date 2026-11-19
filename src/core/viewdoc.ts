@@ -109,12 +109,16 @@ export function parseDoc(text: string, fallbackName = 'view'): ViewDoc {
   if (v.curve) view.curve = v.curve;
   if (v.parentRule) view.parentRule = v.parentRule;
   const doc = emptyDoc(raw.name ?? fallbackName, view);
-  doc.graph = { nodes: raw.graph?.nodes ?? {}, edges: raw.graph?.edges ?? [] };
+  // node keys are `<lang>:<path>#<qual>`; a key naming an object's prototype is not one, and is dropped
+  const nodes = Object.fromEntries(Object.entries(raw.graph?.nodes ?? {}).filter(([key]) => !PROTO.has(key)));
+  doc.graph = { nodes, edges: Array.isArray(raw.graph?.edges) ? raw.graph!.edges : [] };
   if (raw.explored) doc.explored = raw.explored;
   if (raw.truncated) doc.truncated = true;
   if (raw.updated) doc.updated = raw.updated;
   return doc;
 }
+
+const PROTO = new Set(['__proto__', 'constructor', 'prototype']);
 
 export function serializeDoc(doc: ViewDoc): string {
   return JSON.stringify(doc, null, 1) + '\n';

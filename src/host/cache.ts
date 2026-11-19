@@ -9,6 +9,7 @@
  */
 import * as vscode from 'vscode';
 import { ancestors, GEdge, GNode, NodeKey } from '../core/model';
+import { readable } from './scope';
 
 type Dir = 'in' | 'out';
 const extOf = (uri: string) => /\.([A-Za-z0-9]+)$/.exec(uri)?.[1];
@@ -41,12 +42,16 @@ export class CallCache {
       raw = JSON.parse(new TextDecoder().decode(await vscode.workspace.fs.readFile(this.file)));
       if (raw.version !== 2) return;
     } catch { return; }
-    for (const [k, n] of Object.entries(raw.nodes ?? {})) this.remember(k, n);
-    for (const d of ['in', 'out'] as Dir[]) for (const [k, e] of Object.entries(raw[d] ?? {})) this.entries[d].set(k, e);
+    // keys naming an object's prototype are no node keys: dropped
+    const ok = (k: string) => k !== '__proto__' && k !== 'constructor' && k !== 'prototype';
+    for (const [k, n] of Object.entries(raw.nodes ?? {})) if (ok(k)) this.remember(k, n);
+    for (const d of ['in', 'out'] as Dir[]) for (const [k, e] of Object.entries(raw[d] ?? {})) if (ok(k) && Array.isArray(e?.edges)) this.entries[d].set(k, e);
     const changed: string[] = [];
     await Promise.all(Object.entries(raw.files ?? {}).map(async ([uri, mtime]) => {
       try {
-        const st = await vscode.workspace.fs.stat(vscode.Uri.parse(uri));
+        const u = vscode.Uri.parse(uri);
+        if (!readable(u)) throw new Error('scheme');
+        const st = await vscode.workspace.fs.stat(u);
         if (st.mtime !== mtime) changed.push(uri); else this.files.set(uri, mtime);
       } catch { changed.push(uri); }
     }));

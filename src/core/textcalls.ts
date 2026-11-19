@@ -52,7 +52,7 @@ export function mask(text: string, keepStrings = false): string {
 }
 
 const CONTAINER = /\b(struct|class|namespace|interface|extension|enum|cbuffer|tbuffer)\s+([A-Za-z_]\w*)[^]*$/;
-const FUNCTION = /([A-Za-z_]\w*)\s*(?:<[^<>;{}()]*>\s*)?\(((?:[^()]|\((?:[^()]|\([^()]*\))*\))*)\)\s*(?::\s*[A-Za-z_]\w*\s*)?(?:->\s*[^{};]+?)?\s*(?:const\s*)?(?:throws\s*)?$/;
+const FUNCTION = /([A-Za-z_]\w*)\s*(?:<[^<>;{}()]*>\s*)?\(((?:[^()]|\((?:[^()]|\([^()]*\))*\))*)\)\s*(?::\s*[A-Za-z_]\w*\s*)?(?:->\s*[^{};]{1,240}?)?\s*(?:const\s*)?(?:throws\s*)?$/;
 const KEYWORDS = new Set(['if', 'for', 'while', 'switch', 'return', 'sizeof', 'do', 'else', 'case', 'catch', 'layout', 'defined',
   'alignof', 'decltype', 'static_assert', 'new', 'delete', 'throw', 'typeof', 'register', 'packoffset', 'numthreads', 'shader',
   'vk', 'attribute', 'unroll', 'loop', 'branch', 'flatten']);
@@ -74,7 +74,8 @@ export function outline(text: string): TextSym[] {
       continue;
     }
     if (c !== '{') continue;
-    const header = m.slice(since, i);
+    // a header longer than any declaration (minified or generated text) is not parsed: bounded regex work
+    const header = m.slice(Math.max(since, i - 600), i);
     const parent = [...stack].reverse().find((s) => s.sym)?.sym;
     const add = (sym: TextSym) => (parent ? parent.children : roots).push(sym);
     let open: Open = { kind: 'block' };

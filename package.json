@@ -2,9 +2,9 @@
   "name": "gaffy",
   "displayName": "gaffy",
   "description": "Persistent, manipulable call graphs on a character grid, rendered with D3",
-  "version": "0.9.3",
+  "version": "0.9.5",
   "publisher": "xvdp",
-  "license": "UNLICENSED",
+  "license": "MIT",
   "private": true,
   "engines": {
     "vscode": "^1.90.0"
@@ -15,7 +15,8 @@
   ],
   "main": "./dist/extension.js",
   "activationEvents": [
-    "workspaceContains:.gaffy"
+    "workspaceContains:.gaffy",
+    "onStartupFinished"
   ],
   "contributes": {
     "customEditors": [
@@ -117,19 +118,19 @@
     "commands": [
       {
         "command": "gaffy.graphCallers",
-        "title": "gaffy: Call Hierarchy (up)"
+        "title": "gf> Call Hierarchy (up)"
       },
       {
         "command": "gaffy.graphCallees",
-        "title": "gaffy: Call Hierarchy (dn)"
+        "title": "gf> Call Hierarchy (dn)"
       },
       {
         "command": "gaffy.addToView",
-        "title": "gaffy: Add to Call Graph"
+        "title": "gf> Add to Call Graph"
       },
       {
         "command": "gaffy.graphFile",
-        "title": "New View: Callers of the Functions of File",
+        "title": "gf> Call Hierarchies (all, up)",
         "category": "gaffy"
       },
       {
@@ -356,6 +357,11 @@
       {
         "command": "gaffy.edge.straighten",
         "title": "Straighten This Call (route it first)"
+      },
+      {
+        "command": "gaffy.checkServers",
+        "title": "Check Language Servers",
+        "category": "gaffy"
       }
     ],
     "menus": {
@@ -843,7 +849,7 @@
     "watch": "node esbuild.mjs --watch",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "package": "npm run typecheck && npm test && npm run build && vsce package --no-dependencies --skip-license --allow-missing-repository --no-rewrite-relative-links",
+    "package": "npm run typecheck && npm test && npm run build && vsce package --no-dependencies --allow-missing-repository --no-rewrite-relative-links",
     "preview": "npm run build && node scripts/preview.mjs"
   },
   "dependencies": {
@@ -863,5 +869,12 @@
     "esbuild": "0.28.2",
     "typescript": "5.9.3",
     "vitest": "3.2.7"
+  },
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": "limited",
+      "description": "In a workspace that is not trusted, gaffy does not run git (view file names take the date instead of the commit). Language servers follow their own trust rules."
+    },
+    "virtualWorkspaces": false
   }
 }

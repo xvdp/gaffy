@@ -3,9 +3,10 @@
  * renders it and posts whole-document edits back. VS Code supplies tabs, dirty state, undo, redo,
  * save and hot exit through the TextDocument.
  */
+import { randomBytes } from 'node:crypto';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
-import { isContainer, NodeKey } from '../core/model';
+import { isContainer, NodeKey, plain } from '../core/model';
 import { globToRegExp, parseDoc, serializeDoc, ViewDoc } from '../core/viewdoc';
 import { BuildMode, extendGraph, Extension, Pair } from './build';
 import { frontierOf, visibleOf } from '../core/scene';
@@ -71,10 +72,10 @@ export class Session {
     const finished = new Promise<void>((r) => { done = r; });
     const timer = setTimeout(() => {
       void vscode.window.withProgress(
-        { location: vscode.ProgressLocation.Notification, title: `gaffy: ${this.name}`, cancellable: true },
+        { location: vscode.ProgressLocation.Notification, title: plain(`gaffy: ${this.name}`), cancellable: true },
         async (progress, token) => {
           token.onCancellationRequested(() => cts.cancel());
-          notify = (t) => progress.report({ message: t });
+          notify = (t) => progress.report({ message: plain(t) });
           notify(text);
           await finished;
         });
@@ -84,7 +85,7 @@ export class Session {
     try {
       await fn(show, cts.token);
     } catch (e) {
-      void vscode.window.showErrorMessage(`gaffy: ${(e as Error).message}`);
+      void vscode.window.showErrorMessage(plain(`gaffy: ${(e as Error).message}`));
     } finally {
       clearTimeout(timer);
       done();
@@ -147,8 +148,8 @@ export class Session {
     if (this.retries >= RETRY_S.length) {
       this.retries = 0;
       this.note(`language server: ${n} calls lists unresolved, stored calls kept`);
-      void vscode.window.showWarningMessage(`gaffy: ${this.name}: the language server resolved no answer for ${n} (definition, direction) pairs `
-        + '(still analyzing, renamed or removed). The view keeps their stored calls; Options > Refresh from Language Server retries.');
+      void vscode.window.showWarningMessage(plain(`gaffy: ${this.name}: the language server resolved no answer for ${n} (definition, direction) pairs `
+        + '(still analyzing, renamed or removed). The view keeps their stored calls; Options > Refresh from Language Server retries.'));
       return;
     }
     const sec = RETRY_S[this.retries++];
@@ -369,7 +370,7 @@ export class GaffyEditor implements vscode.CustomTextEditorProvider {
             await this.onMessage(s, m);
           }
         } catch (e) {
-          void vscode.window.showErrorMessage(`gaffy: ${(e as Error).message}`);
+          void vscode.window.showErrorMessage(plain(`gaffy: ${(e as Error).message}`));
         }
       }),
     ];
@@ -382,7 +383,8 @@ export class GaffyEditor implements vscode.CustomTextEditorProvider {
   }
 
   private html(webview: vscode.Webview, dist: vscode.Uri, media: vscode.Uri): string {
-    const nonce = Array.from({ length: 32 }, () => Math.floor(Math.random() * 36).toString(36)).join('');
+    // a fresh unguessable nonce per page: only the script carrying it runs (Content Security Policy)
+    const nonce = randomBytes(18).toString('base64url');
     const js = webview.asWebviewUri(vscode.Uri.joinPath(dist, 'webview.js'));
     const css = webview.asWebviewUri(vscode.Uri.joinPath(media, 'webview.css'));
     const csp = [
