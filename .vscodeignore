@@ -16,4 +16,8 @@ dist/preview*
 dist/*.png
 dist/ffprofile/**
 .preview/**
-.gaffy/
+.gaffy/**
+NOTES.md
+.giddy/**
+.claude/**
+

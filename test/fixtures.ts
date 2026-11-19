@@ -139,8 +139,10 @@ export const STAR: [string, string][] = [
   [`${H}:_compiled`, 'gett.render:Pass.compile'],
 ];
 
+/** Fixture view; a full view shows every level of its direction unless the call depths are given. */
 export function fixtureDoc(edges: [string, string][], view: Partial<ViewSpec> = {}): ViewDoc {
-  const doc = emptyDoc('fixture', view);
+  const dir = view.direction ?? 'out';
+  const doc = emptyDoc('fixture', { depthUp: dir !== 'out' ? 'all' : 0, depthDown: dir !== 'in' ? 'all' : 0, ...view });
   doc.graph = buildFixture(edges);
   doc.explored = Object.fromEntries(Object.keys(doc.graph.nodes).map((x) => [x, 'both' as const]));
   return doc;

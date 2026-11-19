@@ -53,6 +53,7 @@ export interface EdgePath {
   cells: number[];           // cell ids from caller to callee, through merged trunks
   start: 'E' | 'S' | 'N';    // initial heading: from the label end, or from under or over its first character
   arrive: 'E' | 'W';         // final heading
+  fallback?: boolean;        // no route found: a dashed L drawn over everything, no grid cells
 }
 
 export interface Grid {
@@ -427,7 +428,16 @@ export function buildGrid(P: Placement, vg: VGraph, opts: { arrow: boolean; cost
     };
     const h = (r: number, c: number) => Math.abs(r - gr) + Math.abs(c - gc);
 
-    if (sr < 0 || sr >= RH || sc >= RW || blocked.has(cellId(sr, sc))) { unrouted++; failed.push([u, v]); continue; }
+    // no route: the call still shows, as a dashed L from the caller to the callee's arrival side, with its arrowhead
+    const fallback = () => {
+      unrouted++;
+      failed.push([u, v]);
+      const tip = left ? pv.col - 1 : P.end.get(v)! + 1, xm = left ? pv.col - 1.5 : P.end.get(v)! + 1.5;
+      const pts: [number, number][] = sr === pv.row ? [[sc, sr + 0.5], [tip, pv.row + 0.5]]
+        : [[sc, sr + 0.5], [xm, sr + 0.5], [xm, pv.row + 0.5], [tip, pv.row + 0.5]];
+      paths.push({ from: u, to: v, net, pts, cells: [], start: 'E', arrive: left ? 'E' : 'W', fallback: true });
+    };
+    if (sr < 0 || sr >= RH || sc >= RW || blocked.has(cellId(sr, sc))) { fallback(); continue; }
     // start states: label end heading E; under and over the first character heading S and N
     // a caller that receives calls at its right end prefers to send from under or over its name;
     // its label end stays a costly fallback
@@ -527,10 +537,8 @@ export function buildGrid(P: Placement, vg: VGraph, opts: { arrow: boolean; cost
     }
 
     }
-    if (goal < 0) {
-      unrouted++;
-      failed.push([u, v]);
-    } else {
+    if (goal < 0) fallback();
+    else {
       // reconstruct
       const seq: { r: number; c: number; d: number }[] = [];
       for (let id = goal; id >= 0; id = came[id]) {
@@ -577,7 +585,10 @@ export function buildGrid(P: Placement, vg: VGraph, opts: { arrow: boolean; cost
           arrive = host.arrive;
         }
       } else if (!roots.has(net)) roots.set(net, cellId(gr, gc));
-      const full: [number, number][] = [pts[0], ...(startKind === 'E' && port ? [pts[1]] : []), ...bends(own), end];
+      // the cell the start point leaves from precedes the path, so a turn at its first cell (a stem merging
+      // where it starts, `├───┴─>`) is a bend too
+      const pre = startKind === 'E' ? (port ? undefined : cellId(sr, sc - 1)) : cellId(pu.row, pu.col);
+      const full: [number, number][] = [pts[0], ...(startKind === 'E' && port ? [pts[1]] : []), ...bends(pre === undefined ? own : [pre, ...own]), end];
       paths.push({ from: u, to: v, net, pts: full, cells: own, start: startKind === 'E' ? (port ? 'S' : 'E') : startKind, arrive });
       for (const s of seq) { width = Math.max(width, s.c + 1); height = Math.max(height, s.r + 1); }
     }

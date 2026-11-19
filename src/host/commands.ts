@@ -96,12 +96,14 @@ export function registerCommands(ctx: vscode.ExtensionContext, editor: GaffyEdit
     const uri = await uniqueUri(views, `${stem}_${(await gitShort(folder.fsPath)) ?? dateSlug()}`, '.gaffy');
     // starting choices from style.json `view`
     const start = (await editor.styles.get(folder)).view;
+    doc.view.depth = cfg().get<number>('depth') ?? 3;
     doc.view.arrange = start.arrange;
-    doc.view.order = start.order;
     if (start.traverse === 'both') doc.view.direction = 'both';
+    // one layer at a time: the seed's first side; full: the same sides to the configured depth
+    doc.view.depthUp = doc.view.direction !== 'out' ? doc.view.depth : 0;
+    doc.view.depthDown = doc.view.direction !== 'in' ? doc.view.depth : 0;
     if (start.arrange === 'grow') doc.view.open = {};
     else delete doc.view.open;
-    doc.view.depth = cfg().get<number>('depth') ?? 3;
     doc.name = path.basename(uri.path, '.gaffy');
     await vscode.workspace.fs.writeFile(uri, new TextEncoder().encode(serializeDoc(doc)));
     await vscode.commands.executeCommand('vscode.openWith', uri, GaffyEditor.viewType,
@@ -168,7 +170,6 @@ export function registerCommands(ctx: vscode.ExtensionContext, editor: GaffyEdit
   // ---- view commands ------------------------------------------------------------------------------
   reg('gaffy.refresh', () => active().refresh(undefined, 'revalidate'));
   reg('gaffy.clearCache', () => { for (const c of editor.allCaches()) c.clear(); void vscode.window.showInformationMessage('gaffy: call cache cleared'); });
-  reg('gaffy.toggleOrder', () => active().update((d) => { d.view.order = d.view.order === 'callees' ? 'callers' : 'callees'; }));
   reg('gaffy.toggleEdges', async () => {
     const s = active();
     const st = await editor.styles.get(s.folder);
@@ -188,7 +189,6 @@ export function registerCommands(ctx: vscode.ExtensionContext, editor: GaffyEdit
     const s = active();
     void s.panel.webview.postMessage({ type: 'cmd', cmd, key: arg?.key, unit: arg?.unit, to: arg?.to });
   };
-  reg('gaffy.node.fold', forward('fold'));
   reg('gaffy.node.openCallers', forward('openUp'));
   reg('gaffy.node.openCalls', forward('openDown'));
   reg('gaffy.node.closeCallers', forward('closeUp'));
@@ -278,12 +278,6 @@ export function registerCommands(ctx: vscode.ExtensionContext, editor: GaffyEdit
     if (await openNode(nodeOf(d, k), true)) await vscode.commands.executeCommand('references-view.showCallHierarchy');
   }));
 
-  const expand = (dir: 'in' | 'out') => node((s, _d, k) => s.refresh((doc) => {
-    const prev = doc.view.expanded[k];
-    doc.view.expanded[k] = prev && prev !== dir ? 'both' : dir;
-  }));
-  reg('gaffy.node.expandCallers', expand('in'));
-  reg('gaffy.node.expandCallees', expand('out'));
 
   const collapse = (kinds: string[], label: string) => node((s, d, k) => {
     const c = containerOfKind(d, k, kinds);
@@ -357,12 +351,7 @@ export function registerCommands(ctx: vscode.ExtensionContext, editor: GaffyEdit
         await openNode(n && line !== undefined ? { ...n, line, character: 0 } : n, false);
         break;
       }
-      case 'expand': if (key && s.doc().view.arrange === 'grow') { await s.expand(key, (m.dir as 'in' | 'out') ?? 'out'); break; }
-      if (key) await s.refresh((doc) => {
-        const dir = (m.dir as Direction | undefined) ?? doc.view.direction;
-        const prev = doc.view.expanded[key];
-        doc.view.expanded[key] = prev && prev !== dir ? 'both' : dir;
-      }); break;
+      case 'expand': if (key) await s.expand(key, (m.dir as 'in' | 'out') ?? 'out'); break;
       case 'refresh': await s.refresh(undefined, 'revalidate'); break;
       case 'export': await exportView(s); break;
       case 'editStyle': await vscode.commands.executeCommand('gaffy.editStyle'); break;

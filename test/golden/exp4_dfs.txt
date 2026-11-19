@@ -23,5 +23,4 @@ scripts/mote_paths.traverse()
 └─> scripts/mote_paths.layers()                                       │
     └─> render.mi_scene.load() <──────────────────────────────────────┘
         └─> render.mi_sensor.register_plugins()
-            ├─> render.mi_emitters.register_twosided_area()
-            └─> render.mi_emitters.register_sphere_spot()
+            └─> render.mi_emitters.register_twosided_area()

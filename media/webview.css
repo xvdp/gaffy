@@ -138,8 +138,14 @@ text { dominant-baseline: central; white-space: pre; }
 .labels .twisty { fill: var(--g-twisty); cursor: pointer; font-weight: 600; }
 .markers text { fill: var(--g-twisty); cursor: pointer; font-weight: 600; }
 .markers text:hover { fill: var(--g-highlight); }
-.labels .twisty.open { display: none; }
-.labels g:hover .twisty.open { display: inline; }
+/* full views: markers show what lies beyond the call depth, they do not open */
+.labels .twisty.off, .markers text.off { cursor: default; opacity: 0.6; }
+/* one layer at a time: arrowhead and the blank before the name close a level */
+.arrowhits rect { fill: transparent; cursor: pointer; }
+.arrowhits rect:hover { fill: var(--g-selection); fill-opacity: 0.25; }
+/* calls without a route */
+.edges path.net.fallback { stroke-dasharray: 3 3; }
+#toolbar .depth { padding: 0 6px; font-variant-numeric: tabular-nums; color: var(--vscode-descriptionForeground); }
 .labels g.collapsed text { font-weight: 600; }
 .labels g.external text { fill: var(--g-external); font-style: italic; }
 

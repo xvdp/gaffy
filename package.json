@@ -2,7 +2,7 @@
   "name": "gaffy",
   "displayName": "gaffy",
   "description": "Persistent, manipulable call graphs on a character grid, rendered with D3",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "publisher": "xvdp",
   "license": "UNLICENSED",
   "private": true,
@@ -143,11 +143,6 @@
         "category": "gaffy"
       },
       {
-        "command": "gaffy.toggleOrder",
-        "title": "Toggle Order (callers on top / callees on top)",
-        "category": "gaffy"
-      },
-      {
         "command": "gaffy.toggleBoxes",
         "title": "Toggle Group Namespaces",
         "category": "gaffy"
@@ -187,18 +182,6 @@
       {
         "command": "gaffy.node.callHierarchy",
         "title": "VS Code Call Hierarchy"
-      },
-      {
-        "command": "gaffy.node.fold",
-        "title": "Fold / Unfold"
-      },
-      {
-        "command": "gaffy.node.expandCallers",
-        "title": "Expand Callers"
-      },
-      {
-        "command": "gaffy.node.expandCallees",
-        "title": "Expand Callees"
       },
       {
         "command": "gaffy.node.makeSeed",
@@ -437,21 +420,6 @@
           "group": "1_nav@4"
         },
         {
-          "command": "gaffy.node.fold",
-          "when": "webviewId == 'gaffy.view' && webviewSection =~ /^(node)$/",
-          "group": "2_graph@0"
-        },
-        {
-          "command": "gaffy.node.expandCallers",
-          "when": "webviewId == 'gaffy.view' && webviewSection =~ /^(node)$/",
-          "group": "2_graph@1"
-        },
-        {
-          "command": "gaffy.node.expandCallees",
-          "when": "webviewId == 'gaffy.view' && webviewSection =~ /^(node)$/",
-          "group": "2_graph@2"
-        },
-        {
           "command": "gaffy.node.makeSeed",
           "when": "webviewId == 'gaffy.view' && webviewSection =~ /^(node)$/",
           "group": "2_graph@3"
@@ -572,11 +540,6 @@
           "group": "9_view@1"
         },
         {
-          "command": "gaffy.toggleOrder",
-          "when": "webviewId == 'gaffy.view'",
-          "group": "9_view@2"
-        },
-        {
           "command": "gaffy.toggleBoxes",
           "when": "webviewId == 'gaffy.view'",
           "group": "9_view@3"
@@ -663,22 +626,22 @@
         },
         {
           "command": "gaffy.node.openCallers",
-          "when": "webviewId == 'gaffy.view' && webviewSection =~ /^(node|collapsed)$/",
+          "when": "webviewId == 'gaffy.view' && webviewSection =~ /^(node|collapsed)$/ && oneLayer",
           "group": "2_graph@-4"
         },
         {
           "command": "gaffy.node.openCalls",
-          "when": "webviewId == 'gaffy.view' && webviewSection =~ /^(node|collapsed)$/",
+          "when": "webviewId == 'gaffy.view' && webviewSection =~ /^(node|collapsed)$/ && oneLayer",
           "group": "2_graph@-3"
         },
         {
           "command": "gaffy.node.closeCallers",
-          "when": "webviewId == 'gaffy.view' && webviewSection =~ /^(node|collapsed)$/",
+          "when": "webviewId == 'gaffy.view' && webviewSection =~ /^(node|collapsed)$/ && oneLayer",
           "group": "2_graph@-2"
         },
         {
           "command": "gaffy.node.closeCalls",
-          "when": "webviewId == 'gaffy.view' && webviewSection =~ /^(node|collapsed)$/",
+          "when": "webviewId == 'gaffy.view' && webviewSection =~ /^(node|collapsed)$/ && oneLayer",
           "group": "2_graph@-1"
         },
         {
@@ -702,14 +665,6 @@
         },
         {
           "command": "gaffy.node.callHierarchy",
-          "when": "false"
-        },
-        {
-          "command": "gaffy.node.expandCallers",
-          "when": "false"
-        },
-        {
-          "command": "gaffy.node.expandCallees",
           "when": "false"
         },
         {
@@ -806,10 +761,6 @@
         },
         {
           "command": "gaffy.graphFile",
-          "when": "false"
-        },
-        {
-          "command": "gaffy.node.fold",
           "when": "false"
         },
         {

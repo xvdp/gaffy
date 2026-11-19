@@ -3,15 +3,13 @@
  * sides (reveal.ts), namespace boxes, labels, placement, routing. Runs in the webview for rendering and
  * in the extension host for export.
  *
- * Arrangement `grow`: one layer per open side (reveal.ts), laid out by place.ts on every change; the
- * webview keeps the vertex last opened or closed at its screen position. A side with neighbors not on
- * screen (closed, hidden, cut) carries a marker: `>> ` before the label for the side placed above, a
- * marker row `└─>>` as the first tree child for the side placed below. Marker rows are virtual vertices
- * (`stubOf`) of the drawn graph only. Arrangement `auto`: every vertex to the depth limit, with folds.
- *
- * Order `callers`: layout of the call graph; caller above callee, `└─>` and `<─┘` arrows.
- * Order `callees`: layout of the reversed graph; callee above its callers, `└──` connectors without
- * arrowheads, as in the VS Code call hierarchy view. Call direction itself never changes.
+ * Visibility: arrangement `grow` (one layer at a time), the open sides of each vertex (reveal); arrangement
+ * `auto` (full), every vertex within `depthUp` caller and `depthDown` callee levels (revealDepth). Both
+ * are laid out by place.ts on every change, caller above callee (`└─>`, `<─┘`); the webview keeps the
+ * vertex last acted on at its screen position. A side with neighbors not on screen (closed, beyond the
+ * depth, hidden, cut) carries a marker: `>> ` before the label for callers, a marker row `└─>>` as the
+ * first tree child for calls. Marker rows are virtual vertices (`stubOf`) of the drawn graph only.
+ * Cut calls apply to `grow` only.
  */
 import { BoxNode, boxOf, boxTree, boxVertices } from './boxes';
 import { buildGrid, Grid } from './grid';
@@ -19,8 +17,8 @@ import { nodeLabel } from './labels';
 import { Layout } from './layout';
 import { GNode, isContainer, NodeKey, Subgraph } from './model';
 import { Marker, place, Placement } from './place';
-import { foldOut, induced, quotient, reversed, VEdge, VGraph } from './quotient';
-import { cutKey, opens, reveal, Reveal } from './reveal';
+import { induced, quotient, VEdge, VGraph } from './quotient';
+import { cutKey, opens, reveal, Reveal, revealDepth } from './reveal';
 import { Style } from './style';
 import { ViewDoc } from './viewdoc';
 
@@ -33,10 +31,8 @@ export interface Scene {
   grid: Grid;
   seeds: Set<NodeKey>;
   hiddenOf: Map<NodeKey, NodeKey[]>;   // hidden callers and callees per visible vertex
-  folds: Map<NodeKey, NodeKey[]>;      // auto arrangement: folded vertex → vertices folded away
   rev: Reveal;                         // visible vertices, who revealed them, sides they may open
-  hasMore: (k: NodeKey, side: 'up' | 'down') => boolean;   // grow: neighbors on that side not on screen
-  below: 'up' | 'down';                // side placed below a vertex (tree children)
+  hasMore: (k: NodeKey, side: 'up' | 'down') => boolean;   // neighbors on that side not on screen
   decor: Map<NodeKey, Decor>;          // label parts around the name: disclosure markers, tag, hidden badge
 }
 
@@ -89,29 +85,18 @@ export function buildScene(doc: ViewDoc, style: Style): Scene {
   const vq = quotient(graph, collapsed, hidden, view.seeds);
   const grows = view.arrange === 'grow';
   const cut = new Set(grows ? (view.cut ?? []).map(([a, b]) => cutKey(a, b)) : []);
-  // visibility: open sides (grow), or every vertex minus folds (auto)
-  const rev = reveal(vq, view.seeds, grows ? view.open ?? {} : view.open, view.direction, cut);
-  let folds = new Map<NodeKey, NodeKey[]>();
-  if (!grows) {
-    const sides = Object.entries(view.fold);
-    const down = foldOut(vq, sides.filter(([, s]) => s === 'down').map(([k]) => k), view.seeds);
-    const up = foldOut(reversed(vq), sides.filter(([, s]) => s === 'up').map(([k]) => k), view.seeds);
-    folds = new Map<NodeKey, NodeKey[]>([...down, ...up]);
-  }
-  const gone = new Set([...folds.values()].flat());
-  const keep = new Set([...rev.visible].filter((k) => !gone.has(k)));
+  const rev = revealView(vq, doc);
+  const keep = rev.visible;
   let vg = keep.size < vq.nodes.size ? induced(vq, keep) : vq;
   if (cut.size) vg = dropCalls(vg, cut);
-  const below: 'up' | 'down' = view.order === 'callees' ? 'up' : 'down';
-  const above: 'up' | 'down' = below === 'down' ? 'up' : 'down';
-  // a side the vertex may open with a neighbor off screen (closed side, hidden, cut call) shows a marker
+  // a side the vertex may open with a neighbor off screen (closed side, beyond the depth, hidden, cut call) shows a marker
   const full = hidden.size ? quotient(graph, collapsed, new Set(), view.seeds) : vq;
   const hasMore = (k: NodeKey, side: 'up' | 'down') => opens(rev.allowed.get(k), side) &&
     (side === 'down' ? full.out.get(k) ?? [] : full.inc.get(k) ?? [])
       .some((e) => !keep.has(side === 'down' ? e.to : e.from) || cut.has(cutKey(e.from, e.to)));
-  const owners = grows ? [...vg.nodes.keys()].filter((k) => hasMore(k, below)) : [];
+  const owners = [...vg.nodes.keys()].filter((k) => hasMore(k, 'down'));
   const nodesX: Record<NodeKey, GNode> = { ...graph.nodes };
-  const drawn = withStubs(view.order === 'callees' ? reversed(vg) : vg, owners, nodesX);
+  const drawn = withStubs(vg, owners, nodesX);
 
   // hidden neighbors: compare with the quotient that hides nothing
   const hiddenOf = new Map<NodeKey, NodeKey[]>();
@@ -119,7 +104,6 @@ export function buildScene(doc: ViewDoc, style: Style): Scene {
     const full = quotient(graph, collapsed, new Set(), view.seeds);
     for (const k of vg.nodes.keys()) {
       const nb = new Set<NodeKey>();
-      // hidden, not folded: compare with the quotient before folding
       for (const e of full.out.get(k) ?? []) if (!vq.nodes.has(e.to)) nb.add(e.to);
       for (const e of full.inc.get(k) ?? []) if (!vq.nodes.has(e.from)) nb.add(e.from);
       if (nb.size) hiddenOf.set(k, [...nb]);
@@ -131,28 +115,11 @@ export function buildScene(doc: ViewDoc, style: Style): Scene {
   });
   const boxes = boxOf(tree);
   const labelOpts = { strip: style.labels.strip, parens: style.labels.parens };
-  // disclosure markers: `◂` before a label, its callers are closed; `▸` after it, its calls are closed.
-  // Closed: folded on that side (with the folded count), or not yet asked from the provider with
-  // nothing shown on that side (a frontier vertex).
-  const explored = doc.explored ?? {};
-  const asked = (k: NodeKey, d: 'in' | 'out') => explored[k] === d || explored[k] === 'both';
+  // `>> ` before a label: callers off screen; markers stand for hidden neighbors too, no counts
   const decor = new Map<NodeKey, Decor>();
   for (const k of vg.nodes.keys()) {
-    const v = vg.nodes.get(k)!;
-    const f = folds.get(k);
-    const side = view.fold[k];
-    let pre = '', post = '';
-    if (grows) pre = hasMore(k, above) ? '>> ' : '';
-    else {
-      if (side === 'up') pre = `◂${f!.length} `;
-      else if (!v.collapsed && !(vg.inc.get(k) ?? []).length && !asked(k, 'in') && (view.direction !== 'out' || view.seeds.includes(k))) pre = '◂ ';
-      if (side === 'down') post = ` ▸${f!.length}`;
-      else if (!v.collapsed && !(vg.out.get(k) ?? []).length && !asked(k, 'out') && (view.direction !== 'in' || view.seeds.includes(k))) post = ' ▸';
-    }
     const tag = view.tags[k];
-    const h = hiddenOf.get(k);
-    // stable arrangement: markers stand for hidden neighbors, no count
-    decor.set(k, { pre, post: (tag ? ` [${tag}]` : '') + post, badge: h && !grows ? ` +${h.length}` : '' });
+    decor.set(k, { pre: hasMore(k, 'up') ? '>> ' : '', post: tag ? ` [${tag}]` : '', badge: '' });
   }
   const label = (k: NodeKey) => {
     if (isStub(k)) return '';
@@ -187,16 +154,16 @@ export function buildScene(doc: ViewDoc, style: Style): Scene {
   const markers: Marker[] = [];
   for (const k of owners) {
     const p = placement.pos.get(stubOf(k));
-    if (p) markers.push({ row: p.row, col: p.col - 1, text: '>', key: k, side: below });
+    if (p) markers.push({ row: p.row, col: p.col - 1, text: '>', key: k, side: 'down' });
   }
   if (markers.length) placement.markers = markers;
   const grid = buildGrid(placement, drawn, {
-    arrow: style.edges.arrow && view.order !== 'callees',
+    arrow: style.edges.arrow,
     first: view.straight,
     joint: (view.parentRule ?? style.grid.parentRule) === 'joint',
     cost: { bend: style.route.bend, cross: style.route.cross, border: style.route.border, adjacent: style.route.adjacent },
   });
-  return { graph, vg, drawn, tree, placement, grid, seeds: new Set(view.seeds), hiddenOf, folds, decor, rev, hasMore, below };
+  return { graph, vg, drawn, tree, placement, grid, seeds: new Set(view.seeds), hiddenOf, decor, rev, hasMore };
 }
 
 function fallbackNode(key: NodeKey): GNode {
@@ -235,12 +202,16 @@ export function unitAnchor(sc: Scene, unit: string): [number, number] | undefine
   return p ? [p.col, p.row] : undefined;
 }
 
-/** Reveal of the stable arrangement (quotient, then open sides, without cut calls). */
+/** Visible vertices of a view over its quotient: open sides without cut calls (grow), or the call depths (auto). */
+function revealView(vq: VGraph, doc: ViewDoc): Reveal {
+  const v = doc.view;
+  if (v.arrange !== 'grow') return revealDepth(vq, v.seeds, v.depthUp, v.depthDown, v.depthRule);
+  return reveal(vq, v.seeds, v.open ?? {}, v.direction, new Set((v.cut ?? []).map(([a, b]) => cutKey(a, b))));
+}
+
 function revealOf(doc: ViewDoc): Reveal {
   const v = doc.view;
-  const vq = quotient(doc.graph, new Set(v.collapsed), new Set(v.hidden), v.seeds);
-  const cut = new Set(v.arrange === 'grow' ? (v.cut ?? []).map(([a, b]) => cutKey(a, b)) : []);
-  return reveal(vq, v.seeds, v.arrange === 'grow' ? v.open ?? {} : v.open, v.direction, cut);
+  return revealView(quotient(doc.graph, new Set(v.collapsed), new Set(v.hidden), v.seeds), doc);
 }
 
 /** Definitions on screen under the stable arrangement; containers excluded. */

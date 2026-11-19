@@ -7,7 +7,7 @@ import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { isContainer, NodeKey } from '../core/model';
 import { globToRegExp, parseDoc, serializeDoc, ViewDoc } from '../core/viewdoc';
-import { applyBuild, buildGraph, BuildMode, BuildProgress, extendGraph, Extension, Pair } from './build';
+import { BuildMode, extendGraph, Extension, Pair } from './build';
 import { frontierOf, visibleOf } from '../core/scene';
 import { CallCache } from './cache';
 import { LspProvider } from './lsp';
@@ -157,11 +157,13 @@ export class Session {
 
   /**
    * Visible definitions: the directions each may open (seeds both, others the direction that revealed
-   * them) asked once, so the markers know what lies beyond. An answer can reveal more (an open side), so
-   * this repeats until nothing visible is unasked (at most 8 rounds, one per revealed layer).
+   * them) asked once, so the markers know what lies beyond. An answer can reveal more (an open side, or a
+   * level within a full view's depth), so this repeats until nothing visible is unasked: at most 8 rounds
+   * (one per revealed layer), 64 in full views (`all` levels; `gaffy.maxNodes` bounds the data).
    */
   private async neighbors(show: (t: string) => void, token: vscode.CancellationToken): Promise<void> {
-    for (let i = 0; i < 8 && !token.isCancellationRequested; i++) {
+    const rounds = this.doc().view.arrange === 'grow' ? 8 : 64;
+    for (let i = 0; i < rounds && !token.isCancellationRequested; i++) {
       const qs = this.unaskedPairs(this.doc(), frontierOf(this.doc()));
       if (!qs.length || !(await this.ask(qs, 'cached', 'checking neighbors', show, token))?.asked) break;
     }
@@ -170,7 +172,6 @@ export class Session {
   ensure(): Promise<void> {
     return this.enqueue(async () => {
       const doc = this.doc();
-      if (doc.view.arrange !== 'grow') return;
       if (!this.unaskedPairs(doc, frontierOf(doc)).length) return;
       await this.progress((show, token) => this.neighbors(show, token));
       this.settle();
@@ -222,7 +223,6 @@ export class Session {
   revalidate(force = false): Promise<void> {
     return this.enqueue(async () => {
       let doc = this.doc();
-      if (doc.view.arrange !== 'grow') return;
       if (!Object.keys(doc.explored ?? {}).length) { void this.grow(); return; }
       const o = this.opts();
       await o.cache.ready();
@@ -259,34 +259,10 @@ export class Session {
     });
   }
 
-  /**
-   * Stable views: `revalidate` (`how === 'revalidate'` forces the visible pairs from the language server).
-   * Automatic views: build from the seeds; pairs without an answer keep their stored calls.
-   */
+  /** `revalidate`, after an optional change; `how === 'revalidate'` asks the on-screen pairs from the language server. */
   async refresh(mutate?: (d: ViewDoc) => void, how: 'cached' | 'revalidate' = 'cached'): Promise<void> {
     if (mutate) { const d = this.doc(); mutate(d); await this.write(d); }
-    const doc = this.doc();
-    if (doc.view.arrange === 'grow') return this.revalidate(how === 'revalidate');
-    return this.enqueue(() => this.progress(async (show, token) => {
-      const o = this.opts();
-      await o.cache.ready();
-      const fmt = (phase: string) => (q: BuildProgress) =>
-        show(`${phase} · depth ${q.level}/${q.depth} · ${q.definitions} definitions · ${q.requests} language-server requests · ${q.cached} cached`);
-      const phases: BuildMode[] = how === 'revalidate' ? ['cacheOnly', 'fresh'] : ['cached'];
-      let current = this.doc();
-      for (const mode of phases) {
-        const label = mode === 'cacheOnly' ? 'from cache' : mode === 'fresh' ? 'asking the language server' : 'building';
-        show(label);
-        const r = await buildGraph(this.host.provider, current, { ...o, token, mode, progress: fmt(label) });
-        if (token.isCancellationRequested) { show('cancelled'); break; }
-        if (mode !== 'cacheOnly' && r.missing.length) {
-          void vscode.window.showWarningMessage(`gaffy: seeds not resolved: ${r.missing.map((k) => k.split('#').pop()).join(', ')}`);
-        }
-        this.note(mode !== 'cacheOnly' && r.unresolved ? `language server: ${r.unresolved} calls lists unresolved, stored calls kept` : undefined);
-        current = applyBuild(current, r);
-        await this.write(current);
-      }
-    }));
+    return this.revalidate(how === 'revalidate');
   }
 
   /** Applies a local change without querying the provider. */
@@ -376,14 +352,11 @@ export class GaffyEditor implements vscode.CustomTextEditorProvider {
           if (m.type === 'ready') {
             await s.post();
             const doc = s.doc();
-            // stable views: stored data at once, then only what changed since (no language server when nothing did)
-            if (doc.view.arrange === 'grow') { if (doc.view.seeds.length) void s.revalidate(); }
-            else if (doc.view.seeds.length && !Object.keys(doc.explored ?? {}).length) await s.refresh();
+            // stored data at once, then only what changed since (no language server when nothing did)
+            if (doc.view.seeds.length) void s.revalidate();
           } else if (m.type === 'edit') {
-            const doc = parseDoc(m.text, s.name);
-            await s.write(doc);
-            if (m.rebuild) await s.refresh();
-            else if (doc.view.arrange === 'grow') void s.ensure();
+            await s.write(parseDoc(m.text, s.name));
+            void s.ensure();
           } else {
             await this.onMessage(s, m);
           }

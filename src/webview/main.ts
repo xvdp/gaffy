@@ -14,7 +14,7 @@ import { cellId, cellRC, charRows, EdgePath, Grid, LabelSpan } from '../core/gri
 import { ancestors, isContainer, NodeKey } from '../core/model';
 import { buildScene, isStub, Scene, siblingsOf, unitAnchor, unitMembers } from '../core/scene';
 import { Curve, E, glyphSet, N, S, Style, W } from '../core/style';
-import { Direction, excludedBy, globToRegExp, OpenSide, Order, parseDoc, ROOTS, serializeDoc, ViewDoc } from '../core/viewdoc';
+import { Depth, excludedBy, globToRegExp, OpenSide, parseDoc, ROOTS, serializeDoc, ViewDoc } from '../core/viewdoc';
 import { opens, seedSide, within } from '../core/reveal';
 
 interface VsApi { postMessage(m: unknown): void; getState(): any; setState(s: unknown): void }
@@ -89,14 +89,14 @@ window.addEventListener('message', (ev) => {
   }
 });
 
-function commit(mut: (d: ViewDoc) => void, rebuild = false) {
+function commit(mut: (d: ViewDoc) => void) {
   if (!doc) return;
   const d = structuredClone(doc);
   mut(d);
   doc = d;
   text = serializeDoc(d);
   render();
-  api.postMessage({ type: 'edit', text, rebuild });
+  api.postMessage({ type: 'edit', text });
 }
 
 // ---- geometry -----------------------------------------------------------------------------------
@@ -252,15 +252,15 @@ function render() {
   const sc = scene;
   const g = sc.grid;
   const grows = doc.view.arrange === 'grow';
-  const above: 'up' | 'down' = sc.below === 'down' ? 'up' : 'down';
-  // the vertex last opened, closed or removed keeps its screen position: the view shifts by its move
+  // the vertex last opened, closed or removed keeps its name at its screen position: the view shifts by
+  // the name's move (a `>> ` prefix that appears or goes moves the label start, not the name)
   if (anchor && placed) {
-    const p = sc.placement.pos.get(anchor.key);
-    if (p) {
-      if (anchor.at && (p.col !== anchor.at[0] || p.row !== anchor.at[1])) {
-        svg.call(zoomer.translateBy, -(p.col - anchor.at[0]) * cw, -(p.row - anchor.at[1]) * ch);
+    const at = nameCell(sc, anchor.key);
+    if (at) {
+      if (anchor.at && (at[0] !== anchor.at[0] || at[1] !== anchor.at[1])) {
+        svg.call(zoomer.translateBy, -(at[0] - anchor.at[0]) * cw, -(at[1] - anchor.at[1]) * ch);
       }
-      anchor.at = [p.col, p.row];
+      anchor.at = at;
     }
   }
   const mode = doc.view.edges ?? style.edges.mode;
@@ -306,12 +306,19 @@ function render() {
     for (const m of g.marks) arrowhead(ge, m.col + 0.5, m.row + 0.5, m.role === 'arrowE' ? 1 : m.role === 'arrowW' ? -1 : 0);
   } else {
     for (const p of g.paths) {
+      if (p.fallback) continue;
       ge.append('path').attr('class', 'net').attr('data-from', p.from).attr('data-to', p.to).attr('d', curvePath(p, curve));
-      if (style.edges.arrow && doc.view.order !== 'callees') {
+      if (style.edges.arrow) {
         const [x, y] = p.pts[p.pts.length - 1];
         arrowhead(ge, x - (p.arrive === 'E' ? 0.5 : -0.5), y, p.arrive === 'E' ? 1 : -1);
       }
     }
+  }
+  // calls without a route: dashed, over everything, still with their arrowhead
+  for (const p of g.paths.filter((q) => q.fallback)) {
+    ge.append('path').attr('class', 'net fallback').attr('d', `M${p.pts.map(([x, y]) => `${X(x)},${Y(y)}`).join('L')}`);
+    const [x, y] = p.pts[p.pts.length - 1];
+    arrowhead(ge, x - (p.arrive === 'E' ? 0.5 : -0.5), y, p.arrive === 'E' ? 1 : -1);
   }
   root.append('g').attr('class', 'overlay');
 
@@ -327,9 +334,8 @@ function render() {
     .on('mouseleave', () => highlight(focusKey))
     .on('click', (ev: MouseEvent, p) => {
       ev.stopPropagation();
-      // a marker row's elbow opens that side, like its `>`
-      if (isStub(p.to)) { markerClick(p.from, sc.below); return; }
-      if (grows && !ev.shiftKey && !ev.ctrlKey && !ev.metaKey && closeAt(ev, p)) return;
+      // a marker row's elbow opens that side, like its `>`; a line only selects (arrowheads close, below)
+      if (isStub(p.to)) { if (grows) markerClick(p.from, 'down'); return; }
       const hit = callsAt(ev, p).map(callKey);
       if (ev.shiftKey) {
         const all = hit.every((x) => selCalls.has(x));
@@ -346,7 +352,24 @@ function render() {
       const sel = hit.some((c) => selCalls.has(callKey(c))) ? [...selCalls].map(unkey) : hit;
       isolateCalls(sel);
     })
-    .append('title').text((p) => (isStub(p.to) ? markerTitle(sc.below) : callTitle(p)));
+    .append('title').text((p) => (isStub(p.to) ? markerTitle('down') : callTitle(p)));
+
+  // arrowheads (one layer at a time): the arrowhead cell and the blank before the name close the level the
+  // arrow points into; hovering shows which
+  if (grows) {
+    const heads = [...g.arrowTo].map(([id, to]) => {
+      const [r, c] = cellRC(id);
+      const p = sc.placement.pos.get(to);
+      const into = !!p && c < p.col;                    // `─> name` (from the left) or `name <─` (at its end)
+      return { r, c0: into ? c : c - 1, to, cell: id, act: closingOf(sc, to, id) };
+    }).filter((h) => h.act && !isStub(h.to));
+    root.append('g').attr('class', 'arrowhits').selectAll('rect').data(heads).join('rect')
+      .attr('x', (h) => h.c0 * cw).attr('y', (h) => h.r * ch).attr('width', 2 * cw).attr('height', ch).attr('rx', 2)
+      .on('mouseenter', (_ev, h) => highlightCalls(sc.grid.paths.filter((q) => q.to === h.to && q.cells.includes(h.cell))))
+      .on('mouseleave', () => highlight(focusKey))
+      .on('click', (ev: MouseEvent, h) => { ev.stopPropagation(); h.act!.run(); })
+      .append('title').text((h) => h.act!.title);
+  }
 
   // labels
   const gl = root.append('g').attr('class', 'labels');
@@ -363,30 +386,14 @@ function render() {
     const base = d.text.slice(dec.pre.length, d.text.length - dec.post.length - dec.badge.length);
     const t = select(this);
     if (dec.pre) {
-      t.append('tspan').attr('class', 'twisty').text(dec.pre)
-        .on('click', (ev: MouseEvent) => { ev.stopPropagation(); if (grows) markerClick(d.key, above); else twisty(d.key, 'up'); })
-        .append('title').text(grows ? markerTitle(above) : 'open what calls this');
+      t.append('tspan').attr('class', grows ? 'twisty' : 'twisty off').text(dec.pre)
+        .on('click', (ev: MouseEvent) => { ev.stopPropagation(); if (grows) markerClick(d.key, 'up'); })
+        .append('title').text(markerTitle('up'));
     }
     t.append('tspan').text(base);
-    if (dec.post) t.append('tspan').attr('class', dec.post.includes('▸') ? 'twisty' : null).text(dec.post)
-      .on('click', (ev: MouseEvent) => { if (dec.post.includes('▸')) { ev.stopPropagation(); twisty(d.key, 'down'); } });
+    if (dec.post) t.append('tspan').text(dec.post);
     if (dec.badge) t.append('tspan').attr('class', 'badge').text(dec.badge)
       .on('click', (ev: MouseEvent) => { ev.stopPropagation(); api.postMessage({ type: 'hiddenNeighbors', key: d.key, keys: sc.hiddenOf.get(d.key) }); });
-  });
-  // automatic arrangement: open sides show a closing twisty on hover, ▾ after the label closes its calls, ▴ before it its callers
-  if (!grows) nodes.each(function (d) {
-    const g0 = select(this);
-    const dec = sc.decor.get(d.key);
-    if ((sc.vg.out.get(d.key) ?? []).length && !dec?.post.includes('▸')) {
-      g0.append('text').attr('class', 'twisty open').attr('x', d.text.length * cw + cw * 0.4).attr('y', ch / 2).text('▾')
-        .on('click', (ev: MouseEvent) => { ev.stopPropagation(); twisty(d.key, 'down'); })
-        .append('title').text('close what this calls');
-    }
-    if ((sc.vg.inc.get(d.key) ?? []).length && !dec?.pre) {
-      g0.append('text').attr('class', 'twisty open').attr('x', -cw * 1.2).attr('y', ch / 2).text('▴')
-        .on('click', (ev: MouseEvent) => { ev.stopPropagation(); twisty(d.key, 'up'); })
-        .append('title').text('close what calls this');
-    }
   });
   nodes.append('title').text((d) => tooltip(d));
   nodes
@@ -401,11 +408,7 @@ function render() {
     .on('dblclick', (ev: MouseEvent, d) => {
       ev.stopPropagation();
       if (sc.vg.nodes.get(d.key)?.collapsed) commit((x) => { x.view.collapsed = x.view.collapsed.filter((c) => c !== d.key); });
-      else if (ev.shiftKey) api.postMessage({ type: 'expand', key: d.key, dir: 'both' });
-      else if (grows) {
-        if (effSide(d.key) !== 'none') { anchorAt(d.key); commit((x) => { x.view.open = { ...(x.view.open ?? {}), [d.key]: 'none' }; }); }
-        else for (const s0 of ['down', 'up'] as const) if (sc.hasMore(d.key, s0)) setSide(d.key, s0, true);
-      } else toggleFold(d.key);
+      else if (grows) toggleSides(d.key);
     })
     .on('mouseenter', (_ev, d) => highlight(d.key))
     .on('mouseleave', () => highlight(focusKey));
@@ -416,8 +419,9 @@ function render() {
     .attr('class', 'marker')
     .attr('x', (m) => m.col * cw).attr('y', (m) => (m.row + 0.5) * ch)
     .text((m) => m.text)
-    .on('click', (ev: MouseEvent, m) => { ev.stopPropagation(); markerClick(m.key, m.side); })
-    .append('title').text((m) => markerTitle(m.side));
+    .attr('class', grows ? 'marker' : 'marker off')
+    .on('click', (ev: MouseEvent, m) => { ev.stopPropagation(); if (grows) markerClick(m.key, m.side); })
+    .append('title').text((m) => (grows ? markerTitle(m.side) : 'more beyond the call depth: raise it in the toolbar'));
 
   // frame headers
   const gh = root.append('g').attr('class', 'heads');
@@ -463,9 +467,9 @@ function callD(p: EdgePath): string {
   return vector && curve !== 'orthogonal' ? curvePath(p, curve) : `M${p.pts.map(([x, y]) => `${X(x)},${Y(y)}`).join('L')}`;
 }
 
-/** Call direction of a drawn connection: under order `callees` the drawn graph is reversed. */
+/** Caller and callee of a drawn connection (drawn in call direction). */
 function asCall(p: { from: NodeKey; to: NodeKey }): { caller: NodeKey; callee: NodeKey } {
-  return doc!.view.order === 'callees' ? { caller: p.to, callee: p.from } : { caller: p.from, callee: p.to };
+  return { caller: p.from, callee: p.to };
 }
 
 function callTitle(p: EdgePath): string {
@@ -484,10 +488,21 @@ function effSide(k: NodeKey): OpenSide {
   return within(sideOf(k), scene?.rev.allowed.get(k) ?? 'both');
 }
 
-/** Keep `k` at its screen position through the next layouts. */
+/** Cell of the first character of a vertex's name: label start plus its `>> ` prefix. */
+function nameCell(sc: Scene, k: NodeKey): [number, number] | undefined {
+  const p = sc.placement.pos.get(k);
+  return p ? [p.col + (sc.decor.get(k)?.pre.length ?? 0), p.row] : undefined;
+}
+
+/** Keep `k`'s name at its screen position through the next layouts. */
 function anchorAt(k: NodeKey) {
-  const p = scene?.placement.pos.get(k);
-  anchor = { key: k, at: p ? [p.col, p.row] : undefined };
+  anchor = { key: k, at: scene ? nameCell(scene, k) : undefined };
+}
+
+/** Double click, one layer at a time: close both sides, or open every side that has more. */
+function toggleSides(k: NodeKey) {
+  if (effSide(k) !== 'none') { anchorAt(k); commit((x) => { x.view.open = { ...(x.view.open ?? {}), [k]: 'none' }; }); }
+  else for (const s0 of ['down', 'up'] as const) if (scene!.hasMore(k, s0)) setSide(k, s0, true);
 }
 
 /**
@@ -495,8 +510,7 @@ function anchorAt(k: NodeKey) {
  * also brings back the hidden neighbors and cut calls of that side.
  */
 function setSide(k: NodeKey, side: 'up' | 'down', on: boolean, restore = false) {
-  if (!doc || !scene) return;
-  if (doc.view.arrange !== 'grow') { foldSide(k, side, on); return; }
+  if (!doc || !scene || doc.view.arrange !== 'grow') return;   // full views: the call depths decide
   anchorAt(k);
   const cur = effSide(k);
   const up = side === 'up' ? on : opens(cur, 'up');
@@ -515,13 +529,6 @@ function setSide(k: NodeKey, side: 'up' | 'down', on: boolean, restore = false) 
   if (on && ex !== dir && ex !== 'both') api.postMessage({ type: 'expand', key: k, dir });
 }
 
-/** Automatic arrangement: closing folds that side; opening unfolds it, or asks the language server for it. */
-function foldSide(k: NodeKey, side: 'up' | 'down', on: boolean) {
-  if (!on) { if (doc!.view.fold[k] !== side) commit((x) => { x.view.fold[k] = side; }); return; }
-  if (doc!.view.fold[k] === side) { commit((x) => { delete x.view.fold[k]; }); return; }
-  api.postMessage({ type: 'expand', key: k, dir: side === 'down' ? 'out' : 'in' });
-}
-
 /** A marker (`>> ` before a label, `└─>>` row below it): open that side with everything removed from it. */
 function markerClick(k: NodeKey, side: 'up' | 'down') {
   setSide(k, side, true, true);
@@ -531,23 +538,24 @@ function markerTitle(side: 'up' | 'down'): string {
   return `${side === 'up' ? 'callers' : 'calls'} not on screen: click to show them (also removed ones)`;
 }
 
-/** Stable arrangement: an arrowhead closes the callers of the vertex it points at; a line closes its caller's calls. */
-function closeAt(ev: MouseEvent, p: EdgePath): boolean {
-  const t = (root.node() as SVGGElement).getScreenCTM();
-  if (!t) return false;
-  const pt = new DOMPoint(ev.clientX, ev.clientY).matrixTransform(t.inverse());
-  const r = Math.floor(pt.y / ch), c = Math.floor(pt.x / cw);
-  const head = scene!.grid.arrowTo.get(cellId(r, c)) ?? scene!.grid.arrowTo.get(cellId(r, c + 1)) ?? scene!.grid.arrowTo.get(cellId(r, c - 1));
-  const call = asCall(p);
-  if (head !== undefined) {
-    // the arrow points at a callee under order `callers`: its callers side is `up`
-    if (opens(effSide(head), 'up')) { setSide(head, 'up', false); return true; }
-    if (head === call.callee && opens(effSide(call.caller), 'down')) { setSide(call.caller, 'down', false); return true; }
-    return false;
+/**
+ * The level an arrowhead into `to` closes: callers shown by `to`'s callers side (incoming level, `to`
+ * keeps its place), or the calls side of the caller that showed `to` (outgoing level, that caller keeps
+ * its place). Calls between two vertices shown otherwise close `to`'s callers when that side is open.
+ */
+function closingOf(sc: Scene, to: NodeKey, cell: number): { run: () => void; title: string } | undefined {
+  const callers = [...new Set(sc.grid.paths.filter((q) => q.to === to && q.cells.includes(cell)).map((q) => q.from))];
+  const op = (k: NodeKey) => sc.rev.opener.get(k);
+  const name = (k: NodeKey) => sc.graph.nodes[k]?.name ?? k;
+  const up = () => ({ run: () => setSide(to, 'up', false), title: `close the callers of ${name(to)}()` });
+  if (opens(effSide(to), 'up') && callers.some((c) => op(c)?.by === to && op(c)?.side === 'up')) return up();
+  const by = op(to);
+  if (by?.side === 'down' && callers.includes(by.by) && opens(effSide(by.by), 'down')) {
+    return { run: () => setSide(by.by, 'down', false), title: `close the calls of ${name(by.by)}()` };
   }
-  if (opens(effSide(call.caller), 'down')) { setSide(call.caller, 'down', false); return true; }
-  if (opens(effSide(call.callee), 'up')) { setSide(call.callee, 'up', false); return true; }
-  return false;
+  if (opens(effSide(to), 'up')) return up();
+  const c = callers.find((x) => opens(effSide(x), 'down'));
+  return c ? { run: () => setSide(c, 'down', false), title: `close the calls of ${name(c)}()` } : undefined;
 }
 
 const unkey = (k: string) => { const [from, to] = k.split('\u0000'); return { from, to }; };
@@ -576,15 +584,6 @@ function isolateCalls(calls: { from: NodeKey; to: NodeKey }[]) {
   for (const c of calls) { keep.add(c.from); for (const k of reachDrawn(c.to, 'down')) keep.add(k); }
   selCalls.clear();
   isolate(keep);
-}
-
-/** Open or close one side of a vertex: unfold, fold, or ask the language server for that side. */
-function twisty(key: NodeKey, side: 'up' | 'down') {
-  if (!scene || !doc) return;
-  if (doc.view.fold[key] === side) { commit((x) => { delete x.view.fold[key]; }); return; }
-  const shown = side === 'down' ? scene.vg.out.get(key) : scene.vg.inc.get(key);
-  if (shown?.length) { commit((x) => { x.view.fold[key] = side; }); return; }
-  api.postMessage({ type: 'expand', key, dir: side === 'down' ? 'out' : 'in' });
 }
 
 /** Vertices reachable along the drawn graph: down = what lies below, up = what lies above. */
@@ -640,7 +639,6 @@ function labelClass(d: LabelSpan): string {
   if (v?.collapsed) cls.push('collapsed');
   if (v?.node?.external) cls.push('external');
   if (doc!.view.lock[d.key]) cls.push('locked');
-  if (doc!.view.fold[d.key]) cls.push('folded');
   if (selected.has(d.key)) cls.push('sel');
   if (d.key === focusKey) cls.push('focus');
   return cls.join(' ');
@@ -655,12 +653,12 @@ function tooltip(d: LabelSpan): string {
   if (n.detail) lines.push(n.detail);
   if (v?.collapsed) lines.push(`${v.members} definitions, ${v.internal} internal calls`);
   const hid = scene!.hiddenOf.get(d.key);
-  if (hid) lines.push(`hidden: ${hid.map((k) => scene!.graph.nodes[k]?.name ?? k).join(', ')}${doc!.view.arrange === 'grow' ? '' : ` (click +${hid.length} to unhide)`}`);
-  const fold = scene!.folds.get(d.key);
-  if (fold) lines.push(`folded: ${fold.length} ${doc!.view.fold[d.key] === 'up' ? 'callers' : 'calls'} (click ${doc!.view.fold[d.key] === 'up' ? '◂' : '▸'} to open)`);
+  if (hid) lines.push(`hidden: ${hid.map((k) => scene!.graph.nodes[k]?.name ?? k).join(', ')}`);
+  const lv = scene!.rev.level.get(d.key);
+  if (lv) lines.push(`${scene!.rev.allowed.get(d.key) === 'up' ? 'caller' : 'callee'} level ${lv}`);
   lines.push(doc!.view.arrange === 'grow'
-    ? '>> or └─>> show what is not on screen · arrowhead or line: close · double click: open or close · Delete: remove the selection'
-    : '◂ open callers · ▸ open calls · hover: ▴ ▾ close them · double click: open or close');
+    ? '>> or └─>> open a side · an arrowhead closes the level it points into · double click: open or close · Delete: remove the selection'
+    : 'full: the call depth buttons choose the levels shown · Delete hides the selection');
   if (doc!.view.lock[d.key]) lines.push('locked');
   return lines.join('\n');
 }
@@ -703,21 +701,73 @@ function dragUnit(unitOf: (d: LabelSpan) => string) {
       if (!dc && !dr) return;
       const unit = unitOf(d);
       anchor = undefined;   // a moved unit is not pulled back to its old screen position
-      commit((x) => {
-        const lock = x.view.lock[unit];
-        if (lock) x.view.lock[unit] = [lock[0] + dc, lock[1] + dr];
-        else {
-          const o = x.view.offset[unit] ?? [0, 0];
-          x.view.offset[unit] = [o[0] + dc, o[1] + dr];
-        }
-      });
+      const [a, b] = settleDrop(unit, dc, dr);
+      commit((x) => moveUnit(x, unit, a, b));
     });
 }
 
-/** Fold or unfold a vertex; a vertex with nothing below it expands through the language server instead. */
-function toggleFold(key: NodeKey) {
-  if (!doc) return;
-  twisty(key, doc.view.direction === 'in' ? 'up' : 'down');
+/** Moves a unit by (dc, dr): its lock when locked, else its offset. */
+function moveUnit(x: ViewDoc, unit: string, dc: number, dr: number) {
+  const lock = x.view.lock[unit];
+  if (lock) x.view.lock[unit] = [lock[0] + dc, lock[1] + dr];
+  else {
+    const o = x.view.offset[unit] ?? [0, 0];
+    x.view.offset[unit] = [o[0] + dc, o[1] + dr];
+  }
+}
+
+/**
+ * Collisions of the labels in `keys`: a label, or the arrowhead and blank cells before it, on a box
+ * border; two labels on one row closer than `name() ─> next()` needs (blank, line, arrowhead, blank).
+ */
+function collisions(sc: Scene, keys: Set<NodeKey>): number {
+  const border = new Set<number>();
+  for (const f of sc.placement.frames) {
+    for (let c = f.c0; c <= f.c1; c++) { border.add(cellId(f.r0, c)); border.add(cellId(f.r1, c)); }
+    for (let r = f.r0; r <= f.r1; r++) { border.add(cellId(r, f.c0)); border.add(cellId(r, f.c1)); }
+  }
+  const labels = sc.grid.labels.filter((l) => l.kind === 'node' && !isStub(l.key));
+  const byRow = new Map<number, LabelSpan[]>();
+  for (const l of labels) { if (!byRow.has(l.row)) byRow.set(l.row, []); byRow.get(l.row)!.push(l); }
+  let n = 0;
+  for (const l of labels) {
+    if (!keys.has(l.key)) continue;
+    for (let c = l.col - 2; c < l.col + l.text.length; c++) if (border.has(cellId(l.row, c))) { n++; break; }
+    for (const o of byRow.get(l.row)!) {
+      if (o === l) continue;
+      const [a, b] = o.col < l.col ? [o, l] : [l, o];
+      if (b.col - (a.col + a.text.length) < 4) n++;
+    }
+  }
+  return n;
+}
+
+/**
+ * Repulsion on drop: when the dropped unit's labels collide (collisions) or a call loses its route, the
+ * drop moves on in the drag direction, else sideways, one cell at a time, to the nearest clean spot
+ * (at most 12 cells, 1.5 s of layouts); none found: the drop stays where it was let go.
+ */
+function settleDrop(unit: string, dc: number, dr: number): [number, number] {
+  if (!doc || !scene || !style) return [dc, dr];
+  const keys = new Set(unitMembers(scene, unit));
+  const unrouted = scene.grid.unrouted;
+  const t0 = performance.now();
+  const clean = (a: number, b: number) => {
+    const probe = structuredClone(doc!);
+    moveUnit(probe, unit, a, b);
+    try {
+      const sc = buildScene(probe, style!);
+      return sc.grid.unrouted <= unrouted && collisions(sc, keys) === 0;
+    } catch { return false; }
+  };
+  if (clean(dc, dr)) return [dc, dr];
+  const sx = Math.sign(dc) || 1, sy = Math.sign(dr) || 1;
+  for (let k = 1; k <= 12 && performance.now() - t0 < 1500; k++) {
+    for (const [a, b] of [[dc + sx * k, dr], [dc, dr + sy * k], [dc, dr - sy * k], [dc - sx * k, dr]] as const) {
+      if (clean(a, b)) return [a, b];
+    }
+  }
+  return [dc, dr];
 }
 
 function lockUnit(unit: string) {
@@ -754,9 +804,6 @@ function reach(start: NodeKey, dir: 'up' | 'down'): Set<NodeKey> {
   return out;
 }
 
-/** Auto views rebuild from the seeds after a reset; stable views keep their data. */
-const x0 = (d: ViewDoc) => d.view.arrange !== 'grow';
-
 function runCmd(cmd: string, key?: NodeKey, unit?: string, to?: NodeKey) {
   if (!scene || !doc) return;
   const k = key ?? focusKey;
@@ -776,10 +823,14 @@ function runCmd(cmd: string, key?: NodeKey, unit?: string, to?: NodeKey) {
     }
     case 'resetView':
       commit((x) => {
-        Object.assign(x.view, { expanded: {}, hidden: [], fold: {}, collapsed: [], offset: {}, lock: {}, sibling: {}, group: [], ungroup: [], straight: [] });
+        Object.assign(x.view, { hidden: [], collapsed: [], offset: {}, lock: {}, sibling: {}, group: [], ungroup: [], straight: [] });
         delete x.view.cut;
         if (x.view.arrange === 'grow') x.view.open = {};
-      }, x0(doc));
+        else {
+          x.view.depthUp = x.view.direction !== 'out' ? x.view.depth : 0;
+          x.view.depthDown = x.view.direction !== 'in' ? x.view.depth : 0;
+        }
+      });
       anchor = undefined;
       fit();
       return;
@@ -825,7 +876,6 @@ function runCmd(cmd: string, key?: NodeKey, unit?: string, to?: NodeKey) {
       runCmd('hideSelection');
       return;
     }
-    case 'fold': if (k) toggleFold(k); return;
     case 'unlock': if (unit ?? k) unlockUnit(unit ?? k!); return;
     // callers or callees only: the function itself stays out of the selection
     case 'upstream': if (k) { selected = reach(k, 'up'); selected.delete(k); } break;
@@ -956,7 +1006,7 @@ svg.on('keydown', (ev: KeyboardEvent) => {
       if (selCalls.size || selected.size > 1) runCmd('isolateSelection');
       else if (k) api.postMessage({ type: 'open', key: k });
       break;
-    case 'e': case ' ': if (k) api.postMessage({ type: 'expand', key: k, dir: ev.shiftKey ? 'both' : undefined }); break;
+    case 'e': case ' ': if (k && doc.view.arrange === 'grow') for (const s0 of ['down', 'up'] as const) if (scene?.hasMore(k, s0)) setSide(k, s0, true); break;
     case 'ArrowLeft': case 'c': if (k) collapseInnermost(k); break;
     case 'ArrowRight': if (k && scene?.vg.nodes.get(k)?.collapsed) commit((d) => { d.view.collapsed = d.view.collapsed.filter((x) => x !== k); }); break;
     case 'Delete': case 'Backspace': runCmd('remove'); break;
@@ -968,9 +1018,7 @@ svg.on('keydown', (ev: KeyboardEvent) => {
       else if (doc.view.hidden.length || doc.view.cut?.length) runCmd('showAll');
       break;
     case 'k': if (k) runCmd(doc.view.lock[k] ? 'unlock' : 'lock', k, k); break;
-    case 'f': if (k) toggleFold(k); break;
     case 'u': commit((d) => { d.view.hidden = []; }); break;
-    case 'o': commit((d) => { d.view.order = d.view.order === 'callees' ? 'callers' : 'callees'; }); break;
     case 'g': commit((d) => { d.view.edges = (d.view.edges ?? style!.edges.mode) === 'glyph' ? 'vector' : 'glyph'; }); break;
     case 'b': commit((d) => { d.view.boxes = !(d.view.boxes ?? style!.boxes.enabled); }); break;
     case 'r': api.postMessage({ type: 'refresh' }); break;
@@ -983,7 +1031,7 @@ svg.on('keydown', (ev: KeyboardEvent) => {
 
 // ---- toolbar and options pulldown ----------------------------------------------------------------
 // Plain HTML built with d3-selection: buttons in the bar, a pulldown panel of checkable items.
-type Btn = { label: string; title: string; on?: boolean; act: () => void; disabled?: boolean };
+type Btn = { label: string; title: string; on?: boolean; act: () => void; disabled?: boolean; text?: boolean };
 type Section = { caption: string; items: Btn[]; radio?: boolean };
 
 function folders(): { path: string; label: string; excluded: boolean }[] {
@@ -999,27 +1047,45 @@ function folders(): { path: string; label: string; excluded: boolean }[] {
   return [...set].sort().map((p) => ({ path: p, label: p.split('/').pop()!, excluded: ex(`${p}/x`) }));
 }
 
-/** Traverse checkmarks: `in` and `out` independent; unchecking a side drops its expansions and folds. */
-function setTraverse(side: 'in' | 'out', on: boolean) {
-  const grows = doc!.view.arrange === 'grow';
-  commit((x) => {
-    const has = { in: x.view.direction !== 'out', out: x.view.direction !== 'in' };
-    has[side] = on;
-    if (!has.in && !has.out) return;
-    x.view.direction = has.in && has.out ? 'both' : has.in ? 'in' : 'out';
-    if (!on) {
-      for (const [k, d] of Object.entries(x.view.expanded)) {
-        if (d === side) delete x.view.expanded[k];
-        else if (d === 'both') x.view.expanded[k] = side === 'in' ? 'out' : 'in';
-      }
-      for (const [k, f] of Object.entries(x.view.fold)) if ((f === 'up') === (side === 'in')) delete x.view.fold[k];
-    }
-  }, !grows);
-  // stable views: a seed opening a side without data asks the language server
-  if (grows && on) for (const s0 of doc!.view.seeds) {
-    const ex = doc!.explored?.[s0];
-    if (ex !== side && ex !== 'both') api.postMessage({ type: 'expand', key: s0, dir: side });
+/** Deepest caller (`up`) or callee (`down`) level on screen. */
+function levelOf(side: 'up' | 'down'): number {
+  let m = 0;
+  for (const [k, l] of scene?.rev.level ?? []) if (scene!.rev.allowed.get(k) === side) m = Math.max(m, l);
+  return m;
+}
+
+/**
+ * Switch between one layer at a time and full, keeping what is on screen: full takes the deepest caller
+ * and callee levels shown as its call depths; one layer at a time opens, on each vertex shown, the side
+ * that leads one level further within those depths.
+ */
+function setArrange(to: 'grow' | 'auto') {
+  if (!doc || !scene || doc.view.arrange === to) return;
+  const rev = scene.rev;
+  if (to === 'auto') {
+    const up = levelOf('up'), down = levelOf('down');
+    commit((x) => { x.view.arrange = 'auto'; x.view.depthUp = up; x.view.depthDown = down; });
+    return;
   }
+  const v = doc.view;
+  const within = (l: number, d: Depth) => d === 'all' || l < d;
+  const open: Record<NodeKey, OpenSide> = {};
+  for (const k of rev.visible) {
+    const a = rev.allowed.get(k), l = rev.level.get(k) ?? 0;
+    const up = (a === 'both' || a === 'up') && within(l, v.depthUp);
+    const down = (a === 'both' || a === 'down') && within(l, v.depthDown);
+    open[k] = up && down ? 'both' : up ? 'up' : down ? 'down' : 'none';
+  }
+  commit((x) => { x.view.arrange = 'grow'; x.view.open = { ...(x.view.open ?? {}), ...open }; });
+}
+
+/** Full: one side's call depth; `all` keeps every level the data holds. */
+function setDepth(side: 'up' | 'down', d: Depth | ((n: number) => number)) {
+  commit((x) => {
+    const cur = side === 'up' ? x.view.depthUp : x.view.depthDown;
+    const next = typeof d === 'function' ? Math.max(0, d(cur === 'all' ? levelOf(side) : cur)) : d;
+    if (side === 'up') x.view.depthUp = next; else x.view.depthDown = next;
+  });
 }
 
 function toolbar() {
@@ -1033,33 +1099,39 @@ function toolbar() {
   const isolated = removed > 0;
   const canIsolate = selCalls.size > 0 || selected.size > 0;
 
+  // full: `all` `+` `−` callers  call depth  callees `−` `+` `all`
+  const depthBtns = (side: 'up' | 'down'): Btn[] => {
+    const d = side === 'up' ? v.depthUp : v.depthDown;
+    const who = side === 'up' ? 'caller' : 'callee';
+    const all: Btn = { label: 'all', title: `every ${who} level`, on: d === 'all', act: () => setDepth(side, 'all') };
+    const plus: Btn = { label: '+', title: `one ${who} level more`, disabled: d === 'all', act: () => setDepth(side, (n) => n + 1) };
+    const minus: Btn = { label: '−', title: `one ${who} level less`, disabled: d === 0, act: () => setDepth(side, (n) => n - 1) };
+    const num: Btn = { label: d === 'all' ? `${levelOf(side)}` : `${d}`, title: `${who} levels shown`, text: true, act: () => {} };
+    return side === 'up' ? [all, plus, minus, num] : [num, minus, plus, all];
+  };
   const bar: Btn[] = [
     isolated
       ? { label: `Show all (${removed})`, title: 'show every hidden function and removed call (Esc)', on: true, act: () => runCmd('showAll') }
       : { label: 'Isolate', title: 'show only the selected calls or functions (Enter)', disabled: !canIsolate, act: () => runCmd('isolateSelection') },
     ...(v.arrange === 'grow' ? [] : [
-      { label: '−', title: 'depth − 1', act: () => commit((x) => { x.view.depth = Math.max(1, x.view.depth - 1); }, true) },
-      { label: `depth ${v.depth}`, title: 'hop limit from the seeds', act: () => {} },
-      { label: '+', title: 'depth + 1', act: () => commit((x) => { x.view.depth += 1; }, true) },
+      ...depthBtns('up'),
+      { label: 'call depth', title: 'caller levels (left), callee levels (right)', text: true, act: () => {} },
+      ...depthBtns('down'),
     ]),
     { label: 'fit', title: 'fit to window (0)', act: fit },
   ];
   const fl = folders();
   const sections: Section[] = [
-    { caption: 'Traverse', items: [
-      { label: 'Upstream callers', title: 'follow incoming calls from the seeds', on: v.direction !== 'out', act: () => setTraverse('in', v.direction === 'out') },
-      { label: 'Calls downstream', title: 'follow outgoing calls from the seeds', on: v.direction !== 'in', act: () => setTraverse('out', v.direction === 'in') },
-    ] },
     { caption: 'Layout', radio: true, items: [
-      { label: 'One layer at a time', title: '>> and └─>> open a side; an arrowhead or a line closes it; Delete removes the selection; the function opened stays in place on screen', on: v.arrange === 'grow',
-        act: () => commit((x) => { x.view.arrange = 'grow'; x.view.open ??= {}; }) },
-      { label: 'Automatic: full layout', title: 'the whole graph to the depth limit, laid out again on every change', on: v.arrange !== 'grow',
-        act: () => commit((x) => { x.view.arrange = 'auto'; }, true) },
+      { label: 'One layer at a time', title: '>> and └─>> open a side; an arrowhead closes the level it points into; Delete removes the selection; the function acted on stays in place on screen', on: v.arrange === 'grow',
+        act: () => setArrange('grow') },
+      { label: 'Full: every call within the call depths', title: 'caller and callee levels from the toolbar; the same picture, no opening or closing of single functions', on: v.arrange !== 'grow',
+        act: () => setArrange('auto') },
     ] },
-    { caption: 'Order', radio: true, items: (['callers', 'callees'] as Order[]).map((o) => ({
-      label: o === 'callers' ? 'Callers on top' : 'Callees on top (VS Code call hierarchy)', title: 'which end of each call sits on top (o)',
-      on: v.order === o, act: () => commit((x) => { x.view.order = o; }),
-    })) },
+    ...(v.arrange !== 'grow' ? [{ caption: 'Call depth by', radio: true, items: (['shortest', 'longest'] as const).map((r) => ({
+      label: r === 'shortest' ? 'Shortest call path' : 'Longest call path',
+      title: r === 'shortest' ? 'a function sits at the fewest calls from the seeds' : 'a function sits at the most calls from the seeds (loops not counted)',
+      on: v.depthRule === r, act: () => commit((x) => { x.view.depthRule = r; }) })) } as Section] : []),
     { caption: 'Namespaces', items: [
       { label: 'Group namespaces', title: 'boxes per package and folder (b); right click a box or function to group or ungroup one', on: boxes,
         act: () => commit((x) => { x.view.boxes = !boxes; }) },
@@ -1078,17 +1150,15 @@ function toolbar() {
         : 'which caller a shared function hangs under', on: rule === m,
       act: () => commit((x) => { x.view.parentRule = m; }) })) },
     { caption: 'Arrange', items: [
-      v.arrange === 'grow'
-        ? { label: 'Reset view', title: 'back to the seeds and their first layer: close every side, drop hidden and removed, collapsed, moves, locks, grouping', act: () => runCmd('resetView') }
-        : { label: 'Reset view', title: 'back to the seeds, direction and depth: drop expansions, folds, hidden, collapsed, moves, locks, grouping', act: () => runCmd('resetView') },
+      { label: 'Reset view', title: v.arrange === 'grow'
+        ? 'back to the seeds and their first layer: close every side, drop hidden and removed, collapsed, moves, locks, grouping'
+        : 'back to the starting call depths: drop hidden, collapsed, moves, locks, grouping', act: () => runCmd('resetView') },
       { label: 'Reset layout', title: 'drop every move, lock, sibling order and straightened call', act: () => runCmd('resetLayout') },
       { label: selected.size ? `Re-arrange selected (${selected.size})` : `Re-arrange (${Object.keys(v.offset).length})`,
         title: 'drop the moves of the selected functions, or of every unlocked item', act: () => runCmd('rearrange') },
       { label: `Unlock all (${Object.keys(v.lock).length})`, title: 'unlock every locked function and box', act: () => runCmd('unlockAll') },
       { label: `Expand collapsed (${v.collapsed.length})`, title: 'expand every collapsed container', act: () => commit((x) => { x.view.collapsed = []; }) },
-      v.arrange === 'grow'
-        ? { label: `Straightened calls (${(v.straight ?? []).length}): clear`, title: 'route every call in the usual order again', act: () => commit((x) => { x.view.straight = []; }) }
-        : { label: `Open folds (${Object.keys(v.fold).length})`, title: 'open every folded function', act: () => commit((x) => { x.view.fold = {}; }) },
+      { label: `Straightened calls (${(v.straight ?? []).length}): clear`, title: 'route every call in the usual order again', act: () => commit((x) => { x.view.straight = []; }) },
     ] },
     ...(fl.length ? [{ caption: 'Folders', items: fl.map((f) => ({
       label: f.label, title: `${f.path}: ${f.excluded ? 'excluded, click to include' : 'included, click to exclude'}`, on: !f.excluded,
@@ -1100,11 +1170,11 @@ function toolbar() {
           x.view.include = x.view.include.filter((p) => p !== f.path);
           x.view.exclude.push(f.path);
         }
-      }, true) })) } as Section] : []),
+      }) })) } as Section] : []),
     { caption: 'File', items: [
       { label: 'Refresh from Language Server', title: v.arrange === 'grow'
         ? 'calls of the functions on screen from the language server; the others when a side opens onto them. Unanswered functions keep their calls (r)'
-        : 'from the cache at once, then every function from the language server. Unanswered functions keep their calls (r)',
+        : 'calls of the functions on screen from the language server, then the levels within the call depths. Unanswered functions keep their calls (r)',
       act: () => api.postMessage({ type: 'refresh' }) },
       { label: 'Export ASCII', title: '.gaffy/<symbol>_<commit>.md and .txt, then _2, _3 (x)', act: () => api.postMessage({ type: 'export' }) },
       { label: 'Edit style.json', title: '.gaffy/style.json', act: () => api.postMessage({ type: 'editStyle' }) },
@@ -1114,11 +1184,12 @@ function toolbar() {
   const tb = select('#toolbar');
   tb.selectAll('*').remove();
   for (const b of bar) {
+    if (b.text) { tb.append('span').attr('class', 'depth').attr('title', b.title).text(b.label); continue; }
     tb.append('button').attr('class', b.on ? 'on' : null).attr('title', b.title).property('disabled', !!b.disabled).text(b.label)
       .on('click', (ev: MouseEvent) => { ev.stopPropagation(); b.act(); });
   }
   const wrap = tb.append('span').attr('class', 'opts');
-  wrap.append('button').attr('class', optsOpen ? 'on' : null).text('☰ Options ▾').attr('title', 'traverse, order, namespaces, edges, arrange, folders')
+  wrap.append('button').attr('class', optsOpen ? 'on' : null).text('☰ Options ▾').attr('title', 'layout, namespaces, edges, tree parent, arrange, folders, file')
     .on('click', (ev: MouseEvent) => { ev.stopPropagation(); optsOpen = !optsOpen; toolbar(); });
   if (optsOpen) {
     const panel = wrap.append('div').attr('class', 'panel').on('click', (ev: MouseEvent) => ev.stopPropagation());
@@ -1150,8 +1221,8 @@ function status() {
   if (busy) parts.push('building…');
   else if (doc.updated) parts.push(`built ${new Date(doc.updated).toLocaleString()}`);
   parts.push(doc.view.arrange === 'grow'
-    ? '>> └─>> open · arrowhead or line: close · ctrl/shift+click select · Delete remove · dblclick toggle · drag move · right-click menu'
-    : 'click open · shift+click select · dblclick fold or expand · drag move · right-click menu · keys ↑↓ Enter e f c h i k u o g b r 0 x Esc');
+    ? '>> └─>> open · arrowhead: close its level · click a line: select · Delete remove · dblclick toggle · drag move · right-click menu'
+    : 'full: call depth in the toolbar · click open · ctrl/shift+click select · Delete hide · drag move · right-click menu');
   el.text(parts.join(' · '));
 }
 

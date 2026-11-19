@@ -8,8 +8,9 @@ import { boxUnit, excludedBy, globToRegExp, ViewDoc } from '../src/core/viewdoc'
 import { EXP4, fixtureDoc, k, SH, STAR } from './fixtures';
 
 const GOLDEN = join(__dirname, 'golden');
-const flat = (o: unknown = {}): Style => deepMerge(DEFAULT_STYLE, { boxes: { enabled: false } }, o);
-const boxed = (o: unknown = {}): Style => deepMerge(DEFAULT_STYLE, { boxes: { enabled: true } }, o);
+// goldens pin the tree parent rule: a changed default in DEFAULT_STYLE does not change them
+const flat = (o: unknown = {}): Style => deepMerge(DEFAULT_STYLE, { boxes: { enabled: false }, grid: { parentRule: 'dfs' } }, o);
+const boxed = (o: unknown = {}): Style => deepMerge(DEFAULT_STYLE, { boxes: { enabled: true }, grid: { parentRule: 'dfs' } }, o);
 
 /** Compares with test/golden/<name>.txt; writes the file when absent or when UPDATE_GOLDEN is set. */
 function golden(name: string, text: string) {
@@ -63,7 +64,7 @@ const text = (sc: Scene, st: Style) => toText(sc.grid, glyphSet(st));
 describe('experiment 4: callers of register_twosided_area, boxes off', () => {
   const doc = fixtureDoc(EXP4, { seeds: [k('render.mi_emitters:register_twosided_area')], direction: 'in' });
 
-  it('dfs parent rule (unchanged golden)', () => {
+  it('dfs parent rule', () => {
     const sc = buildScene(doc, flat());
     invariants(sc);
     const B = sc.placement.blocks[0];
@@ -78,16 +79,6 @@ describe('experiment 4: callers of register_twosided_area, boxes off', () => {
     const sc = buildScene(doc, flat({ grid: { parentRule: 'nearest' } }));
     invariants(sc);
     expect([...sc.placement.blocks[0].L.parent]).toEqual([...buildScene(doc, flat()).placement.blocks[0].L.parent]);
-  });
-
-  it('order callees: callee on top, callers below with └──', () => {
-    const d: ViewDoc = { ...doc, view: { ...doc.view, order: 'callees' } };
-    const sc = buildScene(d, flat());
-    invariants(sc);
-    expect(sc.placement.pos.get(k('render.mi_emitters:register_twosided_area'))!.row).toBe(0);
-    const t = text(sc, flat());
-    expect(t).not.toMatch(/[<>]/);
-    golden('exp4_callees', t);
   });
 
   it('ascii glyphs', () => {
@@ -163,35 +154,28 @@ describe('addendum 1a: sh_eval and its callees', () => {
     expect(sc.grid.paths.some((p) => p.to === key && p.net.startsWith('l:'))).toBe(true);
   });
 
-  it('hidden vertices leave a +n badge on their neighbors', () => {
+  it('hidden vertices leave a marker row on their callers, no count', () => {
     const hid = fixtureDoc(SH, { ...doc.view, hidden: ['py:gutai/runtime/interop.py'] });
     const sc = buildScene(hid, boxed());
     invariants(sc);
     expect(sc.hiddenOf.get(k('gutai.render.harmonics:sh_eval'))!.length).toBe(2);
-    expect(sc.grid.labels.find((l) => l.key === k('gutai.render.harmonics:sh_eval'))!.text).toBe('sh_eval() +2');
+    expect(sc.grid.labels.find((l) => l.key === k('gutai.render.harmonics:sh_eval'))!.text).toBe('sh_eval()');
+    expect(sc.grid.markers.some((m) => m.key === k('gutai.render.harmonics:sh_eval') && m.side === 'down')).toBe(true);
   });
 
-  it('fold hides what only the folded vertex reaches; shared callees stay', () => {
-    const torch = k('gutai.render.harmonics:sh_eval_torch_compiled');
-    const cols = k('gutai.render.harmonics:_from_columns');
-    const sc = buildScene(fixtureDoc(SH, { ...doc.view, fold: { [torch]: 'down', [cols]: 'down' } }), boxed());
-    invariants(sc);
-    expect(sc.folds.get(torch)!.map((x) => x.split('#')[1]).sort()).toEqual(['_compiled', '_poly_table', '_torch_order']);
-    expect(sc.folds.get(cols)!.map((x) => x.split('#')[1])).toEqual(['_stacked']);
-    expect(sc.vg.nodes.has(k('gutai.render.harmonics:_tensorxf'))).toBe(true);     // also called by _wrapped_mi
-    expect(sc.vg.nodes.has(k('gutai.runtime.interop:to_torch'))).toBe(true);        // also called by sh_eval
-    expect(sc.grid.labels.find((l) => l.key === torch)!.text).toBe('sh_eval_torch_compiled() ▸3');
-    expect(sc.hiddenOf.size).toBe(0);                                               // folded is not hidden
-  });
-
-  it('disclosure markers: ◂ before a seed with unasked callers, ▸ after an unasked leaf', () => {
-    const d = fixtureDoc(SH, doc.view);
-    d.explored = { [k('gutai.render.harmonics:sh_eval')]: 'out' };
-    const sc = buildScene(d, boxed());
-    expect(sc.decor.get(k('gutai.render.harmonics:sh_eval'))!.pre).toBe('◂ ');
-    expect(sc.decor.get(k('gutai.runtime.device:_nvml'))!.post).toBe(' ▸');
-    expect(sc.decor.get(k('gutai.render.harmonics:sh_eval_mi'))!.post).toBe('');   // its calls are shown
-    expect(sc.grid.labels.find((l) => l.key === k('gutai.render.harmonics:sh_eval'))!.text).toBe('◂ sh_eval()');
+  it('full: call depths per side, markers beyond them, shortest or longest path', () => {
+    const seed = k('gutai.render.harmonics:sh_eval');
+    const at = (d: number, rule: 'shortest' | 'longest' = 'shortest') =>
+      buildScene(fixtureDoc(SH, { seeds: [seed], direction: 'out', depthUp: 0, depthDown: d, depthRule: rule }), boxed());
+    const one = at(1);
+    invariants(one);
+    expect(one.vg.nodes.has(k('gutai.runtime.variant:pick_parallel'))).toBe(false);          // two calls away
+    expect(one.grid.markers.some((m) => m.key === k('gutai.render.harmonics:sh_eval_mi'))).toBe(true);
+    expect(at(2).vg.nodes.has(k('gutai.runtime.variant:pick_parallel'))).toBe(true);
+    // _in_type: called by sh_eval (level 1) and by resolve_backend (level 2): longest path puts it at 2
+    expect(at(1).vg.nodes.has(k('gutai.render.harmonics:_in_type'))).toBe(true);
+    expect(at(1, 'longest').vg.nodes.has(k('gutai.render.harmonics:_in_type'))).toBe(false);
+    expect(at(2, 'longest').rev.level.get(k('gutai.render.harmonics:_in_type'))).toBe(2);
   });
 
   it('grouping on demand: ungroup a package, group a module', () => {
@@ -206,32 +190,6 @@ describe('addendum 1a: sh_eval and its callees', () => {
     expect(gr.grid.labels.find((l) => l.key === k('gutai.runtime.variant:pick_parallel'))!.text).toBe('pick_parallel()');
   });
 
-  it('fold on the callers side hides what only calls through the folded vertex', () => {
-    const d = fixtureDoc(SH, { seeds: [k('gutai.runtime.variant:current')], direction: 'in',
-      fold: { [k('gutai.runtime.variant:pick_parallel')]: 'up' } });
-    const sc = buildScene(d, boxed());
-    invariants(sc);
-    // sh_eval_mi still calls assert_variant → current: it stays; nothing calls only through pick_parallel
-    expect(sc.vg.nodes.has(k('gutai.render.harmonics:sh_eval_mi'))).toBe(true);
-    // a callers view holds only the callers chain of its seed
-    const chain: [string, string][] = [
-      ['gutai.runtime.device:has_cards', 'gutai.runtime.device:_nvml'],
-      ['gutai.runtime.variant:_host_process', 'gutai.runtime.device:has_cards'],
-      ['gutai.runtime.variant:pick_parallel', 'gutai.runtime.variant:_host_process'],
-      ['gutai.render.harmonics:sh_eval_mi', 'gutai.runtime.variant:pick_parallel'],
-    ];
-    const d2 = fixtureDoc(chain, { seeds: [k('gutai.runtime.device:_nvml')], direction: 'in',
-      fold: { [k('gutai.runtime.variant:_host_process')]: 'up' } });
-    const s2 = buildScene(d2, boxed());
-    expect(s2.vg.nodes.has(k('gutai.runtime.variant:pick_parallel'))).toBe(false);
-    expect(s2.decor.get(k('gutai.runtime.variant:_host_process'))!.pre).toMatch(/^◂\d+ $/);
-  });
-
-  it('callees order with boxes', () => {
-    const sc = buildScene(fixtureDoc(SH, { ...doc.view, order: 'callees' }), boxed());
-    invariants(sc);
-    expect(text(sc, boxed())).not.toMatch(/[<>]/);
-  });
 });
 
 describe('one layer at a time: open sides, direction, markers, removal', () => {

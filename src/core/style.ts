@@ -1,15 +1,15 @@
 /**
  * Style: defaults, merged with the `gaffy.style` setting, then `.gaffy/style.json`, then per-view
  * overrides (ViewSpec.boxes, edges, curve, parentRule). `view` holds the choices a new view starts
- * with (layout, order, traverse); they are written into the view file at creation.
+ * with (layout, traverse); they are written into the view file at creation.
  */
-import type { EdgeMode, Order, ParentRule } from './viewdoc';
+import type { EdgeMode, ParentRule } from './viewdoc';
 
 export type Curve = 'orthogonal' | 'rounded' | 'sigmoid' | 'spline';
 export type FrameLine = 'solid' | 'rounded' | 'dashed' | 'dotted' | 'double';
 
 export interface Style {
-  view: { arrange: 'grow' | 'auto'; order: Order; traverse: 'command' | 'both' };
+  view: { arrange: 'grow' | 'auto'; traverse: 'command' | 'both' };
   font: { family: string; size: number; lineHeight: number };
   grid: { indent: number; laneGap: number; parentRule: ParentRule };
   edges: { mode: EdgeMode; glyphs: 'unicode' | 'ascii'; arrow: boolean; cross: string; width: number; curve: Curve; lead: number; tension: number };
@@ -20,9 +20,9 @@ export interface Style {
 }
 
 export const DEFAULT_STYLE: Style = {
-  view: { arrange: 'grow', order: 'callers', traverse: 'command' },
+  view: { arrange: 'grow', traverse: 'command' },
   font: { family: "'JetBrains Mono', 'Fira Code', Menlo, Consolas, monospace", size: 13, lineHeight: 1.25 },
-  grid: { indent: 4, laneGap: 2, parentRule: 'dfs' },
+  grid: { indent: 4, laneGap: 2, parentRule: 'joint' },
   edges: { mode: 'vector', glyphs: 'unicode', arrow: true, cross: '│', width: 1, curve: 'rounded', lead: 3, tension: 0.5 },
   labels: { strip: [], parens: true },
   boxes: { enabled: true, modules: false, root: true, fill: 'none', alpha: 0.08, line: 'dashed' },

@@ -32,7 +32,7 @@ const params = new URLSearchParams(location.search);
 const which = params.get('doc') || 'exp4';
 let state = {};
 const initial = JSON.parse(DATA.docs[which]);
-for (const p of ['edges', 'order', 'parentRule', 'curve']) if (params.get(p)) initial.view[p] = params.get(p);
+for (const p of ['edges', 'parentRule', 'curve']) if (params.get(p)) initial.view[p] = params.get(p);
 if (params.get('boxes')) initial.view.boxes = params.get('boxes') === 'on';
 if (params.get('fill')) DATA.style.boxes.fill = params.get('fill');
 let text = JSON.stringify(initial, null, 1) + '\\n';
@@ -59,6 +59,12 @@ const simulate = () => {
     const g = [...document.querySelectorAll('.heads g')].find((x) => (x.querySelector('text')?.textContent ?? '').includes(params.get('selbox')));
     if (!g) log({ sim: 'no box ' + params.get('selbox') });
     else g.dispatchEvent(new MouseEvent('click', { bubbles: true, view: window }));
+  }
+  // click the arrowhead into a function (one layer at a time): arrow=<name>
+  if (params.get('arrow')) {
+    const r = [...document.querySelectorAll('.arrowhits rect')].find((x) => x.__data__ && x.__data__.to.endsWith('#' + params.get('arrow')));
+    if (!r) log({ sim: 'no arrowhead into ' + params.get('arrow') });
+    else r.dispatchEvent(new MouseEvent('click', { bubbles: true, view: window }));
   }
   if (params.get('key')) document.getElementById('graph').dispatchEvent(new KeyboardEvent('keydown', { key: params.get('key'), bubbles: true }));
   if (params.get('callclick')) {

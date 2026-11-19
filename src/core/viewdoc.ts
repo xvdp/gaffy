@@ -11,11 +11,11 @@ import { emptyGraph, NodeKey, Subgraph } from './model';
 import type { Curve } from './style';
 
 export type Direction = 'in' | 'out' | 'both';
-export type Order = 'callers' | 'callees';
 export type EdgeMode = 'glyph' | 'vector';
 export type ParentRule = 'dfs' | 'nearest' | 'joint';
 export type Cell = [number, number];        // [column, row]
-export type FoldSide = 'down' | 'up';       // down: what a vertex calls; up: what calls it
+export type Depth = number | 'all';         // call levels from the seeds; `all`: every level the data holds
+export type DepthRule = 'shortest' | 'longest';
 export type OpenSide = 'up' | 'down' | 'both' | 'none';
 
 export const ROOTS = '__roots__';
@@ -23,15 +23,15 @@ export const boxUnit = (containerKey: string) => `box:${containerKey}`;
 
 export interface ViewSpec {
   seeds: NodeKey[];
-  direction: Direction;
-  depth: number;
-  expanded: Record<NodeKey, Direction>;   // per-node expansions beyond the depth limit
+  direction: Direction;                    // sides a seed opens first (one layer at a time); levels a full view starts with
+  depth: number;                           // one layer at a time: levels prefetched from the language server
   collapsed: NodeKey[];                    // collapse set K
   hidden: NodeKey[];
-  fold: Record<NodeKey, FoldSide>;         // auto arrangement: folded sides
-  open?: Record<NodeKey, OpenSide>;        // open sides per vertex; absent: every vertex visible
-  arrange: 'grow' | 'auto';                // grow: one layer per open side; auto: every vertex to the depth limit, with folds
-  order: Order;                            // callers: caller above, `└─>` to callee; callees: callee above, `└──` to caller
+  open?: Record<NodeKey, OpenSide>;        // one layer at a time: open sides per vertex
+  arrange: 'grow' | 'auto';                // grow: one layer at a time; auto: full, every vertex within depthUp, depthDown
+  depthUp: Depth;                          // full: caller levels above the seeds
+  depthDown: Depth;                        // full: callee levels below the seeds
+  depthRule: DepthRule;                    // full: a vertex's level is its shortest or its longest call path from the seeds
   sibling: Record<NodeKey, NodeKey[]>;     // child order per tree parent; ROOTS orders the top level
   offset: Record<string, Cell>;            // unlocked moves: [Δcolumn, Δrow] per unit
   lock: Record<string, Cell>;              // locked units: absolute [column, row]
@@ -44,8 +44,8 @@ export interface ViewSpec {
   curve?: Curve;                           // overrides style.edges.curve
   parentRule?: ParentRule;                 // overrides style.grid.parentRule
   tags: Record<NodeKey, string>;
-  straight?: string[];                     // calls routed before all others (caller\u0000callee, drawn direction)
-  cut?: [NodeKey, NodeKey][];              // removed calls [caller, callee]: not drawn, not followed by open sides
+  straight?: string[];                     // calls routed before all others (caller\u0000callee)
+  cut?: [NodeKey, NodeKey][];              // one layer at a time: removed calls [caller, callee], not drawn, not followed
 }
 
 export interface ViewDoc {
@@ -60,13 +60,17 @@ export interface ViewDoc {
 
 export function defaultView(): ViewSpec {
   return {
-    seeds: [], direction: 'out', depth: 4, expanded: {}, collapsed: [], hidden: [], fold: {}, order: 'callers',
+    seeds: [], direction: 'out', depth: 4, collapsed: [], hidden: [], depthUp: 0, depthDown: 4, depthRule: 'shortest',
     sibling: {}, offset: {}, lock: {}, exclude: [], include: [], group: [], ungroup: [], tags: {}, arrange: 'auto',
   };
 }
 
 export function emptyDoc(name: string, view: Partial<ViewSpec> = {}): ViewDoc {
-  return { gaffy: 1, name, view: { ...defaultView(), ...view }, graph: emptyGraph() };
+  const v = { ...defaultView(), ...view };
+  // call depths not given: the sides of `direction`, to `depth`
+  if (view.depthUp === undefined) v.depthUp = v.direction !== 'out' ? v.depth : 0;
+  if (view.depthDown === undefined) v.depthDown = v.direction !== 'in' ? v.depth : 0;
+  return { gaffy: 1, name, view: v, graph: emptyGraph() };
 }
 
 /** Parses a `.gaffy` text; missing fields take defaults; unknown fields are dropped; empty text yields an empty view. */
@@ -74,15 +78,19 @@ export function parseDoc(text: string, fallbackName = 'view'): ViewDoc {
   if (!text.trim()) return emptyDoc(fallbackName);
   const raw = JSON.parse(text) as Partial<ViewDoc>;
   const v = (raw.view ?? {}) as Partial<ViewSpec> & Record<string, unknown>;
+  const direction = v.direction ?? 'out';
+  const depth = v.depth ?? 4;
+  const level = (d: unknown, on: boolean): Depth => (d === 'all' || (typeof d === 'number' && d >= 0) ? d as Depth : on ? depth : 0);
   const view: ViewSpec = {
     seeds: v.seeds ?? [],
-    direction: v.direction ?? 'out',
-    depth: v.depth ?? 4,
-    expanded: v.expanded ?? {},
+    direction,
+    depth,
     collapsed: v.collapsed ?? [],
     hidden: v.hidden ?? [],
-    fold: v.fold ?? Object.fromEntries(((v as { folded?: NodeKey[] }).folded ?? []).map((k) => [k, 'down' as FoldSide])),
-    order: v.order === 'callees' ? 'callees' : 'callers',
+    // full views before per-side depths: the old direction and depth
+    depthUp: level(v.depthUp, direction !== 'out'),
+    depthDown: level(v.depthDown, direction !== 'in'),
+    depthRule: v.depthRule === 'longest' ? 'longest' : 'shortest',
     sibling: v.sibling ?? {},
     offset: v.offset ?? {},
     lock: v.lock ?? {},

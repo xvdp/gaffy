@@ -13,21 +13,14 @@
             "grow",
             "auto"
           ],
-          "description": "Layout: grow, one layer at a time (markers open sides); auto, every function to gaffy.depth, with folds."
-        },
-        "order": {
-          "enum": [
-            "callers",
-            "callees"
-          ],
-          "description": "callers: caller above callee, `└─>` arrows; callees: callee above its callers, as in the VS Code call hierarchy."
+          "description": "Layout: grow, one layer at a time (markers open sides, arrowheads close them); auto, full: every function within the caller and callee depths."
         },
         "traverse": {
           "enum": [
             "command",
             "both"
           ],
-          "description": "command: Upstream callers opens callers, Calls downstream opens calls; both: every new view opens callers and calls of its seed."
+          "description": "command: Upstream callers starts with callers, Calls downstream with calls; both: every new view starts with callers and calls of its seed."
         }
       },
       "additionalProperties": false
