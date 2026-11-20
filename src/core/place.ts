@@ -17,6 +17,9 @@
  *    until its labels overlap no other label of the block. What was not moved stays where it was:
  *    columns, rows and stacking of later items come from the unmoved positions (`moved` holds each
  *    vertex's shift, `base` each item's unmoved rectangle); frames enclose the moved content.
+ * 6. Frames: a frame starts at its box's computed corner and grows to enclose content moved up or left.
+ *    `tight`: a frame encloses only its content, on all four sides; content moved right or down pulls the
+ *    left and top edges along, and lanes count where they are drawn (shifted with their vertices).
  *
  * Coordinates: cells [column, row], canvas origin at (0, 0).
  */
@@ -62,6 +65,7 @@ export interface PlaceInput {
     offset: Record<string, Cell>;
     lock: Record<string, Cell>;
     channel: number;
+    tight?: boolean;                   // frames hug their content (view.tight)
 }
 
 interface Rect { c0: number; r0: number; c1: number; r1: number }
@@ -198,10 +202,18 @@ export function place(inp: PlaceInput): Placement {
             };
             for (const k of keys) { const p = at(k); grow(p.col, p.row, p.col + P.text.get(k)!.length - 1, p.row); }
             for (const k of keys) { const pp = portAt(k); if (pp) grow(pp.col, pp.row, pp.col, pp.row); }
-            for (const l of L.lanes) grow(col + l.col, rowMap[l.lo], col + l.col, rowMap[l.hi]);
+            for (const l of L.lanes) {
+                if (!drawn) { grow(col + l.col, rowMap[l.lo], col + l.col, rowMap[l.hi]); continue; }
+                // as grid.ts draws it: shifted with its vertices when they share one shift, else routed (no lane)
+                const s0 = shift.get(l.target)!;
+                if (!l.sources.every((x) => shift.get(x.key)![0] === s0[0] && shift.get(x.key)![1] === s0[1])) continue;
+                grow(col + l.col + s0[0], rowMap[l.lo] + s0[1], col + l.col + s0[0], rowMap[l.hi] + s0[1]);
+            }
             return keys.size ? rect : { c0: col, r0: top, c1: col, r1: top };
         };
+        let drawn = !!inp.tight;
         const rect = span((k) => P.pos.get(k)!, (k) => P.port.get(k));
+        drawn = false;
         const unmoved = span(base, (k) => { const pr = L.portOf.get(k); return pr === undefined ? undefined : { row: rowMap[pr], col: base(k).col }; });
         return { ...rect, base: unmoved };
     };
@@ -241,7 +253,9 @@ export function place(inp: PlaceInput): Placement {
         const order = [...topo.filter((i) => inp.lock[unitOf(i)]), ...topo.filter((i) => !inp.lock[unitOf(i)])];
 
         const placed: { i: number; rect: Rect; base: Rect }[] = [];
-        let rect: Rect = { c0: cc, r0: cr, c1: cc, r1: cr };
+        // tight: the content alone, without the box's computed corner
+        const corner: Rect = { c0: cc, r0: cr, c1: cc, r1: cr };
+        let rect: Rect = inp.tight && items.length ? { c0: Infinity, r0: Infinity, c1: -Infinity, r1: -Infinity } : corner;
         let unmoved: Rect = { ...rect };
         for (const i of order) {
             const it = items[i];
@@ -296,7 +310,7 @@ export function place(inp: PlaceInput): Placement {
         if (box.frame) {
             // the frame encloses its content in every direction, also content moved up or left
             const frame = (x: Rect): Rect => {
-                const f0 = Math.min(c0, x.c0 - 3), g0 = Math.min(r0, x.r0 - 1);
+                const f0 = inp.tight ? x.c0 - 3 : Math.min(c0, x.c0 - 3), g0 = inp.tight ? x.r0 - 1 : Math.min(r0, x.r0 - 1);
                 return { c0: f0, r0: g0, c1: Math.max(x.c1 + 2, f0 + box.label.length + 5), r1: x.r1 + 1 };
             };
             const f = frame(rect);

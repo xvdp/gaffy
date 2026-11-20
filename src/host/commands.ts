@@ -24,10 +24,13 @@ function nodeOf(doc: ViewDoc, key: NodeKey): GNode | undefined {
     return doc.graph.nodes[key];
 }
 
+/** A free name in `dir`: no file there, and no open document (an unsaved view is bound to its path, not on disk). */
 async function uniqueUri(dir: vscode.Uri, stem: string, ext: string): Promise<vscode.Uri> {
     const safe = stem.replace(/[^\w.-]+/g, '_').slice(0, 80) || 'view';
+    const open = new Set(vscode.workspace.textDocuments.map((d) => d.uri.path));
     for (let i = 1; ; i++) {
         const u = vscode.Uri.joinPath(dir, `${safe}${i > 1 ? `-${i}` : ''}${ext}`);
+        if (open.has(u.path)) continue;
         try { await vscode.workspace.fs.stat(u); } catch { return u; }
     }
 }
@@ -130,9 +133,10 @@ export function registerCommands(ctx: vscode.ExtensionContext, editor: GaffyEdit
         let target = uri;
         if (!cfg().get<boolean>('saveViews')) {
             target = uri.with({ scheme: 'untitled' });
-            await vscode.workspace.openTextDocument(target);
+            const untitled = await vscode.workspace.openTextDocument(target);
+            // the whole text: a document already bound to this path would otherwise hold two views
             const edit = new vscode.WorkspaceEdit();
-            edit.insert(target, new vscode.Position(0, 0), serializeDoc(doc));
+            edit.replace(target, new vscode.Range(new vscode.Position(0, 0), untitled.lineAt(Math.max(0, untitled.lineCount - 1)).range.end), serializeDoc(doc));
             await vscode.workspace.applyEdit(edit);
         } else await vscode.workspace.fs.writeFile(uri, new TextEncoder().encode(serializeDoc(doc)));
         const beside = fromEditor && (cfg().get<boolean>('openDefinitions') ?? true);
@@ -208,6 +212,12 @@ export function registerCommands(ctx: vscode.ExtensionContext, editor: GaffyEdit
         await s.update((d) => { d.view.edges = (d.view.edges ?? st.edges.mode) === 'glyph' ? 'vector' : 'glyph'; });
     });
     reg('gaffy.unhideAll', () => active().update((d) => { d.view.hidden = []; }));
+    // namespace frames hug their content (view.tight)
+    reg('gaffy.tightBoxes', async () => {
+        const s = active();
+        const st = await editor.styles.get(s.folder);
+        await s.update((d) => { d.view.tight = !(d.view.tight ?? st.boxes.tight); });
+    });
     reg('gaffy.toggleBoxes', async () => {
         const s = active();
         const st = await editor.styles.get(s.folder);
@@ -267,7 +277,7 @@ export function registerCommands(ctx: vscode.ExtensionContext, editor: GaffyEdit
             const rel = p.startsWith('.') ? p : `./${p}`;
             return n.line !== undefined && n.kind !== 'package' && n.kind !== 'folder' ? `${rel}#L${n.line + 1}` : rel;
         };
-        const md = `# ${doc.name}\n\n<pre>\n${toHtmlPre(sc.grid, gs, href)}\n</pre>\n`;
+        const md = `# ${doc.name}\n\n<pre>\n${toHtmlPre(sc.grid, gs, href, (k) => doc.view.seeds.includes(k))}\n</pre>\n`;
         // <symbol>_<short commit hash, or date>_<nn>.md and .txt, numbered per symbol and commit
         const seed = doc.view.seeds[0];
         const sym = ((seed && nodeOf(doc, seed)?.name) || s.name).replace(/[^\w.-]+/g, '_');

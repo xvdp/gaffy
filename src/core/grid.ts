@@ -345,7 +345,10 @@ export function buildGrid(P: Placement, vg: VGraph, opts: { arrow: boolean; cost
         const free = (r: number, c: number) => c >= 0 && !blocked.has(cellId(r, c)) && !border.has(cellId(r, c)) && !cells.has(cellId(r, c)) && !reserved.has(cellId(r, c));
         // a collector lane or a joint elbow already enters from the left: join it
         const own = !!cells.get(cellId(pv.row, pv.col - 2))?.has(`l:${v}`) && !elbowInto.has(v);
-        const left = own || (!elbowInto.has(v) && (opts.joint || votes.get(v)! >= 0 || departs.has(v)) && pv.col >= 2 && free(pv.row, pv.col - 2) && free(pv.row, pv.col - 1));
+        // a vertex sending calls from its label end receives from the left even when those cells are taken
+        // (the route then fails to a dashed fallback): its end never carries a call in and a call out
+        const sends = departs.has(v) && !elbowInto.has(v);
+        const left = own || sends || (!elbowInto.has(v) && (opts.joint || votes.get(v)! >= 0) && pv.col >= 2 && free(pv.row, pv.col - 2) && free(pv.row, pv.col - 1));
         leftArrival.set(v, left);
         if (left && !own) { reserved.set(cellId(pv.row, pv.col - 2), `l:${v}`); reserved.set(cellId(pv.row, pv.col - 1), `l:${v}`); }
     }
@@ -439,10 +442,9 @@ export function buildGrid(P: Placement, vg: VGraph, opts: { arrow: boolean; cost
         };
         if (sr < 0 || sr >= RH || sc >= RW || blocked.has(cellId(sr, sc))) { fallback(); continue; }
         // start states: label end heading E; under and over the first character heading S and N
-        // a caller that receives calls at its right end prefers to send from under or over its name;
-        // its label end stays a costly fallback
+        // a caller that receives calls at its right end sends from under or over its name, never from that end
         const starts: { id: number; r: number; c: number; d: number; cost: number }[] =
-            [{ id: sid(sr, sc, 2), r: sr, c: sc, d: 2, cost: !port && leftArrival.get(u) === false ? 20 : 0 }];
+            !port && leftArrival.get(u) === false ? [] : [{ id: sid(sr, sc, 2), r: sr, c: sc, d: 2, cost: 0 }];
         if (!port) {
             for (const [r, d] of [[pu.row + 1, 1], [pu.row - 1, 0]] as const) {
                 const id = cellId(r, pu.col);
@@ -452,6 +454,7 @@ export function buildGrid(P: Placement, vg: VGraph, opts: { arrow: boolean; cost
                 }
             }
         }
+        if (!starts.length) { fallback(); continue; }
         const startDir = new Map(starts.map((s) => [s.id, s.d] as const));
         let goal = -1;
         // a stem that starts on a trunk of this net alone joins it there (`├───┴─>`: the caller sits right above)
@@ -662,8 +665,8 @@ export function toText(g: Grid, gs: GlyphSet): string {
 /* secure tooling: HTML export: attributes escape " and '*/
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 
-/** `<pre>` body with vertex labels wrapped in links; `href` returns undefined for unlinked labels. */
-export function toHtmlPre(g: Grid, gs: GlyphSet, href: (key: NodeKey) => string | undefined): string {
+/** `<pre>` body with vertex labels wrapped in links (`href` returns undefined for unlinked labels); `bold` labels in `<b>` (seeds). */
+export function toHtmlPre(g: Grid, gs: GlyphSet, href: (key: NodeKey) => string | undefined, bold: (key: NodeKey) => boolean = () => false): string {
     const rows = charRows(g, gs, true);
     const byRow = new Map<number, LabelSpan[]>();
     for (const l of g.labels) {
@@ -680,7 +683,8 @@ export function toHtmlPre(g: Grid, gs: GlyphSet, href: (key: NodeKey) => string 
             const c0 = s.kind === 'box' ? s.col - 1 : s.col;
             line += esc(chars.slice(c, c0).join(''));
             const h = s.kind === 'node' ? href(s.key) : undefined;
-            line += h ? `<a href="${esc(h)}">${esc(text)}</a>` : esc(text);
+            const shown = s.kind === 'node' && bold(s.key) ? `<b>${esc(text)}</b>` : esc(text);
+            line += h ? `<a href="${esc(h)}">${shown}</a>` : shown;
             c = c0 + text.length;
         }
         line += esc(chars.slice(c).join('').trimEnd());

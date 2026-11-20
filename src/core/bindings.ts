@@ -187,6 +187,24 @@ export function pyCallSites(text: string, from = 0, to = text.length): { dotted:
     return out;
 }
 
+/**
+ * Base classes of a Python class header, `text` starting right after the class name: `(A, m.B, metaclass=M):`
+ * → `A` and `m.B`, each with the offset of its last name segment (where go to definition finds the class).
+ * Keyword arguments and subscripted bases (`Generic[T]`) are skipped, and `object`.
+ */
+export function pyBases(text: string): { name: string; at: number }[] {
+    const head = /^\s*\(([^)]*)\)/.exec(text.slice(0, 400));
+    if (!head) return [];
+    const out: { name: string; at: number }[] = [];
+    let off = head[0].indexOf('(') + 1;
+    for (const part of head[1].split(',')) {
+        const m = /^\s*([A-Za-z_][\w.]*)\s*$/.exec(part);
+        if (m && m[1].split('.').pop() !== 'object') out.push({ name: m[1], at: off + part.indexOf(m[1]) + m[1].lastIndexOf('.') + 1 });
+        off += part.length + 1;
+    }
+    return out;
+}
+
 export interface ExtModule { name: string; sources: string[]; local?: string }
 
 /** Torch C++/CUDA extensions declared in Python: `x = load(name=…, sources=[…])`, `CUDAExtension("pkg.ext", […])`. */

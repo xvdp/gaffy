@@ -17,10 +17,11 @@ import { nodeLabel } from './labels';
 import { Layout } from './layout';
 import { GNode, isContainer, NodeKey, Subgraph, visible } from './model';
 import { Marker, place, Placement } from './place';
+import { settleMoved, Units } from './settle';
 import { induced, quotient, VEdge, VGraph } from './quotient';
 import { cutKey, opens, reveal, Reveal, revealDepth } from './reveal';
 import { Style } from './style';
-import { excludedBy, isStandard, ViewDoc } from './viewdoc';
+import { Cell, excludedBy, isStandard, ViewDoc } from './viewdoc';
 
 export interface Scene {
     graph: Subgraph;
@@ -34,6 +35,7 @@ export interface Scene {
     rev: Reveal;                         // visible vertices, who revealed them, sides they may open
     hasMore: (k: NodeKey, side: 'up' | 'down') => boolean;   // neighbors on that side not on screen
     decor: Map<NodeKey, Decor>;          // label parts around the name: disclosure markers, tag, hidden badge
+    offsets: Record<string, Cell>;       // unit moves drawn: the view's, with moved units settled off content (settle.ts)
 }
 
 /** Label = pre + name + post + badge. */
@@ -157,7 +159,7 @@ export function buildScene(doc: ViewDoc, style: Style, exclude: readonly RegExp[
         return visible(n ? `${n.name}${style.labels.parens && !isContainer(n) ? '()' : ''}` : k);
     };
 
-    const placement: Placement = place({
+    const placeWith = (offset: Record<string, Cell>) => place({
         vg: drawn,
         tree,
         base: {
@@ -170,10 +172,22 @@ export function buildScene(doc: ViewDoc, style: Style, exclude: readonly RegExp[
             label,
             shortName,
         },
-        offset: view.offset,
+        offset,
         lock: view.lock,
+        tight: view.tight ?? style.boxes.tight,
         channel: style.route.channel,
     });
+    // moved units the picture grew into are drawn at the nearest clean offset (settle.ts, at most 3 rounds:
+    // the geometry of a settle is measured, the next placement may differ); the webview saves these offsets
+    let offsets = view.offset;
+    let placement: Placement = placeWith(offsets);
+    for (let round = 0; round < 3; round++) {
+        const moves = settleMoved(placement, { ...doc, view: { ...view, offset: offsets } }, unitsOn(tree, placement));
+        if (!moves.length) break;
+        offsets = { ...offsets };
+        for (const [u, a, b] of moves) { const o = offsets[u] ?? [0, 0]; offsets[u] = [o[0] + a, o[1] + b]; }
+        placement = placeWith(offsets);
+    }
     // marker rows: the `└─` of the tree elbow and its arrowhead, then `>` in the label's padding cell
     const markers: Marker[] = [];
     for (const k of owners) {
@@ -187,7 +201,7 @@ export function buildScene(doc: ViewDoc, style: Style, exclude: readonly RegExp[
         joint: (view.parentRule ?? style.grid.parentRule) === 'joint',
         cost: { bend: style.route.bend, cross: style.route.cross, border: style.route.border, adjacent: style.route.adjacent },
     });
-    return { graph, vg, drawn, tree, placement, grid, seeds: new Set(view.seeds), hiddenOf, decor, rev, hasMore };
+    return { graph, vg, drawn, tree, placement, grid, seeds: new Set(view.seeds), hiddenOf, decor, rev, hasMore, offsets };
 }
 
 function fallbackNode(key: NodeKey): GNode {
@@ -203,7 +217,7 @@ export function siblingsOf(sc: Scene, key: NodeKey): { slot: NodeKey | null; lis
 }
 
 /** Vertices moved together with unit `unit`: a vertex and its tree descendants, or a box's content. */
-export function unitMembers(sc: Scene, unit: string): NodeKey[] {
+export function unitMembers(sc: Pick<Scene, 'tree' | 'placement'>, unit: string): NodeKey[] {
     if (unit.startsWith('box:')) {
         const key = unit.slice(4);
         const find = (b: BoxNode): BoxNode | undefined => (b.key === key ? b : b.children.map(find).find(Boolean));
@@ -216,8 +230,13 @@ export function unitMembers(sc: Scene, unit: string): NodeKey[] {
     return walk(unit);
 }
 
+/** Units on a placement, for settle.ts. */
+export const unitsOn = (tree: BoxNode, placement: Placement): Units => ({
+    members: (u) => unitMembers({ tree, placement }, u), placed: (u) => !!unitAnchor({ placement }, u), stub: isStub,
+});
+
 /** Anchor cell of a unit: frame corner of a box, label start of a vertex. */
-export function unitAnchor(sc: Scene, unit: string): [number, number] | undefined {
+export function unitAnchor(sc: Pick<Scene, 'placement'>, unit: string): [number, number] | undefined {
     if (unit.startsWith('box:')) {
         const f = sc.placement.frames.find((x) => x.unit === unit);
         return f ? [f.c0, f.r0] : undefined;
@@ -238,15 +257,18 @@ function revealOf(doc: ViewDoc, exclude: readonly RegExp[], external: boolean | 
     return revealView(quotient(doc.graph, new Set(v.collapsed), new Set([...v.hidden, ...excludedKeys(doc, exclude, external)]), v.seeds), doc);
 }
 
-/** Definitions on screen; containers excluded. */
+/** Vertices whose calls are asked: definitions, and classes (construction runs their `__init__`, implicit.ts). */
+const asked = (n: GNode | undefined) => !isContainer(n) || n?.kind === 'class';
+
+/** Definitions and classes on screen. */
 export function visibleOf(doc: ViewDoc, exclude: readonly RegExp[] = [], external: boolean | Outside = true): NodeKey[] {
-    return [...revealOf(doc, exclude, external).visible].filter((k) => !isContainer(doc.graph.nodes[k]));
+    return [...revealOf(doc, exclude, external).visible].filter((k) => asked(doc.graph.nodes[k]));
 }
 
 /** Directions each definition on screen may open: seeds both, others the side that revealed them. */
 export function frontierOf(doc: ViewDoc, exclude: readonly RegExp[] = [], external: boolean | Outside = true): { key: NodeKey; dir: 'in' | 'out' }[] {
     const rev = revealOf(doc, exclude, external);
-    return [...rev.visible].filter((k) => !isContainer(doc.graph.nodes[k])).flatMap((key) => {
+    return [...rev.visible].filter((k) => asked(doc.graph.nodes[k])).flatMap((key) => {
         const a = rev.allowed.get(key);
         return [...(opens(a, 'up') ? ['in' as const] : []), ...(opens(a, 'down') ? ['out' as const] : [])].map((dir) => ({ key, dir }));
     });

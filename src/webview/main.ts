@@ -22,6 +22,7 @@ declare function acquireVsCodeApi(): VsApi;
 const api = acquireVsCodeApi();
 
 let text = '';
+let dragging = false;          // a unit is being dragged: no settling of moved units meanwhile
 let name = 'view';
 let doc: ViewDoc | undefined;
 let style: Style | undefined;
@@ -113,8 +114,7 @@ window.addEventListener('message', (ev) => {
         excludeRx = excludeGlobs.map(globToRegExp);
         const was = JSON.stringify(settings);
         settings = m.settings ?? settings;
-        // menu context of the whole page: `unsaved` shows right click > Save
-        document.body.setAttribute('data-vscode-context', JSON.stringify({ webviewSection: 'canvas', preventDefaultContextMenuItems: true, unsaved: settings.untitled }));
+        pageContext();
         if (JSON.stringify(settings) !== was && doc) { render(); }
         const st = JSON.stringify(m.style);
         if (m.text === text && st === styleText && doc) { status(); toolbar(); return; }
@@ -293,7 +293,14 @@ function hue(key: string): number {
 }
 
 // ---- render -------------------------------------------------------------------------------------
+/** Menu context of the whole page: `unsaved` shows right click > Save, `tight` checks right click > Tight Boxes. */
+function pageContext() {
+    const tight = doc?.view.tight ?? style?.boxes.tight ?? true;
+    document.body.setAttribute('data-vscode-context', JSON.stringify({ webviewSection: 'canvas', preventDefaultContextMenuItems: true, unsaved: settings.untitled, tight }));
+}
+
 function render() {
+    pageContext();
     if (!doc || !style) return;
     measure(style);
     applyColors(style);
@@ -361,7 +368,7 @@ function render() {
     } else {
         for (const p of g.paths) {
             if (p.fallback) continue;
-            ge.append('path').attr('class', viaOf(p) ? 'net bridge' : 'net').attr('data-from', p.from).attr('data-to', p.to).attr('d', curvePath(p, curve));
+            ge.append('path').attr('class', edgeClass(p)).attr('data-from', p.from).attr('data-to', p.to).attr('d', curvePath(p, curve));
             if (style.edges.arrow) {
                 const [x, y] = p.pts[p.pts.length - 1];
                 arrowhead(ge, x - (p.arrive === 'E' ? 0.5 : -0.5), y, p.arrive === 'E' ? 1 : -1);
@@ -514,6 +521,40 @@ function render() {
     highlight(focusKey);
     toolbar();
     status();
+    setTimeout(afterRender, 0);
+}
+
+/**
+ * After the picture changed (a side opened, data arrived, a depth changed), once per document state:
+ * 1. A moved function whose callers were just opened hands its move to its new tree parent, so the caller
+ *    sits right above it (`prev()` then `└─> fun()`) instead of at the parent's unmoved place.
+ * 2. The scene drew moved units the picture grew into at the nearest clean spot (settle.ts, scene
+ *    `offsets`): the view keeps those offsets, so what is saved is what is drawn. At most 3 such saves in a
+ *    row; any other change starts the count again.
+ */
+let settledFor = '';
+let settleStreak = 0;
+let adopt: { key: NodeKey; renders: number } | undefined;
+function afterRender() {
+    if (!doc || !scene || !style || dragging) return;
+    const sc = scene;
+    if (adopt) {
+        const k = adopt.key;
+        const p = sc.placement.blockOf.get(k)?.L.parent.get(k);
+        const off = doc.view.offset[k];
+        if (p && off && !doc.view.offset[p] && !doc.view.lock[p] && !doc.view.lock[k] && sc.rev.opener.get(p)?.by === k) {
+            adopt = undefined;
+            commit((x) => { x.view.offset[p] = off; delete x.view.offset[k]; });
+            return;
+        }
+        if (++adopt.renders > 6) adopt = undefined;      // no caller became its parent: nothing to hand over
+    }
+    if (text === settledFor || settleStreak >= 3) return;
+    settledFor = text;
+    if (sc.offsets === doc.view.offset) { settleStreak = 0; return; }
+    settleStreak++;
+    const settled = structuredClone(sc.offsets);
+    commit((x) => { x.view.offset = settled; });
 }
 
 const VERTICAL = new Set('│├┤┌┐└┘┬┴┼|+`');
@@ -535,11 +576,30 @@ function viaOf(p: { from: NodeKey; to: NodeKey }): string | undefined {
     return doc?.graph.edges.find((e) => e.from === p.from && e.to === p.to)?.via;
 }
 
+/** Implicit call (construction, instance call), from the stored edge. */
+function implicitOf(p: { from: NodeKey; to: NodeKey }): string | undefined {
+    return doc?.graph.edges.find((e) => e.from === p.from && e.to === p.to)?.implicit;
+}
+
+/** Path class: calls across languages dash-dot, implicit calls dotted. */
+const edgeClass = (p: { from: NodeKey; to: NodeKey }) => (viaOf(p) ? 'net bridge' : implicitOf(p) ? 'net implicit' : 'net');
+
+/** Tooltip line of an implicit call. */
+function implicitTitle(kind: string | undefined, callee: NodeKey): string {
+    if (kind === 'construction') return '\nimplicit: runs when the class is constructed';
+    if (kind === 'instance call') {
+        return scene!.graph.nodes[callee]?.name === 'forward'
+            ? '\nimplicit: an instance called, nn.Module.__call__ runs forward'
+            : '\nimplicit: an instance called runs __call__';
+    }
+    return '';
+}
+
 function callTitle(p: EdgePath): string {
     const { caller, callee } = asCall(p);
     const name = (k: NodeKey) => visible(scene!.graph.nodes[k]?.name ?? k);
     const via = viaOf(p);
-    return `${name(caller)}() → ${name(callee)}()${via ? `\nacross languages, via ${via}` : ''}\nclick select · double click: show only what lies below · right click: more`;
+    return `${name(caller)}() → ${name(callee)}()${via ? `\nacross languages, via ${via}` : ''}${implicitTitle(implicitOf(p), callee)}\nclick select · double click: show only what lies below · right click: more`;
 }
 
 /** Side of a vertex: open entry, or the traversal side for a seed without one. */
@@ -576,6 +636,9 @@ function toggleSides(k: NodeKey) {
 function setSide(k: NodeKey, side: 'up' | 'down', on: boolean, restore = false) {
     if (!doc || !scene || doc.view.arrange !== 'grow') return;   // full views: the call depths decide
     anchorAt(k);
+    // a moved function opening its callers: the caller that becomes its tree parent takes its move (afterRender)
+    if (on && side === 'up' && doc.view.offset[k]) adopt = { key: k, renders: 0 };
+    settleStreak = 0;
     const cur = effSide(k);
     const up = side === 'up' ? on : opens(cur, 'up');
     const down = side === 'down' ? on : opens(cur, 'down');
@@ -752,6 +815,7 @@ function dragUnit(unitOf: (d: LabelSpan) => string) {
         .subject((ev) => ({ x: ev.x, y: ev.y }))
         .clickDistance(4)
         .on('start', (_ev, d) => {
+            dragging = true;
             const sc = scene!;
             const unit = unitOf(d);
             units = !unit.startsWith('box:') && selected.has(d.key) && selected.size > 1 ? topUnits(sc, selected) : [unit];
@@ -776,6 +840,8 @@ function dragUnit(unitOf: (d: LabelSpan) => string) {
                 .attr('width', box.w).attr('height', box.h).attr('rx', 3);
         })
         .on('end', (ev) => {
+            dragging = false;
+            settleStreak = 0;
             root.select('.drag').selectAll('*').remove();
             const dc = Math.round((ev.x - ev.subject.x) / cw), dr = Math.round((ev.y - ev.subject.y) / ch);
             box = undefined;
@@ -806,8 +872,9 @@ function moveUnit(x: ViewDoc, unit: string, dc: number, dr: number) {
 /**
  * Collisions of the labels in `keys`: a label, or the arrowhead and blank cells before it, on a box
  * border; two labels on one row closer than `name() ─> next()` needs (blank, line, arrowhead, blank).
+ * Of the frames of `units` (box units and the boxes inside them): another label on their border or inside.
  */
-function collisions(sc: Scene, keys: Set<NodeKey>): number {
+function collisions(sc: Scene, keys: Set<NodeKey>, units: readonly string[] = []): number {
     const border = new Set<number>();
     for (const f of sc.placement.frames) {
         for (let c = f.c0; c <= f.c1; c++) { border.add(cellId(f.r0, c)); border.add(cellId(f.r1, c)); }
@@ -825,6 +892,14 @@ function collisions(sc: Scene, keys: Set<NodeKey>): number {
             const [a, b] = o.col < l.col ? [o, l] : [l, o];
             if (b.col - (a.col + a.text.length) < 4) n++;
         }
+    }
+    // frames that move with the unit: its own box, and boxes whose labels all belong to it
+    const own = sc.placement.frames.filter((f) => units.includes(f.unit)
+        || labels.some((l) => keys.has(l.key) && l.row > f.r0 && l.row < f.r1 && l.col > f.c0 && l.col < f.c1)
+            && labels.every((l) => !(l.row > f.r0 && l.row < f.r1 && l.col > f.c0 && l.col < f.c1) || keys.has(l.key)));
+    for (const l of labels) {
+        if (keys.has(l.key)) continue;
+        if (own.some((f) => l.row >= f.r0 && l.row <= f.r1 && l.col + l.text.length > f.c0 && l.col - 2 <= f.c1)) n++;
     }
     return n;
 }
@@ -844,7 +919,7 @@ function settleDrop(units: string[], dc: number, dr: number): [number, number] {
         for (const u of units) moveUnit(probe, u, a, b);
         try {
             const sc = buildScene(probe, style!, excludeRx, outside());
-            return sc.grid.unrouted <= unrouted && collisions(sc, keys) === 0;
+            return sc.grid.unrouted <= unrouted && collisions(sc, keys, units) === 0;
         } catch { return false; }
     };
     if (clean(dc, dr)) return [dc, dr];
@@ -1260,6 +1335,8 @@ function toolbar() {
                 ? 'back to the seeds and their first layer: close every side, drop hidden and removed, collapsed, moves, locks, grouping'
                 : 'back to the starting call depths: drop hidden, collapsed, moves, locks, grouping', act: () => runCmd('resetView') },
             { label: 'Reset layout', title: 'drop every move, lock, sibling order and straightened call', act: () => runCmd('resetLayout') },
+            { label: 'Tight boxes', title: 'namespace frames hug their content: functions moved right or down pull the frame edges along', on: v.tight ?? style!.boxes.tight,
+                act: () => commit((x) => { x.view.tight = !(v.tight ?? style!.boxes.tight); }) },
             { label: selected.size ? `Re-arrange selected (${selected.size})` : `Re-arrange (${Object.keys(v.offset).length})`,
                 title: 'the selected functions back to their computed place (moves and locks dropped), or every unlocked move (a)',
                 act: () => runCmd(selected.size ? 'rearrangeSelection' : 'rearrange') },

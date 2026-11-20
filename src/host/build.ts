@@ -10,6 +10,9 @@
  *
  * No answer is not an empty answer: a definition the language server does not resolve (still
  * analyzing, request failed) keeps the calls the view already holds, and its answer is not cached.
+ * An empty answer that would drop every stored call of a definition is doubted (a server still analyzing
+ * can answer empty instead of not at all): it counts as no answer until `DOUBTS` such answers in a row,
+ * across the view's retries (`doubted`, kept by the view), confirm it.
  */
 import * as vscode from 'vscode';
 import { GEdge, GNode, isContainer, NodeKey, Subgraph } from '../core/model';
@@ -18,6 +21,8 @@ import { CallCache } from './cache';
 import { LspProvider } from './lsp';
 
 export type BuildMode = 'cacheOnly' | 'cached' | 'fresh';
+/** Empty answers in a row that replace a definition's stored calls (the view retries after 2 and 4 s). */
+const DOUBTS = 3;
 export interface BuildProgress { level: number; depth: number; definitions: number; requests: number; cached: number }
 
 type Dir = 'in' | 'out';
@@ -49,7 +54,7 @@ export interface Extension {
 export async function extendGraph(
     p: LspProvider, doc: ViewDoc, queries: Pair[],
     opts: { cache?: CallCache; mode: BuildMode; token?: vscode.CancellationToken;
-        progress?: (p: BuildProgress) => void; maxNodes?: number },
+        progress?: (p: BuildProgress) => void; maxNodes?: number; doubted?: Map<string, number> },
 ): Promise<Extension> {
     const nodes: Record<NodeKey, GNode> = { ...doc.graph.nodes };
     let edges = doc.graph.edges.slice();
@@ -82,6 +87,13 @@ export async function extendGraph(
             const total = p.clampOf(key, dir);
             // cancelled: the pair stays unasked (asked again later), not unresolved
             if (!es) { if (!opts.token?.isCancellationRequested) unresolved.push({ key, dir }); opts.progress?.({ ...stats }); return; }
+            const id = `${dir}:${key}`;
+            const stored = edges.some((e) => (dir === 'out' ? e.from === key : e.to === key));
+            if (!es.length && stored && opts.doubted) {
+                const n = (opts.doubted.get(id) ?? 0) + 1;
+                if (n < DOUBTS) { opts.doubted.set(id, n); unresolved.push({ key, dir }); opts.progress?.({ ...stats }); return; }
+            }
+            opts.doubted?.delete(id);
             if (total) clamped.push({ key, dir, total });
             opts.cache?.put(key, dir, es, nodes, total);
         }

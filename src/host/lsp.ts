@@ -17,6 +17,7 @@ import { EXTERNAL, externalPath, extsOf, LANG, langOf, segments, TEXT_LANGS } fr
 import { bodyHash, GEdge, GNode, Kind, NodeKey } from '../core/model';
 import { callSites, mask, outline, TextSym } from '../core/textcalls';
 import { Bridges } from './bridges';
+import { Implicit } from './implicit';
 import { readable } from './scope';
 
 // symbols that enclose a qualified name: types, functions, namespaces, impl blocks (Object), object
@@ -127,6 +128,8 @@ export class LspProvider {
 
     /** Calls across languages (pybind11, nanobind, torch, slangpy, slangtorch); `gaffy.bridges`. */
     readonly bridges = new Bridges(this, () => vscode.workspace.getConfiguration('gaffy').get<boolean>('bridges') ?? true);
+    /** Calls the runtime makes without a call expression: construction, instance calls. */
+    readonly implicit = new Implicit(this);
 
     constructor(private includeExternal: () => boolean) {}
 
@@ -134,6 +137,25 @@ export class LspProvider {
     async callerAt(uri: vscode.Uri, pos: vscode.Position): Promise<vscode.CallHierarchyItem | undefined> {
         const fn = functionSymAt(await this.symbolsOf(uri), pos);
         return fn ? (await this.prepare(uri, fn.selectionRange.start))[0] : undefined;
+    }
+
+    /**
+     * Range of a definition's whole text. Pyright and Pylance give a call hierarchy item the range of its name
+     * only (`range` = `selectionRange`, measured with Pyright); the outline symbol at that name spans the body.
+     */
+    async bodyOf(it: vscode.CallHierarchyItem): Promise<vscode.Range> {
+        if (!it.range.isEqual(it.selectionRange)) return it.range;
+        const pos = it.selectionRange.start;
+        let found: Sym | undefined;
+        const walk = (ss: readonly Sym[]) => {
+            for (const s of ss) {
+                if (!s.range.contains(pos)) continue;
+                if (s.selectionRange.contains(pos)) found = s;
+                walk(s.children ?? []);
+            }
+        };
+        walk(await this.symbolsOf(it.uri));
+        return found?.range ?? it.range;
     }
 
     /** Full length of the last answer for (`key`, `dir`) when it exceeded `MAX_CALLS`, else undefined; read once. */
@@ -362,7 +384,21 @@ export class LspProvider {
             qual = segs.map((x) => x.name).join('.');
             kind = kindOf(chain[chain.length - 1].kind);
         } else {
-            qual = segments(item.name).join('.');
+            // not in the outline (an overload the outline lists once, a nested definition): the scopes around it
+            // are its containers, so every overload of `C.f` keys as `C.f`
+            const segs = chain.flatMap((sym) => segments(sym.name).map((name, j, all) => ({ name, sym, lead: j < all.length - 1 })));
+            for (let i = 0; i < segs.length; i++) {
+                const q = segs.slice(0, i + 1).map((x) => x.name).join('.');
+                const ck = `${fileKey}#${q}`;
+                if (!acc[ck]) {
+                    const sym = segs[i].sym;
+                    acc[ck] = { key: ck, kind: segs[i].lead ? 'class' : kindOf(sym.kind), name: segs[i].name, qual: q,
+                        module, parent, uri: item.uri.toString(), path: rel, line: sym.selectionRange.start.line,
+                        character: sym.selectionRange.start.character, external };
+                }
+                parent = ck;
+            }
+            qual = [...segs.map((x) => x.name), ...segments(item.name)].join('.');
             kind = kindOf(item.kind);
         }
 
@@ -371,7 +407,7 @@ export class LspProvider {
         try {
             if (readable(item.uri)) {
                 const doc = await vscode.workspace.openTextDocument(item.uri);
-                hash = bodyHash(doc.getText(item.range));
+                hash = bodyHash(doc.getText(await this.bodyOf(item)));
             }
         } catch { /* unreadable: no MOD tracking */ }
         acc[key] = { key, kind, name: qual.split('.').pop() || item.name, qual, module, parent, uri: item.uri.toString(),
@@ -405,20 +441,30 @@ export class LspProvider {
     async outgoing(key: NodeKey, acc: Record<NodeKey, GNode>, token?: vscode.CancellationToken): Promise<GEdge[] | undefined> {
         const it = await this.item(key, acc[key]).catch(() => undefined);
         if (!it) return undefined;
-        const own = this.textItems.has(it) ? await this.textOutgoing(key, it, acc).catch(() => undefined)
-            : await this.lspOutgoing(key, it, acc, await this.bridges.boundIn(it.uri).catch(() => undefined), token);
-        // calls across languages join the answer (a Python function calling bound C++/CUDA or Slang)
-        return own && own.concat(await this.bridges.outgoing(key, it, acc).catch(() => []));
+        let own: GEdge[] | undefined;
+        let answered: vscode.Range[] = [];
+        if (this.textItems.has(it)) own = await this.textOutgoing(key, it, acc).catch(() => undefined);
+        else {
+            const r = await this.lspOutgoing(key, it, acc, await this.bridges.boundIn(it.uri).catch(() => undefined), token);
+            own = r?.edges;
+            answered = r?.ranges ?? [];
+        }
+        if (!own) return undefined;
+        // calls across languages (a Python function calling bound C++/CUDA or Slang), and implicit calls, join the answer
+        const cross = await this.bridges.outgoing(key, it, acc).catch(() => []);
+        const implicit = await this.implicit.outgoing(key, it, acc, answered).catch(() => []);
+        return own.concat(cross, implicit);
     }
 
-    /** `bound`: call ranges in the caller's file where a binding matched; the server's edge from such a range is dropped (same-name match). */
     /**
-     * Outgoing calls from the language server. Locations of other schemes are dropped; of the rest the first
-     * `MAX_CALLS` are taken (`clampOf` reports the full length). Definitions are described `DESCRIBE_AT_ONCE`
-     * at a time. A cancelled `token` drops the answer (undefined): a partial answer is no answer.
+     * Outgoing calls from the language server, and the call ranges it answered. Locations of other schemes
+     * are dropped; of the rest the first `MAX_CALLS` are taken (`clampOf` reports the full length). `bound`:
+     * call ranges in the caller's file where a binding matched; the server's edge from such a range is
+     * dropped (same-name match). Definitions are described `DESCRIBE_AT_ONCE` at a time. A cancelled `token`
+     * drops the answer (undefined): a partial answer is no answer.
      */
     private async lspOutgoing(key: NodeKey, it: vscode.CallHierarchyItem, acc: Record<NodeKey, GNode>,
-        bound?: (r: vscode.Range) => boolean, token?: vscode.CancellationToken): Promise<GEdge[] | undefined> {
+        bound?: (r: vscode.Range) => boolean, token?: vscode.CancellationToken): Promise<{ edges: GEdge[]; ranges: vscode.Range[] } | undefined> {
         let calls: vscode.CallHierarchyOutgoingCall[] | undefined;
         try {
             calls = await timed(vscode.commands.executeCommand<vscode.CallHierarchyOutgoingCall[]>('vscode.provideOutgoingCalls', it));
@@ -429,7 +475,10 @@ export class LspProvider {
         const take = ok.slice(0, MAX_CALLS).filter((c) => !(bound && c.fromRanges.length && c.fromRanges.every(bound)));
         const tos = await mapLimit(take, DESCRIBE_AT_ONCE, (c) => this.describe(c.to, acc), token);
         if (token?.isCancellationRequested) return undefined;
-        return take.flatMap((c, i) => (tos[i] ? [{ from: key, to: tos[i]!, line: c.fromRanges[0]?.start.line }] : []));
+        return {
+            edges: take.flatMap((c, i) => (tos[i] ? [{ from: key, to: tos[i]!, line: c.fromRanges[0]?.start.line }] : [])),
+            ranges: calls.flatMap((c) => c.fromRanges),
+        };
     }
 
     /** Incoming calls of a definition; `undefined` and `[]` as for `outgoing`. */
@@ -437,8 +486,9 @@ export class LspProvider {
         const it = await this.item(key, acc[key]).catch(() => undefined);
         if (!it) return undefined;
         const own = this.textItems.has(it) ? await this.textIncoming(key, it, acc).catch(() => undefined) : await this.lspIncoming(key, it, acc, token);
-        // Python callers across bindings join the answer
-        return own && own.concat(await this.bridges.incoming(key, it, acc).catch(() => []));
+        // Python callers across bindings, and implicit callers (a class constructing), join the answer
+        if (!own) return undefined;
+        return own.concat(await this.bridges.incoming(key, it, acc).catch(() => []), await this.implicit.incoming(key, it, acc).catch(() => []));
     }
 
     /** Incoming calls from the language server; schemes, `MAX_CALLS`, concurrency and `token` as for `lspOutgoing`. */

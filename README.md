@@ -50,6 +50,15 @@ Both sides must be in the workspace. For a package installed from a source repos
 
 Direction: a binding call sits in the caller's outgoing calls. A function shown as a caller (opened upstream) opens only its callers, so to follow `forward → _C.rasterize_gaussians → RasterizeGaussiansCUDA`, open the calls of `forward` (make it a seed, or start a view on it with Call Hierarchy (dn)).
 
+### Implicit calls (classes)
+
+The runtime calls some methods without a call expression that names them; no language server answers them, so gaffy adds them ([src/host/implicit.ts](src/host/implicit.ts)), drawn dotted in vector mode, with a tooltip:
+
+- Construction: a class calls `__new__`, `__init__` and `__post_init__` (Python; `__init__` inherited from the nearest base class that defines one) or `constructor` (TypeScript, JavaScript). A call `Foo(…)` therefore leads `caller → Foo → Foo.__init__`, and the callers of `Foo.__init__` start with `Foo`.
+- Instance call (Python): `obj(…)` calls `type(obj).__call__`; for a torch `nn.Module` (no `__call__` up to its base class `Module`) it calls `forward`. The type of `obj` comes from the language server's type definition at the call site (`criterion(x, y)`, `self.net(x)`); sites the language server answered are skipped.
+
+Not followed (a call trace, not a call hierarchy): the methods backprop, hooks, `with` blocks, iteration, operators, properties and decorators run.
+
 ## Create a view
 
 Right click on a function name in the editor; the gaffy entries sit in the section of Find All References and Show Call Hierarchy (menu group `0_navigation`, after Show Type Hierarchy):
@@ -81,6 +90,8 @@ A new view asks the language server for one layer, shows it, then in the backgro
 - Double click a function: close both sides, or open every side that has more.
 - **Delete** (or Backspace) removes the selection: selected calls are cut (the branch below goes unless another call shows it), selected functions are hidden; click a box header to select its functions. The caller of a removed call, or the function that showed a removed function, keeps a `└─>>` or `>> ` marker; clicking it shows that side again, removed ones included. **Show all (n)** and Esc (with nothing selected) bring back everything removed.
 - Layout: the tree layout (caller above callee, `A └─> B`, ordered by namespace box, left to right, top to bottom, callers to calls) runs again after every change. The name of the function last opened, closed, or removed keeps its position on screen (a `>> ` that appears or goes does not move it); dragging releases it. Closed sides stay recorded, so reopening restores the layers below.
+- The picture grows around moves: a moved function or box keeps its move while sides open and data arrives. When the picture grows into it (its labels or frame would meet other content), it is drawn at the nearest clean spot (within 12 cells in any direction, else straight up to 80; [src/core/settle.ts](src/core/settle.ts)), and the view saves that position. Locked units stay where they are locked. Opening the callers of a moved function: the caller that becomes its tree parent takes the move, so it sits right above it (`prev()`, then `└─> fun()`).
+- A label end never both receives and sends a call: a function that sends calls from its end receives from the left; when its end has to receive, its calls leave from under or over its name, else dashed.
 - Drop repulsion: a dropped function or box whose labels would sit closer to another label on their row than `name() ─> next()` needs, or whose label, arrowhead or blank before the name would sit on a box border, or that leaves a call without a route, moves on one cell at a time in the drag direction (then sideways, then back) to the nearest clean spot, at most 12 cells. A call without any route is drawn dashed, with its arrowhead.
 - Options > Arrange: **Reset layout** drops moves, locks, sibling order, and straightened calls; **Reset view** returns to the seeds and their first layer. Right click an arrow > **Straighten This Call** routes it before all others.
 - Options > Layout: **Full** shows every function within the call depths of the toolbar, `all` `+` `−` *n* `call depth` *m* `−` `+` `all`: *n* caller levels on the left, *m* callee levels on the right, `all` every level the data holds. Options > Call depth by: **shortest call path** (a function's level is the fewest calls from a seed) or **longest call path** (the most calls, back edges of loops not counted). Full views keep the direction rule, the layout and the markers; markers and arrowheads do not open or close there. Switching layouts keeps the picture: Full takes the deepest caller and callee levels on screen as its depths; One layer at a time opens the sides that lead one level further within the depths. Closed sides and removed calls belong to one layer at a time only.
@@ -142,7 +153,7 @@ Toolbar: **Isolate** (when nothing is hidden: isolates the selection) or **Show 
 - Namespaces: ✓ Group namespaces, reset per-box grouping
 - Edges: glyphs (UTF box drawing) or vector; curve for vector: orthogonal, rounded, sigmoid, spline
 - Tree parent: first caller found (dfs), nearest caller above, joint (shared functions: a caller right above joins the elbow `├───┴─>`; several callers in a box join one collector that enters from the left, `┌──┘` then `└─>`; calls between boxes arrive from the left whenever the cells are free)
-- Arrange (key `a`, right click > Re-arrange Selection: the selected functions back to their computed place, moves and locks dropped): reset view (one layer at a time: the seeds and their first layer; full: the starting call depths), reset layout (moves, locks, sibling order, straightened calls), re-arrange (the selected functions, else every unlocked item), unlock all, expand collapsed, clear straightened calls
+- Arrange (key `a`, right click > Re-arrange Selection: the selected functions back to their computed place, moves and locks dropped): reset view (one layer at a time: the seeds and their first layer; full: the starting call depths), reset layout (moves, locks, sibling order, straightened calls), Tight boxes (on by default, style `boxes.tight`: namespace frames hug their content, functions moved right or down pull the frame edges along; also right click > Tight Boxes, with a checkmark), re-arrange (the selected functions, else every unlocked item), unlock all, expand collapsed, clear straightened calls
 - Folders: per top-level folder, included or excluded. Filters apply when drawing: calls into an excluded folder are still fetched and kept, so including it again shows them at once, without the language server.
 - Settings: include external code (`gaffy.includeExternal`, written to the workspace settings; turning it on asks the language server again, turning it off hides external code at once), include standard library (`gaffy.includeStandardLibrary`, off by default), Save gaffy Views (`gaffy.saveViews`, also in the right-click menu with a checkmark), all gaffy settings (VS Code Settings filtered to gaffy)
 - File: Refresh from Language Server, export text (UTF-8), edit style.json
@@ -177,7 +188,7 @@ Locks: a locked function or box keeps its absolute position; re-arrange and layo
   views/<symbol>_<commit>.gaffy  view: seeds, direction, depth, open sides, call depths, cut calls, collapsed, hidden, grouping,
                                folder include and exclude, tags, straightened calls, last graph and the
                                directions asked per definition (JSON)
-  <symbol>_<commit>.md         text export, <pre> with links to path#Lline; <commit> = short HEAD hash, or
+  <symbol>_<commit>.md         text export, <pre> with links to path#Lline, seeds in bold; <commit> = short HEAD hash, or
   <symbol>_<commit>.txt        <YYYYMMDD-HHMM> outside git; later exports of the same symbol and commit: _2, _3, …
   cache/calls.json             cached language-server answers
   style.json                   style overrides (gaffy: Edit Style writes the defaults)

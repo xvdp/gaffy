@@ -37,6 +37,7 @@ export interface GEdge {
     to: NodeKey;             // callee
     line?: number;           // first call-site line in the caller, 0-based; orders siblings
     via?: string;            // a call across languages: the binding layer (pybind11, nanobind, torch, slangpy, slangtorch) and where it binds
+    implicit?: 'construction' | 'instance call';   // a call the runtime makes, named by no call expression (host/implicit.ts)
 }
 
 export interface Subgraph {

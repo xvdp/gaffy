@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { callSites } from '../src/core/textcalls';
-import { extModules, jsCallSites, jsImports, matchBindings, matchWasm, pyCallSites, pyImports, resolveDotted, scanNative, scanWasm, slangCalls, slangLoads } from '../src/core/bindings';
+import { extModules, jsCallSites, jsImports, matchBindings, matchWasm, pyBases, pyCallSites, pyImports, resolveDotted, scanNative, scanWasm, slangCalls, slangLoads } from '../src/core/bindings';
 
 const PYBIND = `#include <pybind11/pybind11.h>
 namespace py = pybind11;
@@ -207,5 +207,16 @@ function install2() {}
         expect(hit('core.install')).toEqual(['install']);
         expect(hit('init')).toEqual([]);                     // the default export loads the module
         expect(hit('m.scale')).toEqual([]);                  // an instance: its type is unknown in the text
+    });
+});
+
+describe('class headers (implicit construction through base classes)', () => {
+    it('bases with the offset of their last name; keywords, subscripts and object skipped', () => {
+        const head = '(nn.Module, Shoo, Generic[T], object, metaclass=ABCMeta):';
+        const b = pyBases(head);
+        expect(b.map((x) => x.name)).toEqual(['nn.Module', 'Shoo']);
+        expect(b.map((x) => head.slice(x.at, x.at + 6))).toEqual(['Module', 'Shoo, ']);
+        expect(pyBases(':\n    pass')).toEqual([]);
+        expect(pyBases('(\n    Moo,\n    goo.Magoo,\n):').map((x) => x.name)).toEqual(['Moo', 'goo.Magoo']);
     });
 });

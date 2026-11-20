@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { toHtmlPre, toText } from '../src/core/grid';
 import { nodeLabel } from '../src/core/labels';
 import { GNode, plain, visible } from '../src/core/model';
-import { buildScene, Scene, unitAnchor } from '../src/core/scene';
+import { buildScene, Scene, unitAnchor, unitMembers } from '../src/core/scene';
 import { deepMerge, DEFAULT_STYLE, glyphSet, Style } from '../src/core/style';
 import { boxUnit, excludedBy, globToRegExp, parseDoc, serializeDoc, ViewDoc } from '../src/core/viewdoc';
 import { frontierOf } from '../src/core/scene';
@@ -13,7 +13,8 @@ import { fixtureDoc, k, KAZOO, MOO, STAR } from './fixtures';
 const GOLDEN = join(__dirname, 'golden');
 // goldens pin the tree parent rule: a changed default in DEFAULT_STYLE does not change them
 const flat = (o: unknown = {}): Style => deepMerge(DEFAULT_STYLE, { boxes: { enabled: false }, grid: { parentRule: 'dfs' } }, o);
-const boxed = (o: unknown = {}): Style => deepMerge(DEFAULT_STYLE, { boxes: { enabled: true }, grid: { parentRule: 'dfs' } }, o);
+// goldens pin frames that keep their corner (boxes.tight off): their pictures predate tight frames
+const boxed = (o: unknown = {}): Style => deepMerge(DEFAULT_STYLE, { boxes: { enabled: true, tight: false }, grid: { parentRule: 'dfs' } }, o);
 
 /** Compares with test/golden/<name>.txt; writes the file when absent or when UPDATE_GOLDEN is set. */
 function golden(name: string, text: string) {
@@ -41,6 +42,9 @@ function invariants(sc: Scene) {
     }
     // every call routed
     expect(grid.unrouted).toBe(0);
+    // no label end both receives a call (`f() <──`) and sends one (`f() ──`)
+    const intoEnd = new Set(grid.paths.filter((p) => p.arrive === 'W').map((p) => p.to));
+    for (const p of grid.paths) expect(p.start === 'E' && intoEnd.has(p.from), `${p.from} sends and receives at its end`).toBe(false);
     // every call drawn exactly once: one path, or a back tag
     const back = new Set<string>();
     for (const B of P.blocks) for (const [u, vs] of B.L.back) for (const v of vs) back.add(`${u}>${v}`);
@@ -162,6 +166,44 @@ describe('addendum 1a: scoobie and its callees', () => {
         expect(d('kazoo.moomoo.boogaloos:_burritos', sc).col - d('kazoo.moomoo.boogaloos:_burritos', base).col).toBe(12);
         // the broken elbow becomes a routed call (net `l:`), not a tree elbow (net `t:`)
         expect(sc.grid.paths.some((p) => p.to === key && p.net.startsWith('l:'))).toBe(true);
+    });
+
+    it('tight frames hug content moved right and down; other frames keep their corner', () => {
+        const key = k('kazoo.moomoo.boogaloos:scoobie');
+        const frameOf = (x: Scene) => x.placement.frames.find((f) => f.box.label === 'moomoo.boogaloos')!;
+        const base = frameOf(buildScene(doc, boxed()));
+        const moved = (tight: boolean) => fixtureDoc(KAZOO, { ...doc.view, offset: { [key]: [6, 2] }, tight });
+        const loose = buildScene(moved(false), boxed());
+        const tight = buildScene(moved(true), boxed());
+        invariants(loose);
+        invariants(tight);
+        // the frame keeps its corner: 6 empty columns left of the content, 2 empty rows above it
+        expect([frameOf(loose).c0, frameOf(loose).r0]).toEqual([base.c0, base.r0]);
+        // tight: the frame moves with its content and keeps its size
+        const t = frameOf(tight);
+        expect([t.c0 - base.c0, t.r0 - base.r0, t.c1 - t.c0, t.r1 - t.r0]).toEqual([6, 2, base.c1 - base.c0, base.r1 - base.r0]);
+        expect(parseDoc(serializeDoc(moved(true)), 'x').view.tight).toBe(true);
+    });
+
+    it('a moved box that lands on other content is drawn at the nearest clean spot', () => {
+        const unit = boxUnit(buildScene(doc, boxed()).placement.frames.find((x) => x.box.label === 'noodles')!.box.key);
+        const d = fixtureDoc(KAZOO, { ...doc.view, offset: { [unit]: [-40, 0] } });
+        const foreign = (sc: Scene) => {
+            const f = sc.placement.frames.find((x) => x.unit === unit)!;
+            const mine = new Set(unitMembers(sc, unit));
+            return sc.grid.labels.filter((l) => l.kind === 'node' && !mine.has(l.key) && l.row >= f.r0 && l.row <= f.r1 && l.col + l.text.length > f.c0 && l.col - 2 <= f.c1).length;
+        };
+        const sc = buildScene(d, boxed());
+        invariants(sc);
+        expect(foreign(sc)).toBe(0);
+        expect(sc.offsets[unit]).not.toEqual([-40, 0]);
+        // saved, the settled offsets draw the same picture and settle nothing further
+        const saved = fixtureDoc(KAZOO, { ...doc.view, offset: sc.offsets });
+        const again = buildScene(saved, boxed());
+        expect(again.offsets).toBe(saved.view.offset);
+        expect(text(again, boxed())).toBe(text(sc, boxed()));
+        // nothing moved: nothing settled
+        expect(buildScene(doc, boxed()).offsets).toBe(doc.view.offset);
     });
 
     it('hidden vertices leave a marker row on their callers, no count', () => {
@@ -334,6 +376,10 @@ describe('example (*)', () => {
         const html = toHtmlPre(sc.grid, glyphSet(flat()), (key) => `../../${key.split('#')[0].slice(3)}`);
         expect(html).toContain('<a href="../../foo/wobble.py">foo.wobble.jiggly_boogaloos()</a>');
         expect(html).toContain('&lt;');
+        // seeds bold, inside their link
+        const bold = toHtmlPre(sc.grid, glyphSet(flat()), () => 'x', (key) => key === seeds[0]);
+        expect(bold.match(/<b>/g)?.length).toBe(1);
+        expect(bold).toMatch(/<a href="x"><b>[^<]+<\/b><\/a>/);
     });
 });
 
@@ -462,6 +508,23 @@ describe('external code and the standard library', () => {
         const d = doc();
         d.view.exclude = ['stdlib'];
         expect(shown(d, true)).toEqual(['f', 'g', 'norm']);
+    });
+});
+
+describe('classes', () => {
+    it('a constructed class is asked for its calls (construction runs __init__)', () => {
+        const d = parseDoc(JSON.stringify({ gaffy: 1, name: 'x', view: { seeds: ['py:foo.py#magoo'], arrange: 'auto', depthUp: 0, depthDown: 2 } }), 'x');
+        const n = (key: string, kind: GNode['kind'], parent: string | null): GNode => ({ key, kind, name: key.split(/[#.]/).pop()!, qual: key.split('#')[1] ?? '', module: 'foo', parent, path: 'foo.py' });
+        d.graph.nodes = Object.fromEntries([
+            n('py:foo.py', 'module', null), n('py:foo.py#magoo', 'function', 'py:foo.py'),
+            n('py:foo.py#Scoobie', 'class', 'py:foo.py'), n('py:foo.py#Scoobie.__init__', 'method', 'py:foo.py#Scoobie'),
+        ].map((x) => [x.key, x]));
+        d.graph.edges = [{ from: 'py:foo.py#magoo', to: 'py:foo.py#Scoobie', line: 3 },
+            { from: 'py:foo.py#Scoobie', to: 'py:foo.py#Scoobie.__init__', implicit: 'construction' }];
+        expect(frontierOf(d).filter((q) => q.dir === 'out').map((q) => q.key.split('#')[1]).sort()).toEqual(['Scoobie', 'Scoobie.__init__', 'magoo']);
+        const sc = buildScene(d, flat());
+        invariants(sc);
+        expect(sc.grid.paths.some((p) => p.from === 'py:foo.py#Scoobie' && p.to === 'py:foo.py#Scoobie.__init__')).toBe(true);
     });
 });
 

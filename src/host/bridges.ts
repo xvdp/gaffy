@@ -306,7 +306,7 @@ export class Bridges {
             // TypeScript/JavaScript → Rust through wasm-bindgen
             const doc = await vscode.workspace.openTextDocument(it.uri);
             const edges: GEdge[] = [];
-            for (const { e, at } of await this.wasmCalls(it.uri, doc.getText(), doc.offsetAt(it.selectionRange.end), doc.offsetAt(it.range.end))) {
+            for (const { e, at } of await this.wasmCalls(it.uri, doc.getText(), doc.offsetAt(it.selectionRange.end), doc.offsetAt((await this.p.bodyOf(it)).end))) {
                 const rdoc = await vscode.workspace.openTextDocument(e.uri);
                 const t = (await this.p.prepare(e.uri, rdoc.positionAt(e.at)))[0];
                 const to = t && (await this.p.describe(t, acc));
@@ -317,7 +317,7 @@ export class Bridges {
         if (langOf(it.uri.path) !== 'py') return [];
         const doc = await vscode.workspace.openTextDocument(it.uri);
         const text = doc.getText();
-        const from = doc.offsetAt(it.selectionRange.end), upto = doc.offsetAt(it.range.end);
+        const from = doc.offsetAt(it.selectionRange.end), upto = doc.offsetAt((await this.p.bodyOf(it)).end);
         const sites = pyCallSites(text, from, upto);
         if (!sites.length) return [];
         const edges: GEdge[] = [];
@@ -333,7 +333,7 @@ export class Bridges {
             if (!uri) continue;
             const fns = await this.slangFns(uri);
             const holders = new Set(slangLoads(text).map((x) => x.target.split('.').pop()!));
-            for (const c of slangCalls(text, doc.offsetAt(it.selectionRange.end), doc.offsetAt(it.range.end), new Set(fns.keys()), holders)) {
+            for (const c of slangCalls(text, doc.offsetAt(it.selectionRange.end), doc.offsetAt((await this.p.bodyOf(it)).end), new Set(fns.keys()), holders)) {
                 const t = (await this.p.prepare(uri, fns.get(c.name)!.selectionRange.start))[0];
                 const to = t && (await this.p.describe(t, acc));
                 if (to) edges.push({ from: key, to, line: doc.positionAt(c.at).line, via: `${l.via}: ${l.file}${c.dynamic ? ' (by name, getattr)' : ''}` });

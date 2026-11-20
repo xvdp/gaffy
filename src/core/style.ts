@@ -14,7 +14,7 @@ export interface Style {
     grid: { indent: number; laneGap: number; parentRule: ParentRule };
     edges: { mode: EdgeMode; glyphs: 'unicode' | 'ascii'; arrow: boolean; cross: string; width: number; curve: Curve; lead: number; tension: number };
     labels: { strip: string[]; parens: boolean };
-    boxes: { enabled: boolean; modules: boolean; root: boolean; fill: 'none' | 'hue'; alpha: number; line: FrameLine };
+    boxes: { enabled: boolean; modules: boolean; root: boolean; tight: boolean; fill: 'none' | 'hue'; alpha: number; line: FrameLine };
     route: { bend: number; cross: number; border: number; adjacent: number; channel: number };
     colors: Record<string, string>;
 }
@@ -25,7 +25,7 @@ export const DEFAULT_STYLE: Style = {
     grid: { indent: 4, laneGap: 2, parentRule: 'joint' },
     edges: { mode: 'vector', glyphs: 'unicode', arrow: true, cross: '│', width: 1, curve: 'rounded', lead: 3, tension: 0.5 },
     labels: { strip: [], parens: true },
-    boxes: { enabled: true, modules: false, root: true, fill: 'none', alpha: 0.08, line: 'dashed' },
+    boxes: { enabled: true, modules: false, root: true, tight: true, fill: 'none', alpha: 0.08, line: 'dashed' },
     route: { bend: 3, cross: 6, border: 4, adjacent: 2, channel: 4 },
     colors: {
         fg: 'var(--vscode-editor-foreground)',

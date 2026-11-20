@@ -1,4 +1,5 @@
 // Fixture view documents for the browser preview harness (scripts/preview.mjs).
+import { readFileSync } from 'node:fs';
 import { DEFAULT_STYLE } from '../src/core/style';
 import { serializeDoc } from '../src/core/viewdoc';
 import { fixtureDoc, k, KAZOO, MOO, STAR } from './fixtures';
@@ -23,5 +24,7 @@ const two = fixtureDoc(KAZOO, { seeds: [k('kazoo.noodles.jumbles:to_wacky'), k('
 two.name = 'two';
 
 process.stdout.write(JSON.stringify({
-    docs: { moo: serializeDoc(moo), star: serializeDoc(star), kazoo: serializeDoc(kazoo), grow: serializeDoc(grow), two: serializeDoc(two) }, style: DEFAULT_STYLE,
+    // GAFFY_PREVIEW_FILE: a .gaffy view file, as doc=file
+    docs: { moo: serializeDoc(moo), star: serializeDoc(star), kazoo: serializeDoc(kazoo), grow: serializeDoc(grow), two: serializeDoc(two),
+        ...(process.env.GAFFY_PREVIEW_FILE ? { file: readFileSync(process.env.GAFFY_PREVIEW_FILE, 'utf8') } : {}) }, style: DEFAULT_STYLE,
 }));

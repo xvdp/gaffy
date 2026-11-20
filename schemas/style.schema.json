@@ -137,6 +137,10 @@
           "type": "boolean",
           "description": "Namespace boxes for packages and folders; labels relative to their box."
         },
+        "tight": {
+          "type": "boolean",
+          "description": "Frames enclose only their content: functions moved right or down pull the frame edges along. A view's Tight boxes choice overrides it."
+        },
         "modules": {
           "type": "boolean",
           "description": "Also box each module or file."

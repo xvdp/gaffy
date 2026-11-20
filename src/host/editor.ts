@@ -138,7 +138,7 @@ export class Session {
         if (!qs.length) return undefined;
         const o = this.opts();
         await o.cache.ready();
-        const r = await extendGraph(this.host.provider, this.doc(), qs, { ...o, mode, token,
+        const r = await extendGraph(this.host.provider, this.doc(), qs, { ...o, mode, token, doubted: this.doubted,
             progress: (q) => show(`${label} · ${q.definitions} definitions · ${q.requests} language-server requests · ${q.cached} cached`) });
         const now = this.doc();
         const before = signature(now);
@@ -187,6 +187,8 @@ export class Session {
 
     // pairs without an answer in the current task; retried with backoff while the language server starts
     private pending = new Map<string, Pair>();
+    // empty answers that would drop a definition's stored calls, per `<dir>:<key>`: counted until confirmed (build.ts)
+    private doubted = new Map<string, number>();
     private retries = 0;
     private retryTimer: NodeJS.Timeout | undefined;
 

@@ -62,6 +62,23 @@ describe('extendGraph merge', () => {
         expect(r.asked).toBe(0);
     });
 
+    it('an empty answer that drops every stored call counts only when confirmed', async () => {
+        const doubted = new Map<string, number>();
+        const p = provider({ [`out:${root}`]: [] });
+        for (const round of [1, 2]) {
+            const r = await extendGraph(p, doc, [{ key: root, dir: 'out' }], { mode: 'fresh', doubted });
+            expect(calls(r.graph.edges, root), `round ${round}`).toEqual(before);
+            expect(r.unresolved).toEqual([{ key: root, dir: 'out' }]);
+        }
+        const r3 = await extendGraph(p, doc, [{ key: root, dir: 'out' }], { mode: 'fresh', doubted });
+        expect(calls(r3.graph.edges, root)).toEqual([]);
+        expect(doubted.size).toBe(0);
+        // nothing stored: an empty answer is taken at once
+        const leaf = Object.keys(doc.graph.nodes).find((x) => x.includes('#') && !doc.graph.edges.some((e) => e.from === x))!;
+        const r4 = await extendGraph(provider({ [`out:${leaf}`]: [] }), doc, [{ key: leaf, dir: 'out' }], { mode: 'fresh', doubted });
+        expect(r4.unresolved).toEqual([]);
+    });
+
     it('cacheOnly reports misses without asking', async () => {
         let asked = 0;
         const p = { outgoing: async () => { asked++; return []; }, incoming: async () => { asked++; return []; } } as unknown as LspProvider;

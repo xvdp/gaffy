@@ -1,4 +1,4 @@
-// Browser preview of the webview without VS Code: dist/preview.html?doc=moo|star
+// Browser preview of the webview without VS Code: dist/preview.html?doc=moo|star|kazoo|grow|two|file (GAFFY_PREVIEW_FILE=<view.gaffy>)
 // Mocks acquireVsCodeApi, echoes edits back as state, maps VS Code theme variables to dark defaults.
 import { execFileSync } from 'node:child_process';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -127,7 +127,9 @@ const simulate = () => {
   ev('mouseup', x + dx, y + dy, window);
 };
 // messages to the webview are delivered synchronously, so the page is final when it finishes loading
-const deliver = () => window.dispatchEvent(new MessageEvent('message', { data: { type: 'state', text, name: which, style: DATA.style } }));
+// settings shown in Options: external=1 includes external code, std=1 the standard library
+const settings = { includeExternal: params.get('external') === '1', includeStandardLibrary: params.get('std') === '1', saveViews: false, untitled: false };
+const deliver = () => window.dispatchEvent(new MessageEvent('message', { data: { type: 'state', text, name: which, style: DATA.style, settings } }));
 window.acquireVsCodeApi = () => ({
   postMessage(m) {
     log(m);

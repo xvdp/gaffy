@@ -2,7 +2,7 @@
   "name": "gaffy",
   "displayName": "gaffy",
   "description": "Persistent, manipulable call graphs on a character grid, rendered with D3",
-  "version": "0.9.8",
+  "version": "0.9.13",
   "publisher": "xvdp",
   "license": "MIT",
   "private": true,
@@ -366,6 +366,12 @@
         "category": "gaffy"
       },
       {
+        "command": "gaffy.tightBoxes",
+        "title": "Tight Boxes",
+        "category": "gaffy",
+        "toggled": "tight"
+      },
+      {
         "command": "gaffy.toggleSaveViews",
         "title": "Save gaffy Views",
         "category": "gaffy",
@@ -427,6 +433,11 @@
           "command": "gaffy.toggleSaveViews",
           "when": "webviewId == 'gaffy.view'",
           "group": "0_save@2"
+        },
+        {
+          "command": "gaffy.tightBoxes",
+          "when": "webviewId == 'gaffy.view' && webviewSection =~ /^(canvas|box)$/",
+          "group": "9_view@11"
         },
         {
           "command": "gaffy.node.open",
