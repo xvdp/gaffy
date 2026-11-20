@@ -60,7 +60,7 @@ Right click on a function name in the editor; the gaffy entries sit in the secti
 | gaffy: Call Hierarchy (dn) | the function | its calls |
 | gaffy: Add to Call Graph | appended to the open view | as the view's direction |
 
-`style.json` `view.traverse: "both"` starts every new view with callers and calls. `gaffy: Check Language Servers` lists the languages of the workspace, the extension that gives each call hierarchy, and what to install; after start-up gaffy shows the same as a notification once per version when a required one is missing (Install, Show Report, Don't Show Again). With `gaffy.openCallHierarchy` (default on) VS Code's own Call Hierarchy opens in the References view as well. Explorer, right click on a file, **gaffy** > New View: Callers of the Functions of File: every function of the file with its callers, one level, in the full layout. The view file goes to `.gaffy/views/<symbol>_<short commit hash>.gaffy` (`<symbol>_<YYYYMMDD-HHMM>` outside git).
+`style.json` `view.traverse: "both"` starts every new view with callers and calls. `gaffy: Check Language Servers` lists the languages of the workspace, the extension that gives each call hierarchy, and what to install; after start-up gaffy shows the same as a notification once per version when a required one is missing (Install, Show Report, Don't Show Again). With `gaffy.openCallHierarchy` (default on) VS Code's own Call Hierarchy opens in the References view as well. Explorer, right click on a file, **gaffy** > New View: Callers of the Functions of File: every function of the file with its callers, one level, in the full layout. A new view opens unsaved; right click > Save writes it to `.gaffy/views/<symbol>_<short commit hash>.gaffy` (`<symbol>_<YYYYMMDD-HHMM>` outside git), and right click > Save gaffy Views (`gaffy.saveViews`) saves every new view at once. Export (key `x`) always writes `.gaffy/<symbol>_<commit>.md` and `.txt`, and names both in a notification.
 
 A new view asks the language server for one layer, shows it, then in the background asks every function on screen for its callers and calls (so the open markers know what lies beyond) and prefetches `gaffy.depth` layers along the traversal direction. Reopening a view shows the stored graph at once and asks the language server only for calls that changed files made stale (see [Building, progress, cache](#building-progress-cache)).
 
@@ -114,7 +114,7 @@ Algorithms: [src/core/layout.ts](src/core/layout.ts) (rows and lanes in a block)
 
 | input | action |
 |---|---|
-| click a function | select it and open it beside the graph (`gaffy.openBeside`) |
+| click a function | select it and open its definition in the column next to the graph (`gaffy.openDefinitions`; off: select only) |
 | Shift+click a function | add to or remove from the selection |
 | Shift+drag on the background | selection window: adds every function whose label it touches |
 | `>> name()` / `└─>>` (one layer at a time) | open its callers / its calls, removed ones included |
@@ -144,8 +144,8 @@ Toolbar: **Isolate** (when nothing is hidden: isolates the selection) or **Show 
 - Tree parent: first caller found (dfs), nearest caller above, joint (shared functions: a caller right above joins the elbow `├───┴─>`; several callers in a box join one collector that enters from the left, `┌──┘` then `└─>`; calls between boxes arrive from the left whenever the cells are free)
 - Arrange (key `a`, right click > Re-arrange Selection: the selected functions back to their computed place, moves and locks dropped): reset view (one layer at a time: the seeds and their first layer; full: the starting call depths), reset layout (moves, locks, sibling order, straightened calls), re-arrange (the selected functions, else every unlocked item), unlock all, expand collapsed, clear straightened calls
 - Folders: per top-level folder, included or excluded. Filters apply when drawing: calls into an excluded folder are still fetched and kept, so including it again shows them at once, without the language server.
-- Settings: include external code (`gaffy.includeExternal`, written to the workspace settings; turning it on asks the language server again, turning it off hides external code at once), new views unsaved (`gaffy.newViews`), all gaffy settings (VS Code Settings filtered to gaffy)
-- File: Refresh from Language Server, export ASCII, edit style.json
+- Settings: include external code (`gaffy.includeExternal`, written to the workspace settings; turning it on asks the language server again, turning it off hides external code at once), include standard library (`gaffy.includeStandardLibrary`, off by default), Save gaffy Views (`gaffy.saveViews`, also in the right-click menu with a checkmark), all gaffy settings (VS Code Settings filtered to gaffy)
+- File: Refresh from Language Server, export text (UTF-8), edit style.json
 
 The toolbar and the pulldown are plain HTML elements in the webview, built with d3-selection and styled with VS Code's theme variables (`--vscode-menu-*`); the graph itself is SVG drawn with D3.
 
@@ -177,7 +177,7 @@ Locks: a locked function or box keeps its absolute position; re-arrange and layo
   views/<symbol>_<commit>.gaffy  view: seeds, direction, depth, open sides, call depths, cut calls, collapsed, hidden, grouping,
                                folder include and exclude, tags, straightened calls, last graph and the
                                directions asked per definition (JSON)
-  <symbol>_<commit>.md         ASCII export, <pre> with links to path#Lline; <commit> = short HEAD hash, or
+  <symbol>_<commit>.md         text export, <pre> with links to path#Lline; <commit> = short HEAD hash, or
   <symbol>_<commit>.txt        <YYYYMMDD-HHMM> outside git; later exports of the same symbol and commit: _2, _3, …
   cache/calls.json             cached language-server answers
   style.json                   style overrides (gaffy: Edit Style writes the defaults)
@@ -231,17 +231,18 @@ A new UI element gets a color by a CSS rule in `media/webview.css` that reads `v
 | `gaffy.depth` | 3 | one layer at a time: levels prefetched in the background; full: the starting call depths |
 | `gaffy.maxNodes` | 400 | definitions fetched per build |
 | `gaffy.openCallHierarchy` | true | also open VS Code's Call Hierarchy when creating a view |
-| `gaffy.newViews` | saved | `unsaved`: a new view opens as an unsaved document bound to its `.gaffy/views/` path; Save keeps it, closing without saving discards it (VS Code's hot exit keeps unsaved documents across window reloads) |
+| `gaffy.saveViews` | false | Save gaffy Views: new views are written to `.gaffy/views/` and saved after every change. Off: a new view opens as an unsaved document bound to its `.gaffy/views/` path; right click > Save writes it there, closing without saving discards it (VS Code's hot exit keeps unsaved documents across window reloads) |
 | `gaffy.exclude` | none | globs of folders and files views leave off screen (for example `"**/tests/**"`); Options > Folders includes them again per view |
 | `gaffy.includeExternal` | false | show external code: installed packages (site-packages, node_modules), stubs, system headers, build output, wasm-pack glue; Options > Settings toggles it |
+| `gaffy.includeStandardLibrary` | false | with external code: also the builtins and standard library of each language (Python typeshed `stdlib` and `pythonX.Y`, Rust core, alloc and std, C++ standard headers, TypeScript `lib.*.d.ts`); off: installed packages show, the standard library does not. Drawn without the language server; Options > Settings toggles it |
 | `gaffy.autoSave` | true | save the view file after each graph change |
 | `gaffy.refreshOnSave` | touched | update policy after a source save |
-| `gaffy.openBeside` | true | open definitions beside the graph |
+| `gaffy.openDefinitions` | true | Open Definitions: a view started from the editor opens beside it (the definition stays in view); a click on a function opens its definition in the column next to the graph. Off: views open in the active column, a click only selects |
 
 ## Tests and preview
 
 ```bash
-npm test                  # core: quotient, layout, boxes, placement, routing invariants, golden ASCII in test/golden/
+npm test                  # core: quotient, layout, boxes, placement, routing invariants, golden text pictures in test/golden/
 UPDATE_GOLDEN=1 npm test  # rewrite goldens after an intended layout change
 npm run preview           # dist/preview.html?doc=sh|exp4|star|grow|two[&edges=vector&curve=sigmoid&fill=hue&boxes=off&parentRule=joint]
 ```

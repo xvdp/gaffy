@@ -431,6 +431,40 @@ describe('hostile data from language servers and view files', () => {
     });
 });
 
+describe('external code and the standard library', () => {
+    // a workspace function calling a builtin class and function (typeshed `stdlib`), a torch function
+    // (`site-packages`) and a workspace function in a folder that happens to be named `library`
+    const node = (key: string, kind: GNode['kind'], external: boolean, parent: string | null = null): GNode =>
+        ({ key, kind, name: key.split(/[#.]/).pop()!, qual: key.split('#')[1] ?? '', module: 'm', parent, path: key.slice(3).split('#')[0], external });
+    const doc = () => {
+        const d = parseDoc(JSON.stringify({ gaffy: 1, name: 'x', view: { seeds: ['py:a.py#f'], arrange: 'auto', depthUp: 0, depthDown: 1 } }), 'x');
+        d.graph.nodes = Object.fromEntries([
+            node('py:a.py#f', 'function', false),
+            node('py:stdlib/builtins.pyi#int', 'class', true),
+            node('py:stdlib/builtins.pyi#len', 'function', true),
+            node('py:site-packages/torch/functional.py#norm', 'function', true),
+            node('py:library/x.py#g', 'function', false),
+        ].map((n) => [n.key, n]));
+        d.graph.edges = ['py:stdlib/builtins.pyi#int', 'py:stdlib/builtins.pyi#len', 'py:site-packages/torch/functional.py#norm', 'py:library/x.py#g']
+            .map((to, i) => ({ from: 'py:a.py#f', to, line: i }));
+        return d;
+    };
+    // drawn vertices (classes included, which `visibleOf` leaves to their members)
+    const shown = (d: ViewDoc, o: Parameters<typeof buildScene>[3]) => [...buildScene(d, flat(), [], o).vg.nodes.keys()]
+        .filter((k) => k.includes('#')).map((k) => k.split('#')[1]).sort();
+    it('the standard library stays off screen unless asked for; installed packages and workspace code show', () => {
+        expect(shown(doc(), { external: true, standard: false })).toEqual(['f', 'g', 'norm']);
+        expect(shown(doc(), { external: true, standard: true })).toEqual(['f', 'g', 'int', 'len', 'norm']);
+        expect(shown(doc(), { external: false, standard: true })).toEqual(['f', 'g']);
+        expect(shown(doc(), true)).toEqual(['f', 'g', 'int', 'len', 'norm']);
+    });
+    it('a folder filter hides classes too (a constructor call draws the class)', () => {
+        const d = doc();
+        d.view.exclude = ['stdlib'];
+        expect(shown(d, true)).toEqual(['f', 'g', 'norm']);
+    });
+});
+
 describe('style merge', () => {
     it('keys naming a prototype are ignored', () => {
         const evil = JSON.parse('{"__proto__": {"polluted": 1}, "constructor": {"x": 1}, "grid": {"indent": 6}}');

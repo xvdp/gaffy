@@ -50,7 +50,8 @@ export class Session {
         const cfg = vscode.workspace.getConfiguration('gaffy', this.document.uri);
         const exclude = cfg.get<string[]>('exclude') ?? [];
         // settings the Options panel shows and toggles
-        const settings = { includeExternal: cfg.get<boolean>('includeExternal') ?? false, newViews: cfg.get<string>('newViews') ?? 'saved', untitled: this.document.isUntitled };
+        const settings = { includeExternal: cfg.get<boolean>('includeExternal') ?? false, includeStandardLibrary: cfg.get<boolean>('includeStandardLibrary') ?? false,
+            saveViews: cfg.get<boolean>('saveViews') ?? false, untitled: this.document.isUntitled };
         void this.panel.webview.postMessage({ type: 'state', text: this.document.getText(), name: this.name, style, exclude, settings, busy: this.busy });
     }
 
@@ -125,6 +126,8 @@ export class Session {
             maxNodes: cfg.get<number>('maxNodes') ?? 400,
             exclude: (cfg.get<string[]>('exclude') ?? []).map(globToRegExp),
             external: cfg.get<boolean>('includeExternal') ?? false,
+            // external code drawn, and of it the standard library (scene.ts `Outside`)
+            outside: { external: cfg.get<boolean>('includeExternal') ?? false, standard: cfg.get<boolean>('includeStandardLibrary') ?? false },
             cache: this.host.cacheFor(this.folder),
         };
     }
@@ -220,7 +223,7 @@ export class Session {
         try {
             const rounds = this.doc().view.arrange === 'grow' ? 8 : 64;
             for (let i = 0; i < rounds && !bg.token.isCancellationRequested; i++) {
-                const qs = this.unaskedPairs(this.doc(), frontierOf(this.doc(), this.opts().exclude, this.opts().external));
+                const qs = this.unaskedPairs(this.doc(), frontierOf(this.doc(), this.opts().exclude, this.opts().outside));
                 if (!qs.length || !(await this.ask(qs, 'cached', 'checking neighbors', show, bg.token))?.asked) break;
             }
         } finally { bg.end(); }
@@ -229,7 +232,7 @@ export class Session {
     ensure(): Promise<void> {
         return this.urgent(async () => {
             const doc = this.doc();
-            if (!this.unaskedPairs(doc, frontierOf(doc, this.opts().exclude, this.opts().external)).length) return;
+            if (!this.unaskedPairs(doc, frontierOf(doc, this.opts().exclude, this.opts().outside)).length) return;
             await this.progress((show, token) => this.neighbors(show, token));
             this.settle();
         });
@@ -286,7 +289,7 @@ export class Session {
             if (!Object.keys(doc.explored ?? {}).length) { void this.grow(); return; }
             const o = this.opts();
             await o.cache.ready();
-            const vis = new Set(visibleOf(doc, this.opts().exclude, this.opts().external));
+            const vis = new Set(visibleOf(doc, this.opts().exclude, this.opts().outside));
             const pairs = Object.entries(doc.explored ?? {}).flatMap(([key, d]) =>
                 (d === 'both' ? ['in', 'out'] as const : [d as 'in' | 'out']).map((dir) => ({ key, dir })));
             const shown = pairs.filter((q) => vis.has(q.key));
@@ -308,7 +311,7 @@ export class Session {
             }
             const visStale = force ? shown : (r?.missed ?? []).filter((q) => vis.has(q.key));
             doc = this.doc();
-            const neighbors = this.unaskedPairs(doc, frontierOf(doc, this.opts().exclude, this.opts().external));
+            const neighbors = this.unaskedPairs(doc, frontierOf(doc, this.opts().exclude, this.opts().outside));
             if (visStale.length || neighbors.length) {
                 await this.progress(async (show, token) => {
                     await this.ask(visStale, force ? 'fresh' : 'cached', force ? 'asking the language server' : 'updating changed files', show, token);

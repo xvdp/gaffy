@@ -2,7 +2,7 @@
   "name": "gaffy",
   "displayName": "gaffy",
   "description": "Persistent, manipulable call graphs on a character grid, rendered with D3",
-  "version": "0.9.6",
+  "version": "0.9.8",
   "publisher": "xvdp",
   "license": "MIT",
   "private": true,
@@ -57,6 +57,11 @@
           "default": false,
           "description": "Show external code (installed packages, system headers, build output, wasm-pack glue). Options > Settings in a view toggles it; turning it on asks the language server again."
         },
+        "gaffy.includeStandardLibrary": {
+          "type": "boolean",
+          "default": false,
+          "description": "With gaffy.includeExternal: also show each language's own builtins and standard library (Python builtins and standard library, Rust core, alloc and std, C++ standard headers, TypeScript lib.*.d.ts). Off: installed packages show, the standard library does not. Applies when a view is drawn, without the language server."
+        },
         "gaffy.autoSave": {
           "type": "boolean",
           "default": true,
@@ -72,10 +77,10 @@
           "default": "touched",
           "description": "Update open views after a source file is saved: views containing the file, all open views, or none. Stable views ask again only the calls the save made stale."
         },
-        "gaffy.openBeside": {
+        "gaffy.openDefinitions": {
           "type": "boolean",
           "default": true,
-          "description": "Open definitions in the column beside the graph."
+          "description": "Open definitions: a view started from the editor opens beside it, so the definition stays in view, and a click on a function opens its definition in the column next to the graph. Off: views open in the active column and a click only selects."
         },
         "gaffy.style": {
           "type": "object",
@@ -100,18 +105,10 @@
           "default": true,
           "description": "Calls across languages, found from binding declarations in the workspace: Python calling C++/CUDA through pybind11, nanobind or torch operators; Python calling Slang through slangpy or slangtorch; TypeScript/JavaScript calling Rust through wasm-bindgen."
         },
-        "gaffy.newViews": {
-          "type": "string",
-          "enum": [
-            "saved",
-            "unsaved"
-          ],
-          "default": "saved",
-          "enumDescriptions": [
-            "a new view is written to .gaffy/views/ at once",
-            "a new view opens unsaved (an untitled document bound to its .gaffy/views/ path): Save keeps it, closing without saving discards it"
-          ],
-          "description": "Whether new views are saved files or unsaved, temporary documents."
+        "gaffy.saveViews": {
+          "type": "boolean",
+          "default": false,
+          "description": "Save gaffy views: a new view is written to .gaffy/views/ at once and saved after every change. Off: a new view opens unsaved (bound to its .gaffy/views/ path); right click > Save writes it there, closing it without saving discards it."
         }
       }
     },
@@ -140,7 +137,7 @@
       },
       {
         "command": "gaffy.export",
-        "title": "Export View as ASCII",
+        "title": "Export View as Text (UTF-8)",
         "category": "gaffy"
       },
       {
@@ -362,6 +359,17 @@
         "command": "gaffy.checkServers",
         "title": "Check Language Servers",
         "category": "gaffy"
+      },
+      {
+        "command": "gaffy.view.save",
+        "title": "Save",
+        "category": "gaffy"
+      },
+      {
+        "command": "gaffy.toggleSaveViews",
+        "title": "Save gaffy Views",
+        "category": "gaffy",
+        "toggled": "config.gaffy.saveViews"
       }
     ],
     "menus": {
@@ -410,6 +418,16 @@
         }
       ],
       "webview/context": [
+        {
+          "command": "gaffy.view.save",
+          "when": "webviewId == 'gaffy.view' && unsaved",
+          "group": "0_save@1"
+        },
+        {
+          "command": "gaffy.toggleSaveViews",
+          "when": "webviewId == 'gaffy.view'",
+          "group": "0_save@2"
+        },
         {
           "command": "gaffy.node.open",
           "when": "webviewId == 'gaffy.view' && webviewSection =~ /^(node|collapsed)$/",

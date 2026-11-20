@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { posix } from 'node:path';
 import { EXTERNAL, externalPath, langOf, segments } from '../src/core/langs';
+import { isStandard } from '../src/core/viewdoc';
 import { callSites, functionAt, mask, outline, qualOf } from '../src/core/textcalls';
 
 describe('symbol names → qualified segments', () => {
@@ -81,6 +82,21 @@ describe('files outside the workspace', () => {
         while (d !== '.' && n < 64) { d = posix.dirname(d); n++; }
         expect(d).toBe('.');
     });
+});
+
+describe('standard library paths', () => {
+    it.each([
+        ['/home/u/.vscode/extensions/ms-python.vscode-pylance-2026.4.1/dist/typeshed-fallback/stdlib/builtins.pyi', true],
+        ['/usr/lib/python3.12/json/__init__.py', true],
+        ['/home/u/.venv/lib/python3.12/site-packages/torch/functional.py', false],
+        ['/home/u/.vscode/extensions/ms-python.vscode-pylance-2026.4.1/dist/typeshed-fallback/stubs/requests/requests/api.pyi', false],
+        ['/home/u/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/alloc/src/vec/mod.rs', true],
+        ['/home/u/.cargo/registry/src/index.crates.io-6f17d22bba15001f/serde-1.0.200/src/de/mod.rs', false],
+        ['/usr/share/code/resources/app/extensions/node_modules/typescript/lib/lib.es5.d.ts', true],
+        ['/home/u/proj/node_modules/three/src/core/Object3D.d.ts', false],
+        ['/usr/include/c++/13/bits/stl_vector.h', true],
+        ['/usr/include/opencv4/opencv2/core.hpp', false],
+    ])('%s → %s', (abs, std) => expect(isStandard(externalPath(abs).rel)).toBe(std));
 });
 
 describe('text calls (shader languages)', () => {

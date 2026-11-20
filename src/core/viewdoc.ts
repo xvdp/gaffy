@@ -124,6 +124,15 @@ export function serializeDoc(doc: ViewDoc): string {
     return JSON.stringify(doc, null, 1) + '\n';
 }
 
+/**
+ * Paths of a language's own builtins and standard library, as `externalPath` (langs.ts) keys files outside
+ * the workspace: Python typeshed `stdlib/` and `pythonX.Y/` (a `site-packages` inside it keys from
+ * `site-packages/`), Rust `library/` (core, alloc, std), TypeScript `…/typescript/lib/lib.*.d.ts`, C++
+ * `include/c++/`. Meaningful for external nodes only: a workspace folder may carry such a name.
+ */
+const STANDARD = /^(stdlib|python\d+(\.\d+)?)\/|^library\/|(^|\/)typescript\/lib\/lib\.[^/]*\.d\.ts$|^include\/c\+\+\//;
+export const isStandard = (path: string | undefined): boolean => !!path && STANDARD.test(path);
+
 /** Workspace-relative folder filter: `view.exclude` always applies; a glob from `gaffy.exclude` applies unless `view.include` covers the path. */
 export function excludedBy(view: ViewSpec, globs: readonly RegExp[]) {
     const under = (path: string, dir: string) => path === dir || path.startsWith(dir.endsWith('/') ? dir : dir + '/');

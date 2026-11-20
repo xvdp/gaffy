@@ -20,7 +20,7 @@ import { Marker, place, Placement } from './place';
 import { induced, quotient, VEdge, VGraph } from './quotient';
 import { cutKey, opens, reveal, Reveal, revealDepth } from './reveal';
 import { Style } from './style';
-import { excludedBy, ViewDoc } from './viewdoc';
+import { excludedBy, isStandard, ViewDoc } from './viewdoc';
 
 export interface Scene {
     graph: Subgraph;
@@ -78,18 +78,30 @@ export function sortKeyOf(n: GNode | undefined, key: NodeKey): string {
 }
 
 /**
- * Functions of excluded folders (view folders, `gaffy.exclude` globs), and external code unless `external`
- * (`gaffy.includeExternal`): off screen like hidden ones, but without markers, and back as soon as the
- * folder is included again (their calls stay in the data).
+ * Functions and classes of excluded folders (view folders, `gaffy.exclude` globs), external code unless
+ * `external` (`gaffy.includeExternal`), the standard library unless `standard` (`gaffy.includeStandardLibrary`):
+ * off screen like hidden ones, but without markers, and back as soon as the folder is included again
+ * (their calls stay in the data).
  */
-function excludedKeys(doc: ViewDoc, exclude: readonly RegExp[], external = true): Set<NodeKey> {
+/**
+ * External code drawn: `external` (installed packages, standard libraries, system headers), and of it
+ * `standard` (the language's own builtins and standard library, `isStandard`). A boolean sets both.
+ */
+export interface Outside { external: boolean; standard: boolean }
+const outsideOf = (o: boolean | Outside): Outside => (typeof o === 'boolean' ? { external: o, standard: o } : o);
+
+function excludedKeys(doc: ViewDoc, exclude: readonly RegExp[], external: boolean | Outside = true): Set<NodeKey> {
     const ex = excludedBy(doc.view, exclude);
+    const o = outsideOf(external);
     const seeds = new Set(doc.view.seeds);
+    // classes count: a call of a class (a constructor) draws the class as a vertex
     return new Set(Object.values(doc.graph.nodes)
-        .filter((n) => !isContainer(n) && !seeds.has(n.key) && (ex(n.path) || (!external && n.external))).map((n) => n.key));
+        .filter((n) => (n.kind === 'class' || !isContainer(n)) && !seeds.has(n.key)
+            && (ex(n.path) || (!!n.external && (!o.external || (!o.standard && isStandard(n.path))))))
+        .map((n) => n.key));
 }
 
-export function buildScene(doc: ViewDoc, style: Style, exclude: readonly RegExp[] = [], external = true): Scene {
+export function buildScene(doc: ViewDoc, style: Style, exclude: readonly RegExp[] = [], external: boolean | Outside = true): Scene {
     const view = doc.view;
     const graph = doc.graph;
     const collapsed = new Set(view.collapsed);
@@ -221,18 +233,18 @@ function revealView(vq: VGraph, doc: ViewDoc): Reveal {
     return reveal(vq, v.seeds, v.open ?? {}, v.direction, new Set((v.cut ?? []).map(([a, b]) => cutKey(a, b))));
 }
 
-function revealOf(doc: ViewDoc, exclude: readonly RegExp[], external: boolean): Reveal {
+function revealOf(doc: ViewDoc, exclude: readonly RegExp[], external: boolean | Outside): Reveal {
     const v = doc.view;
     return revealView(quotient(doc.graph, new Set(v.collapsed), new Set([...v.hidden, ...excludedKeys(doc, exclude, external)]), v.seeds), doc);
 }
 
 /** Definitions on screen; containers excluded. */
-export function visibleOf(doc: ViewDoc, exclude: readonly RegExp[] = [], external = true): NodeKey[] {
+export function visibleOf(doc: ViewDoc, exclude: readonly RegExp[] = [], external: boolean | Outside = true): NodeKey[] {
     return [...revealOf(doc, exclude, external).visible].filter((k) => !isContainer(doc.graph.nodes[k]));
 }
 
 /** Directions each definition on screen may open: seeds both, others the side that revealed them. */
-export function frontierOf(doc: ViewDoc, exclude: readonly RegExp[] = [], external = true): { key: NodeKey; dir: 'in' | 'out' }[] {
+export function frontierOf(doc: ViewDoc, exclude: readonly RegExp[] = [], external: boolean | Outside = true): { key: NodeKey; dir: 'in' | 'out' }[] {
     const rev = revealOf(doc, exclude, external);
     return [...rev.visible].filter((k) => !isContainer(doc.graph.nodes[k])).flatMap((key) => {
         const a = rev.allowed.get(key);

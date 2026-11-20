@@ -28,7 +28,9 @@ let style: Style | undefined;
 let styleText = '';
 let excludeGlobs: string[] = [];
 let excludeRx: RegExp[] = [];          // `gaffy.exclude` globs as expressions, for buildScene
-let settings = { includeExternal: false, newViews: 'saved', untitled: false };   // VS Code settings shown in Options
+let settings = { includeExternal: false, includeStandardLibrary: false, saveViews: false, untitled: false };   // VS Code settings shown in Options
+/** External code drawn (scene.ts `Outside`): from the settings above. */
+const outside = () => ({ external: settings.includeExternal, standard: settings.includeStandardLibrary });
 let scene: Scene | undefined;
 let focusKey: NodeKey | undefined = api.getState()?.focus;
 let selected = new Set<NodeKey>();
@@ -111,6 +113,8 @@ window.addEventListener('message', (ev) => {
         excludeRx = excludeGlobs.map(globToRegExp);
         const was = JSON.stringify(settings);
         settings = m.settings ?? settings;
+        // menu context of the whole page: `unsaved` shows right click > Save
+        document.body.setAttribute('data-vscode-context', JSON.stringify({ webviewSection: 'canvas', preventDefaultContextMenuItems: true, unsaved: settings.untitled }));
         if (JSON.stringify(settings) !== was && doc) { render(); }
         const st = JSON.stringify(m.style);
         if (m.text === text && st === styleText && doc) { status(); toolbar(); return; }
@@ -294,7 +298,7 @@ function render() {
     measure(style);
     applyColors(style);
     try {
-        scene = buildScene(doc, style, excludeRx, settings.includeExternal);
+        scene = buildScene(doc, style, excludeRx, outside());
     } catch (e) {
         showError(`layout failed: ${(e as Error).message}`);
         return;
@@ -428,7 +432,7 @@ function render() {
         .attr('transform', (d) => `translate(${d.col * cw},${d.row * ch})`)
         .attr('data-vscode-context', (d) => JSON.stringify({
             webviewSection: sc.vg.nodes.get(d.key)?.collapsed ? 'collapsed' : 'node',
-            key: d.key, unit: d.key, preventDefaultContextMenuItems: true,
+            key: d.key, unit: d.key, oneLayer: grows, preventDefaultContextMenuItems: true,
         }));
     nodes.append('rect').attr('class', 'hit').attr('x', -2).attr('y', 0).attr('width', (d) => d.text.length * cw + 4).attr('height', ch).attr('rx', 2);
     nodes.append('text').attr('y', ch / 2).each(function (d) {
@@ -839,7 +843,7 @@ function settleDrop(units: string[], dc: number, dr: number): [number, number] {
         const probe = structuredClone(doc!);
         for (const u of units) moveUnit(probe, u, a, b);
         try {
-            const sc = buildScene(probe, style!, excludeRx, settings.includeExternal);
+            const sc = buildScene(probe, style!, excludeRx, outside());
             return sc.grid.unrouted <= unrouted && collisions(sc, keys) === 0;
         } catch { return false; }
     };
@@ -867,7 +871,7 @@ function unlockUnit(unit: string) {
     const probe = structuredClone(doc);
     delete probe.view.lock[unit];
     delete probe.view.offset[unit];
-    const auto = unitAnchor(buildScene(probe, style!, excludeRx, settings.includeExternal), unit);
+    const auto = unitAnchor(buildScene(probe, style!, excludeRx, outside()), unit);
     commit((x) => {
         delete x.view.lock[unit];
         if (auto && (here[0] !== auto[0] || here[1] !== auto[1])) x.view.offset[unit] = [here[0] - auto[0], here[1] - auto[1]];
@@ -1277,8 +1281,10 @@ function toolbar() {
         { caption: 'Settings', items: [
             { label: 'Include external code', title: 'installed packages, system headers, build output (gaffy.includeExternal, workspace settings); turning it on asks the language server again',
                 on: settings.includeExternal, act: () => api.postMessage({ type: 'setting', key: 'includeExternal', value: !settings.includeExternal }) },
-            { label: 'New views unsaved', title: 'gaffy.newViews: a new view opens as an unsaved document; Save keeps it, closing without saving discards it',
-                on: settings.newViews === 'unsaved', act: () => api.postMessage({ type: 'setting', key: 'newViews', value: settings.newViews === 'unsaved' ? 'saved' : 'unsaved' }) },
+            { label: 'Include standard library', title: 'gaffy.includeStandardLibrary: with external code, also the builtins and standard library of each language (Python builtins, Rust std, C++ std, TypeScript lib); drawn without the language server',
+                on: settings.includeStandardLibrary, act: () => api.postMessage({ type: 'setting', key: 'includeStandardLibrary', value: !settings.includeStandardLibrary }) },
+            { label: 'Save gaffy Views', title: 'gaffy.saveViews: new views are written to .gaffy/views/ and saved after every change; off: a new view opens unsaved, right click > Save keeps it',
+                on: settings.saveViews, act: () => api.postMessage({ type: 'setting', key: 'saveViews', value: !settings.saveViews }) },
             { label: 'All gaffy settings…', title: 'VS Code Settings, filtered to gaffy', act: () => api.postMessage({ type: 'openSettings' }) },
         ] },
         { caption: 'File', items: [
@@ -1286,7 +1292,7 @@ function toolbar() {
                 ? 'calls of the functions on screen from the language server; the others when a side opens onto them. Unanswered functions keep their calls (r)'
                 : 'calls of the functions on screen from the language server, then the levels within the call depths. Unanswered functions keep their calls (r)',
             act: () => api.postMessage({ type: 'refresh' }) },
-            { label: 'Export ASCII', title: '.gaffy/<symbol>_<commit>.md and .txt, then _2, _3 (x)', act: () => api.postMessage({ type: 'export' }) },
+            { label: 'Export UNICODE graph', title: '.gaffy/<symbol>_<commit>.md and .txt, then _2, _3 (x)', act: () => api.postMessage({ type: 'export' }) },
             { label: 'Edit style.json', title: '.gaffy/style.json', act: () => api.postMessage({ type: 'editStyle' }) },
         ] },
     ];
@@ -1327,7 +1333,7 @@ function status() {
     } else if (selCalls.size) parts.push(`${selCalls.size} calls selected (Enter: isolate)`);
     if (scene.grid.unrouted) parts.push(`${scene.grid.unrouted} calls unrouted`);
     if (doc.truncated) parts.push('truncated at gaffy.maxNodes');
-    if (settings.untitled) parts.push('unsaved view: Save keeps it');
+    if (settings.untitled) parts.push('unsaved view: right click > Save keeps it');
     if (note) parts.push(note);
     if (busy) parts.push('building…');
     else if (doc.updated) parts.push(`built ${new Date(doc.updated).toLocaleString()}`);

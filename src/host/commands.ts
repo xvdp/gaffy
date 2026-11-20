@@ -45,7 +45,13 @@ function gitShort(cwd: string): Promise<string | undefined> {
 const dateSlug = (d = new Date()) =>
     `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}-${String(d.getHours()).padStart(2, '0')}${String(d.getMinutes()).padStart(2, '0')}`;
 
-async function openNode(n: GNode | undefined, focus: boolean): Promise<vscode.TextEditor | undefined> {
+/** Column for definitions next to a view: the column left of the graph, else the one beside it. */
+function besideGraph(s: Session): vscode.ViewColumn {
+    const c = s.panel.viewColumn;
+    return c && c > 1 ? c - 1 : vscode.ViewColumn.Beside;
+}
+
+async function openNode(n: GNode | undefined, focus: boolean, column: vscode.ViewColumn): Promise<vscode.TextEditor | undefined> {
     if (!n?.uri) return undefined;
     const uri = vscode.Uri.parse(n.uri);
     /*security tooling: prevent abitrary scheme URIs.*/
@@ -56,7 +62,7 @@ async function openNode(n: GNode | undefined, focus: boolean): Promise<vscode.Te
     }
     const pos = new vscode.Position(n.line ?? 0, n.character ?? 0);
     return vscode.window.showTextDocument(uri, {
-        viewColumn: cfg().get<boolean>('openBeside') ? vscode.ViewColumn.Beside : vscode.ViewColumn.Active,
+        viewColumn: column,
         selection: new vscode.Range(pos, pos),
         preserveFocus: !focus,
         preview: true,
@@ -98,10 +104,12 @@ export function registerCommands(ctx: vscode.ExtensionContext, editor: GaffyEdit
 
     /**
      * A new view under `.gaffy/views/`: the starting choices of style.json `view`, then `over` (a command's own
-     * choices). `gaffy.newViews: "unsaved"`: an untitled document bound to that path; Save keeps it, closing
-     * without saving discards it.
+     * choices). Without `gaffy.saveViews`: an untitled document bound to that path; Save writes it there,
+     * closing without saving discards it. `fromEditor` with `gaffy.openDefinitions`: the view opens beside
+     * the editor, which keeps the definition in view.
      */
-    const createView = async (base: vscode.Uri, stem: string, doc: ViewDoc, over: Partial<Pick<ViewSpec, 'arrange' | 'depthUp' | 'depthDown'>> = {}) => {
+    const createView = async (base: vscode.Uri, stem: string, doc: ViewDoc, over: Partial<Pick<ViewSpec, 'arrange' | 'depthUp' | 'depthDown'>> = {},
+        fromEditor = false) => {
         const folder = folderOf(base);
         const views = vscode.Uri.joinPath(gaffyDir(folder), 'views');
         await vscode.workspace.fs.createDirectory(views);
@@ -120,26 +128,28 @@ export function registerCommands(ctx: vscode.ExtensionContext, editor: GaffyEdit
         else delete doc.view.open;
         doc.name = path.basename(uri.path, '.gaffy');
         let target = uri;
-        if (cfg().get<string>('newViews') === 'unsaved') {
+        if (!cfg().get<boolean>('saveViews')) {
             target = uri.with({ scheme: 'untitled' });
             await vscode.workspace.openTextDocument(target);
             const edit = new vscode.WorkspaceEdit();
             edit.insert(target, new vscode.Position(0, 0), serializeDoc(doc));
             await vscode.workspace.applyEdit(edit);
         } else await vscode.workspace.fs.writeFile(uri, new TextEncoder().encode(serializeDoc(doc)));
+        const beside = fromEditor && (cfg().get<boolean>('openDefinitions') ?? true);
         await vscode.commands.executeCommand('vscode.openWith', target, GaffyEditor.viewType,
-            { viewColumn: vscode.ViewColumn.Active });
+            { viewColumn: beside ? vscode.ViewColumn.Beside : vscode.ViewColumn.Active });
     };
 
-    /** VS Code's own call hierarchy in the References view, next to the gaffy view (`gaffy.openCallHierarchy`). */
+    /**
+     * VS Code's own call hierarchy of the symbol at the cursor, in the References view (`gaffy.openCallHierarchy`).
+     * Run without a `getCommands` check: that list holds only commands of activated extensions, and running
+     * the command activates the References view extension.
+     */
     const showCallHierarchy = async (direction: Direction) => {
         if (!cfg().get<boolean>('openCallHierarchy')) return;
-        const have = new Set(await vscode.commands.getCommands(true));
-        if (!have.has('references-view.showCallHierarchy')) return;
         try {
             await vscode.commands.executeCommand('references-view.showCallHierarchy');
-            const toggle = direction === 'out' ? 'references-view.showOutgoingCalls' : 'references-view.showIncomingCalls';
-            if (have.has(toggle)) await vscode.commands.executeCommand(toggle);
+            await vscode.commands.executeCommand(direction === 'out' ? 'references-view.showOutgoingCalls' : 'references-view.showIncomingCalls');
         } catch { /* the view is optional */ }
     };
 
@@ -148,7 +158,7 @@ export function registerCommands(ctx: vscode.ExtensionContext, editor: GaffyEdit
         await showCallHierarchy(direction);
         const doc = emptyDoc(s.node.name, { seeds: [s.key], direction, depth: cfg().get<number>('depth') ?? 4 });
         doc.graph.nodes = s.acc;
-        await createView(s.uri, s.node.name, doc);
+        await createView(s.uri, s.node.name, doc, {}, true);
     };
 
     reg('gaffy.graphCallers', () => graphAtCursor('in'));
@@ -157,6 +167,7 @@ export function registerCommands(ctx: vscode.ExtensionContext, editor: GaffyEdit
     reg('gaffy.addToView', async () => {
         const sess = active();
         const s = await seedAtCursor();
+        await showCallHierarchy(sess.doc().view.direction === 'out' ? 'out' : 'in');
         await sess.refresh((d) => {
             Object.assign(d.graph.nodes, s.acc);
             if (!d.view.seeds.includes(s.key)) d.view.seeds.push(s.key);
@@ -236,7 +247,10 @@ export function registerCommands(ctx: vscode.ExtensionContext, editor: GaffyEdit
     reg('gaffy.sel.clear', forward('clearSelection'));
 
     const excludes = (s: Session) => (vscode.workspace.getConfiguration('gaffy', s.document.uri).get<string[]>('exclude') ?? []).map(globToRegExp);
-    const external = (s: Session) => vscode.workspace.getConfiguration('gaffy', s.document.uri).get<boolean>('includeExternal') ?? false;
+    const external = (s: Session) => {
+        const c = vscode.workspace.getConfiguration('gaffy', s.document.uri);
+        return { external: c.get<boolean>('includeExternal') ?? false, standard: c.get<boolean>('includeStandardLibrary') ?? false };
+    };
 
     const exportView = async (s: Session) => {
         const doc = s.doc();
@@ -270,11 +284,23 @@ export function registerCommands(ctx: vscode.ExtensionContext, editor: GaffyEdit
         const stem = n ? `${base}_${n + 1}` : base;
         const mdUri = vscode.Uri.joinPath(outDir, `${stem}.md`);
         await vscode.workspace.fs.writeFile(mdUri, new TextEncoder().encode(md.replace(`# ${doc.name}`, `# ${stem}`)));
-        await vscode.workspace.fs.writeFile(vscode.Uri.joinPath(outDir, `${stem}.txt`),
-            new TextEncoder().encode(toText(sc.grid, gs) + '\n'));
+        const txtUri = vscode.Uri.joinPath(outDir, `${stem}.txt`);
+        await vscode.workspace.fs.writeFile(txtUri, new TextEncoder().encode(toText(sc.grid, gs) + '\n'));
         await vscode.commands.executeCommand('markdown.showPreviewToSide', mdUri);
+        void vscode.window.showInformationMessage(plain(`gaffy: exported .gaffy/${stem}.md and .gaffy/${stem}.txt`), 'Reveal in Explorer')
+            .then((pick) => pick && vscode.commands.executeCommand('revealInExplorer', txtUri));
     };
     reg('gaffy.export', () => exportView(active()));
+
+    // an unsaved view goes to the .gaffy/views/ path it is bound to
+    reg('gaffy.view.save', async () => {
+        const s = active();
+        if (!(await vscode.workspace.save(s.document.uri))) throw new Error(`${s.name} was not saved`);
+    });
+    reg('gaffy.toggleSaveViews', async () => {
+        const target = vscode.workspace.workspaceFolders?.length ? vscode.ConfigurationTarget.Workspace : vscode.ConfigurationTarget.Global;
+        await cfg().update('saveViews', !cfg().get<boolean>('saveViews'), target);
+    });
 
     reg('gaffy.editStyle', async () => {
         const folder = editor.active?.folder ?? vscode.workspace.workspaceFolders?.[0]?.uri;
@@ -294,15 +320,15 @@ export function registerCommands(ctx: vscode.ExtensionContext, editor: GaffyEdit
         await fn(s, s.doc(), arg.key);
     };
 
-    reg('gaffy.node.open', node((_s, d, k) => openNode(nodeOf(d, k), true)));
-    reg('gaffy.node.editorMenu', node(async (_s, d, k) => {
-        if (await openNode(nodeOf(d, k), true)) await vscode.commands.executeCommand('editor.action.showContextMenu');
+    reg('gaffy.node.open', node((s, d, k) => openNode(nodeOf(d, k), true, besideGraph(s))));
+    reg('gaffy.node.editorMenu', node(async (s, d, k) => {
+        if (await openNode(nodeOf(d, k), true, besideGraph(s))) await vscode.commands.executeCommand('editor.action.showContextMenu');
     }));
-    reg('gaffy.node.references', node(async (_s, d, k) => {
-        if (await openNode(nodeOf(d, k), true)) await vscode.commands.executeCommand('editor.action.referenceSearch.trigger');
+    reg('gaffy.node.references', node(async (s, d, k) => {
+        if (await openNode(nodeOf(d, k), true, besideGraph(s))) await vscode.commands.executeCommand('editor.action.referenceSearch.trigger');
     }));
-    reg('gaffy.node.callHierarchy', node(async (_s, d, k) => {
-        if (await openNode(nodeOf(d, k), true)) await vscode.commands.executeCommand('references-view.showCallHierarchy');
+    reg('gaffy.node.callHierarchy', node(async (s, d, k) => {
+        if (await openNode(nodeOf(d, k), true, besideGraph(s))) await vscode.commands.executeCommand('references-view.showCallHierarchy');
     }));
 
 
@@ -372,11 +398,12 @@ export function registerCommands(ctx: vscode.ExtensionContext, editor: GaffyEdit
     editor.onMessage = async (s, m) => {
         const key = m.key as NodeKey | undefined;
         switch (m.type) {
-            case 'open': await openNode(key ? nodeOf(s.doc(), key) : undefined, false); break;
+            // a click on a function: its definition next to the graph (gaffy.openDefinitions)
+            case 'open': if (cfg().get<boolean>('openDefinitions') ?? true) await openNode(key ? nodeOf(s.doc(), key) : undefined, false, besideGraph(s)); break;
             case 'openAt': {
                 const n = key ? nodeOf(s.doc(), key) : undefined;
                 const line = Number.isInteger(m.line) && (m.line as number) >= 0 ? m.line as number : undefined;
-                await openNode(n && line !== undefined ? { ...n, line, character: 0 } : n, false);
+                await openNode(n && line !== undefined ? { ...n, line, character: 0 } : n, false, besideGraph(s));
                 break;
             }
             case 'expand': if (key) await s.expand(key, m.dir === 'in' ? 'in' : 'out'); break;
@@ -388,11 +415,13 @@ export function registerCommands(ctx: vscode.ExtensionContext, editor: GaffyEdit
                 // Options > Settings: written to the workspace settings (user settings without a workspace)
                 // only these keys, only values of their type
                 const k = m.key as string;
-                const ok = (k === 'includeExternal' && typeof m.value === 'boolean') || (k === 'newViews' && (m.value === 'saved' || m.value === 'unsaved'));
+                const ok = (k === 'includeExternal' || k === 'includeStandardLibrary' || k === 'saveViews') && typeof m.value === 'boolean';
                 if (!ok) break;
                 const target = vscode.workspace.workspaceFolders?.length ? vscode.ConfigurationTarget.Workspace : vscode.ConfigurationTarget.Global;
                 await vscode.workspace.getConfiguration('gaffy').update(k, m.value, target);
                 // external code turned on: answers fetched without it are asked again (on screen now, the rest when opened)
+                // the standard library shown: its functions on screen get their markers
+                if (k === 'includeStandardLibrary' && m.value === true) for (const x of new Set(editor.sessions.values())) void x.ensure();
                 if (k === 'includeExternal' && m.value === true) {
                     for (const c of editor.allCaches()) c.clear();
                     for (const x of new Set(editor.sessions.values())) void x.refresh(undefined, 'revalidate');
