@@ -1,0 +1,26 @@
+scripts/moo_trucks.wanderoo()
+├─> scripts/moo_trucks.flubber()
+│   └─> aardvark.flubber.tomfoolery() ────────────────────────────────┐
+├─> scripts/moo_trucks.hokey()                                        │
+│   └─> goof.moomoo.moomoo_fluffy() ──────────────────────────────────┤
+├─> scripts/moo_trucks.snoot()                                        │
+│   └─> goof.kerplop.Gizmotron.snoot()                                │
+│       └─> goof.shoo_boogaloos.boogaloos() ──────┐                   │
+├─> scripts/moo_trucks.doohickey()                │                   │
+│   └─> goof.kerplop.Gizmotron.doohickey()        │                   │
+│       └─> goof.wobble_foo.doohickey_muppets()   │                   │
+│           └─> foo.wobble.jiggly_boogaloos() <───┘                   │
+│               └─────────────────────────────────────┐               │
+├─> scripts/moo_trucks.moonwalk()                     │               │
+│   └─> moomoo.boogaloos.doodler_moonwalk()           │               │
+│       └─> moomoo.boogaloos.flimflams()              │               │
+│           └─> moomoo.boogaloos._jelly_doughnuts()   │               │
+│               └─> moomoo.boogaloos.scoobie() <──────┘               │
+│                   └─> moomoo.boogaloos.scoobie_zoinks_jinkies()     │
+│                       └─> moomoo.boogaloos._burritos()              │
+│                           └─> goof.moomoo.Pogo.splotch()            │
+│                               └─> moomoo.yo_moomoo.splotch_zaps() ──┤
+└─> scripts/moo_trucks.bonbon()                                       │
+    └─> moomoo.yo_nudge.shoo() <──────────────────────────────────────┘
+        └─> moomoo.yo_wombat.wingding_widgets()
+            └─> moomoo.yo_blinkers.flibbity_jibbity_jabby()

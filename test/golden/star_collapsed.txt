@@ -1,4 +1,4 @@
-fit.surfel.linear_harmonics() ──┐
-scripts/mote_paths.streamed()   │
-└─> [render.harmonics] (6) <────┘
-    └─> gett.render.Pass.compile()
+foo.wobble.jiggly_boogaloos() ──┐
+scripts/moo_trucks.moonwalk()   │
+└─> [moomoo.boogaloos] (6) <────┘
+    └─> goof.moomoo.Pogo.splotch()

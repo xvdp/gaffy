@@ -1,4 +1,4 @@
-// Browser preview of the webview without VS Code: dist/preview.html?doc=exp4|star
+// Browser preview of the webview without VS Code: dist/preview.html?doc=moo|star
 // Mocks acquireVsCodeApi, echoes edits back as state, maps VS Code theme variables to dark defaults.
 import { execFileSync } from 'node:child_process';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -6,7 +6,7 @@ import * as esbuild from 'esbuild';
 
 mkdirSync('dist', { recursive: true });
 await esbuild.build({ entryPoints: ['test/preview-data.ts'], outfile: 'dist/preview-data.cjs', bundle: true,
-  platform: 'node', format: 'cjs', logLevel: 'warning' });
+    platform: 'node', format: 'cjs', logLevel: 'warning' });
 const data = execFileSync(process.execPath, ['dist/preview-data.cjs']).toString();
 const css = readFileSync('media/webview.css', 'utf8');
 const js = readFileSync('dist/webview.js', 'utf8');
@@ -29,7 +29,7 @@ const mock = `
 const DATA = ${data};
 DATA.style = JSON.parse(JSON.stringify(DATA.style));
 const params = new URLSearchParams(location.search);
-const which = params.get('doc') || 'exp4';
+const which = params.get('doc') || 'moo';
 let state = {};
 const initial = JSON.parse(DATA.docs[which]);
 for (const p of ['edges', 'parentRule', 'curve']) if (params.get(p)) initial.view[p] = params.get(p);

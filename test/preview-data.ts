@@ -1,27 +1,27 @@
 // Fixture view documents for the browser preview harness (scripts/preview.mjs).
 import { DEFAULT_STYLE } from '../src/core/style';
 import { serializeDoc } from '../src/core/viewdoc';
-import { EXP4, fixtureDoc, k, SH, STAR } from './fixtures';
+import { fixtureDoc, k, KAZOO, MOO, STAR } from './fixtures';
 
-const exp4 = fixtureDoc(EXP4, { seeds: [k('render.mi_emitters:register_twosided_area')], direction: 'in' });
-exp4.name = 'exp4';
+const moo = fixtureDoc(MOO, { seeds: [k('moomoo.yo_blinkers:flibbity_jibbity_jabby')], direction: 'in' });
+moo.name = 'moo';
 const star = fixtureDoc(STAR, {
-  seeds: [k('fit.surfel:linear_harmonics'), k('scripts/mote_paths:streamed')],
-  collapsed: ['py:render/harmonics.py'],
+    seeds: [k('foo.wobble:jiggly_boogaloos'), k('scripts/moo_trucks:moonwalk')],
+    collapsed: ['py:moomoo/boogaloos.py'],
 });
 star.name = 'star';
 
-const sh = fixtureDoc(SH, { seeds: [k('gutai.render.harmonics:sh_eval')], direction: 'out' });
-sh.name = 'sh';
-sh.explored = { [k('gutai.render.harmonics:sh_eval')]: 'out', [k('gutai.render.harmonics:sh_eval_mi')]: 'out' };
+const kazoo = fixtureDoc(KAZOO, { seeds: [k('kazoo.moomoo.boogaloos:scoobie')], direction: 'out' });
+kazoo.name = 'kazoo';
+kazoo.explored = { [k('kazoo.moomoo.boogaloos:scoobie')]: 'out', [k('kazoo.moomoo.boogaloos:scoobie_do')]: 'out' };
 
-const grow = fixtureDoc(SH, { seeds: [k('gutai.render.harmonics:sh_eval')], direction: 'out', arrange: 'grow', open: {} });
+const grow = fixtureDoc(KAZOO, { seeds: [k('kazoo.moomoo.boogaloos:scoobie')], direction: 'out', arrange: 'grow', open: {} });
 grow.name = 'grow';
 
 // two seeds: a function and one of its upstream callers' callers, upstream view
-const two = fixtureDoc(SH, { seeds: [k('gutai.runtime.interop:to_torch'), k('gutai.render.harmonics:_from_columns')], direction: 'in', arrange: 'grow', open: {} });
+const two = fixtureDoc(KAZOO, { seeds: [k('kazoo.noodles.jumbles:to_wacky'), k('kazoo.moomoo.boogaloos:_cheese_puffs')], direction: 'in', arrange: 'grow', open: {} });
 two.name = 'two';
 
 process.stdout.write(JSON.stringify({
-  docs: { exp4: serializeDoc(exp4), star: serializeDoc(star), sh: serializeDoc(sh), grow: serializeDoc(grow), two: serializeDoc(two) }, style: DEFAULT_STYLE,
+    docs: { moo: serializeDoc(moo), star: serializeDoc(star), kazoo: serializeDoc(kazoo), grow: serializeDoc(grow), two: serializeDoc(two) }, style: DEFAULT_STYLE,
 }));

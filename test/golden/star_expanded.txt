@@ -1,9 +1,9 @@
-fit.surfel.linear_harmonics() ────────────────────┐
-scripts/mote_paths.streamed()                     │
-└─> render.harmonics.project_streamed()           │
-    └─> render.harmonics.projector()              │
-        └─> render.harmonics._projector_solve()   │
-            └─> render.harmonics.sh_eval() <──────┘
-                └─> render.harmonics.sh_eval_torch_compiled()
-                    └─> render.harmonics._compiled()
-                        └─> gett.render.Pass.compile()
+foo.wobble.jiggly_boogaloos() ────────────────────┐
+scripts/moo_trucks.moonwalk()                     │
+└─> moomoo.boogaloos.doodler_moonwalk()           │
+    └─> moomoo.boogaloos.flimflams()              │
+        └─> moomoo.boogaloos._jelly_doughnuts()   │
+            └─> moomoo.boogaloos.scoobie() <──────┘
+                └─> moomoo.boogaloos.scoobie_zoinks_jinkies()
+                    └─> moomoo.boogaloos._burritos()
+                        └─> goof.moomoo.Pogo.splotch()

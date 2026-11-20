@@ -21,15 +21,15 @@ interface NodeArg { key?: NodeKey; unit?: string; to?: NodeKey; webviewSection?:
 const cfg = () => vscode.workspace.getConfiguration('gaffy');
 
 function nodeOf(doc: ViewDoc, key: NodeKey): GNode | undefined {
-  return doc.graph.nodes[key];
+    return doc.graph.nodes[key];
 }
 
 async function uniqueUri(dir: vscode.Uri, stem: string, ext: string): Promise<vscode.Uri> {
-  const safe = stem.replace(/[^\w.-]+/g, '_').slice(0, 80) || 'view';
-  for (let i = 1; ; i++) {
-    const u = vscode.Uri.joinPath(dir, `${safe}${i > 1 ? `-${i}` : ''}${ext}`);
-    try { await vscode.workspace.fs.stat(u); } catch { return u; }
-  }
+    const safe = stem.replace(/[^\w.-]+/g, '_').slice(0, 80) || 'view';
+    for (let i = 1; ; i++) {
+        const u = vscode.Uri.joinPath(dir, `${safe}${i > 1 ? `-${i}` : ''}${ext}`);
+        try { await vscode.workspace.fs.stat(u); } catch { return u; }
+    }
 }
 
 /**
@@ -37,383 +37,383 @@ async function uniqueUri(dir: vscode.Uri, stem: string, ext: string): Promise<vs
  * or downloaded folder can carry a `.git/config` whose settings make git run programs.
  */
 function gitShort(cwd: string): Promise<string | undefined> {
-  if (!vscode.workspace.isTrusted) return Promise.resolve(undefined);
-  return new Promise((res) => execFile('git', ['rev-parse', '--short', 'HEAD'], { cwd, timeout: 3000 },
-    (err, out) => res(err ? undefined : out.trim() || undefined)));
+    if (!vscode.workspace.isTrusted) return Promise.resolve(undefined);
+    return new Promise((res) => execFile('git', ['rev-parse', '--short', 'HEAD'], { cwd, timeout: 3000 },
+        (err, out) => res(err ? undefined : out.trim() || undefined)));
 }
 
 const dateSlug = (d = new Date()) =>
-  `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}-${String(d.getHours()).padStart(2, '0')}${String(d.getMinutes()).padStart(2, '0')}`;
+    `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}-${String(d.getHours()).padStart(2, '0')}${String(d.getMinutes()).padStart(2, '0')}`;
 
 async function openNode(n: GNode | undefined, focus: boolean): Promise<vscode.TextEditor | undefined> {
-  if (!n?.uri) return undefined;
-  const uri = vscode.Uri.parse(n.uri);
-  /*security tooling: prevent abitrary scheme URIs.*/
-  if (!readable(uri)) return undefined;
-  if (n.kind === 'package' || n.kind === 'folder') {
-    await vscode.commands.executeCommand('revealInExplorer', uri);
-    return undefined;
-  }
-  const pos = new vscode.Position(n.line ?? 0, n.character ?? 0);
-  return vscode.window.showTextDocument(uri, {
-    viewColumn: cfg().get<boolean>('openBeside') ? vscode.ViewColumn.Beside : vscode.ViewColumn.Active,
-    selection: new vscode.Range(pos, pos),
-    preserveFocus: !focus,
-    preview: true,
-  });
+    if (!n?.uri) return undefined;
+    const uri = vscode.Uri.parse(n.uri);
+    /*security tooling: prevent abitrary scheme URIs.*/
+    if (!readable(uri)) return undefined;
+    if (n.kind === 'package' || n.kind === 'folder') {
+        await vscode.commands.executeCommand('revealInExplorer', uri);
+        return undefined;
+    }
+    const pos = new vscode.Position(n.line ?? 0, n.character ?? 0);
+    return vscode.window.showTextDocument(uri, {
+        viewColumn: cfg().get<boolean>('openBeside') ? vscode.ViewColumn.Beside : vscode.ViewColumn.Active,
+        selection: new vscode.Range(pos, pos),
+        preserveFocus: !focus,
+        preview: true,
+    });
 }
 
 /** Innermost container of `key` (or `key` itself) whose kind is in `kinds`. */
 function containerOfKind(doc: ViewDoc, key: NodeKey, kinds: string[]): NodeKey | undefined {
-  const nodes = doc.graph.nodes;
-  for (const k of [key, ...ancestors(nodes, key)]) if (kinds.includes(nodes[k]?.kind)) return k;
-  return undefined;
+    const nodes = doc.graph.nodes;
+    for (const k of [key, ...ancestors(nodes, key)]) if (kinds.includes(nodes[k]?.kind)) return k;
+    return undefined;
 }
 
 export function registerCommands(ctx: vscode.ExtensionContext, editor: GaffyEditor): void {
-  const provider = editor.provider;
-  const reg = (id: string, fn: (...a: any[]) => unknown) =>
-    ctx.subscriptions.push(vscode.commands.registerCommand(id, async (...a: any[]) => {
-      try { await fn(...a); } catch (e) { void vscode.window.showErrorMessage(plain(`gaffy: ${(e as Error).message}`)); }
+    const provider = editor.provider;
+    const reg = (id: string, fn: (...a: any[]) => unknown) =>
+        ctx.subscriptions.push(vscode.commands.registerCommand(id, async (...a: any[]) => {
+            try { await fn(...a); } catch (e) { void vscode.window.showErrorMessage(plain(`gaffy: ${(e as Error).message}`)); }
+        }));
+
+    const active = (): Session => {
+        if (!editor.active) throw new Error('no active gaffy view');
+        return editor.active;
+    };
+
+    // ---- view creation ------------------------------------------------------------------------------
+    const seedAtCursor = async () => {
+        const ed = vscode.window.activeTextEditor;
+        if (!ed) throw new Error('no active editor');
+        const items = await vscode.window.withProgress(
+            { location: vscode.ProgressLocation.Notification, title: 'gaffy: asking the language server about the symbol at the cursor…' },
+            () => provider.prepare(ed.document.uri, ed.selection.active));
+        if (!items.length) throw new Error(`no call hierarchy at the cursor: ${(await provider.symbolsOf(ed.document.uri)).length ? noHierarchyHint(ed.document.uri.path) : serverHint(ed.document.uri.path)}`);
+        const acc: Record<NodeKey, GNode> = {};
+        const key = await provider.describe(items[0], acc);
+        if (!key) throw new Error('symbol outside the workspace (gaffy.includeExternal is off)');
+        return { key, acc, uri: ed.document.uri, node: acc[key] };
+    };
+
+    /**
+     * A new view under `.gaffy/views/`: the starting choices of style.json `view`, then `over` (a command's own
+     * choices). `gaffy.newViews: "unsaved"`: an untitled document bound to that path; Save keeps it, closing
+     * without saving discards it.
+     */
+    const createView = async (base: vscode.Uri, stem: string, doc: ViewDoc, over: Partial<Pick<ViewSpec, 'arrange' | 'depthUp' | 'depthDown'>> = {}) => {
+        const folder = folderOf(base);
+        const views = vscode.Uri.joinPath(gaffyDir(folder), 'views');
+        await vscode.workspace.fs.createDirectory(views);
+        // <symbol>_<short commit hash, or date>.gaffy
+        const uri = await uniqueUri(views, `${stem}_${(await gitShort(folder.fsPath)) ?? dateSlug()}`, '.gaffy');
+        // starting choices from style.json `view`
+        const start = (await editor.styles.get(folder)).view;
+        doc.view.depth = cfg().get<number>('depth') ?? 3;
+        doc.view.arrange = start.arrange;
+        if (start.traverse === 'both') doc.view.direction = 'both';
+        // one layer at a time: the seed's first side; full: the same sides to the configured depth
+        doc.view.depthUp = doc.view.direction !== 'out' ? doc.view.depth : 0;
+        doc.view.depthDown = doc.view.direction !== 'in' ? doc.view.depth : 0;
+        Object.assign(doc.view, over);
+        if (doc.view.arrange === 'grow') doc.view.open = {};
+        else delete doc.view.open;
+        doc.name = path.basename(uri.path, '.gaffy');
+        let target = uri;
+        if (cfg().get<string>('newViews') === 'unsaved') {
+            target = uri.with({ scheme: 'untitled' });
+            await vscode.workspace.openTextDocument(target);
+            const edit = new vscode.WorkspaceEdit();
+            edit.insert(target, new vscode.Position(0, 0), serializeDoc(doc));
+            await vscode.workspace.applyEdit(edit);
+        } else await vscode.workspace.fs.writeFile(uri, new TextEncoder().encode(serializeDoc(doc)));
+        await vscode.commands.executeCommand('vscode.openWith', target, GaffyEditor.viewType,
+            { viewColumn: vscode.ViewColumn.Active });
+    };
+
+    /** VS Code's own call hierarchy in the References view, next to the gaffy view (`gaffy.openCallHierarchy`). */
+    const showCallHierarchy = async (direction: Direction) => {
+        if (!cfg().get<boolean>('openCallHierarchy')) return;
+        const have = new Set(await vscode.commands.getCommands(true));
+        if (!have.has('references-view.showCallHierarchy')) return;
+        try {
+            await vscode.commands.executeCommand('references-view.showCallHierarchy');
+            const toggle = direction === 'out' ? 'references-view.showOutgoingCalls' : 'references-view.showIncomingCalls';
+            if (have.has(toggle)) await vscode.commands.executeCommand(toggle);
+        } catch { /* the view is optional */ }
+    };
+
+    const graphAtCursor = async (direction: Direction) => {
+        const s = await seedAtCursor();
+        await showCallHierarchy(direction);
+        const doc = emptyDoc(s.node.name, { seeds: [s.key], direction, depth: cfg().get<number>('depth') ?? 4 });
+        doc.graph.nodes = s.acc;
+        await createView(s.uri, s.node.name, doc);
+    };
+
+    reg('gaffy.graphCallers', () => graphAtCursor('in'));
+    reg('gaffy.graphCallees', () => graphAtCursor('out'));
+
+    reg('gaffy.addToView', async () => {
+        const sess = active();
+        const s = await seedAtCursor();
+        await sess.refresh((d) => {
+            Object.assign(d.graph.nodes, s.acc);
+            if (!d.view.seeds.includes(s.key)) d.view.seeds.push(s.key);
+        });
+    });
+
+    reg('gaffy.graphFile', async (uri?: vscode.Uri) => {
+        uri ??= vscode.window.activeTextEditor?.document.uri;
+        if (!uri) throw new Error('no file');
+        const syms = await provider.symbolsOf(uri);
+        const fnKinds = new Set([vscode.SymbolKind.Function, vscode.SymbolKind.Method, vscode.SymbolKind.Constructor]);
+        const targets: vscode.DocumentSymbol[] = [];
+        const walk = (ss: vscode.DocumentSymbol[]) => ss.forEach((x) => {
+            if (fnKinds.has(x.kind)) targets.push(x);
+            else if (x.kind === vscode.SymbolKind.Class) walk(x.children);
+        });
+        walk(syms);
+        const acc: Record<NodeKey, GNode> = {};
+        const seeds: NodeKey[] = [];
+        for (const t of targets.slice(0, 60)) {
+            const it = (await provider.prepare(uri, t.selectionRange.start))[0];
+            const key = it && (await provider.describe(it, acc));
+            if (key) seeds.push(key);
+        }
+        if (!seeds.length) throw new Error(syms.length ? `no function in this file has call hierarchy: ${noHierarchyHint(uri.path)}` : `no functions found in this file: ${serverHint(uri.path)}`);
+        // the file's functions and their callers, one level, all shown (full layout)
+        const doc = emptyDoc('', { seeds, direction: 'in', depth: 1 });
+        doc.graph.nodes = acc;
+        await createView(uri, path.basename(uri.path).replace(/\.[^.]+$/, ''), doc, { arrange: 'auto', depthUp: 1, depthDown: 0 });
+    });
+
+    // ---- view commands ------------------------------------------------------------------------------
+    reg('gaffy.refresh', () => active().refresh(undefined, 'revalidate'));
+    reg('gaffy.clearCache', () => { for (const c of editor.allCaches()) c.clear(); void vscode.window.showInformationMessage('gaffy: call cache cleared'); });
+    reg('gaffy.toggleEdges', async () => {
+        const s = active();
+        const st = await editor.styles.get(s.folder);
+        await s.update((d) => { d.view.edges = (d.view.edges ?? st.edges.mode) === 'glyph' ? 'vector' : 'glyph'; });
+    });
+    reg('gaffy.unhideAll', () => active().update((d) => { d.view.hidden = []; }));
+    reg('gaffy.toggleBoxes', async () => {
+        const s = active();
+        const st = await editor.styles.get(s.folder);
+        await s.update((d) => { d.view.boxes = !(d.view.boxes ?? st.boxes.enabled); });
+    });
+    reg('gaffy.rearrange', () => active().update((d) => { d.view.offset = {}; }));
+    reg('gaffy.unlockAll', () => active().update((d) => { d.view.lock = {}; }));
+
+    // commands that need the layout or the selection run in the webview
+    const forward = (cmd: string) => (arg?: NodeArg) => {
+        const s = active();
+        void s.panel.webview.postMessage({ type: 'cmd', cmd, key: arg?.key, unit: arg?.unit, to: arg?.to });
+    };
+    reg('gaffy.node.openCallers', forward('openUp'));
+    reg('gaffy.node.openCalls', forward('openDown'));
+    reg('gaffy.node.closeCallers', forward('closeUp'));
+    reg('gaffy.node.closeCalls', forward('closeDown'));
+    reg('gaffy.edge.straighten', forward('straighten'));
+    reg('gaffy.edge.subtree', forward('callSubtree'));
+    reg('gaffy.edge.path', forward('callPath'));
+    reg('gaffy.edge.callSite', forward('callSite'));
+    reg('gaffy.edge.callee', forward('callee'));
+    reg('gaffy.resetLayout', forward('resetLayout'));
+    reg('gaffy.showAll', forward('showAll'));
+    reg('gaffy.resetView', forward('resetView'));
+    reg('gaffy.isolateSelection', forward('isolateSelection'));
+    reg('gaffy.node.lock', forward('lock'));
+    reg('gaffy.node.unlock', forward('unlock'));
+    reg('gaffy.node.showHidden', forward('showHidden'));
+    reg('gaffy.sel.upstream', forward('upstream'));
+    reg('gaffy.sel.downstream', forward('downstream'));
+    reg('gaffy.sel.through', forward('through'));
+    reg('gaffy.sel.between', forward('between'));
+    reg('gaffy.sel.hide', forward('hideSelection'));
+    reg('gaffy.sel.rearrange', forward('rearrangeSelection'));
+    reg('gaffy.sel.isolate', forward('isolate'));
+    reg('gaffy.sel.clear', forward('clearSelection'));
+
+    const excludes = (s: Session) => (vscode.workspace.getConfiguration('gaffy', s.document.uri).get<string[]>('exclude') ?? []).map(globToRegExp);
+    const external = (s: Session) => vscode.workspace.getConfiguration('gaffy', s.document.uri).get<boolean>('includeExternal') ?? false;
+
+    const exportView = async (s: Session) => {
+        const doc = s.doc();
+        const style = await editor.styles.get(s.folder);
+        const sc = buildScene(doc, style, excludes(s), external(s));
+        const gs = glyphSet(style);
+        const outDir = gaffyDir(s.folder);
+        await vscode.workspace.fs.createDirectory(outDir);
+        const href = (key: NodeKey) => {
+            const n = nodeOf(doc, key);
+            if (!n?.uri) return undefined;
+            /* secure tooling: links always start with ./ or ../, so no path can read as a command */ 
+            const p = path.posix.relative(outDir.path, vscode.Uri.parse(n.uri).path);
+            const rel = p.startsWith('.') ? p : `./${p}`;
+            return n.line !== undefined && n.kind !== 'package' && n.kind !== 'folder' ? `${rel}#L${n.line + 1}` : rel;
+        };
+        const md = `# ${doc.name}\n\n<pre>\n${toHtmlPre(sc.grid, gs, href)}\n</pre>\n`;
+        // <symbol>_<short commit hash, or date>_<nn>.md and .txt, numbered per symbol and commit
+        const seed = doc.view.seeds[0];
+        const sym = ((seed && nodeOf(doc, seed)?.name) || s.name).replace(/[^\w.-]+/g, '_');
+        // .gaffy/<symbol>_<short commit hash, or date>.md; later exports of the same symbol and commit: _2, _3, …
+        const base = `${sym}_${(await gitShort(s.folder.fsPath)) ?? dateSlug()}`;
+        let n = 0;
+        try {
+            for (const [f] of await vscode.workspace.fs.readDirectory(outDir)) {
+                if (f === `${base}.md`) n = Math.max(n, 1);
+                const m = f.startsWith(`${base}_`) ? /^(\d+)\.md$/.exec(f.slice(base.length + 1)) : null;
+                if (m) n = Math.max(n, Number(m[1]));
+            }
+        } catch { /* new folder */ }
+        const stem = n ? `${base}_${n + 1}` : base;
+        const mdUri = vscode.Uri.joinPath(outDir, `${stem}.md`);
+        await vscode.workspace.fs.writeFile(mdUri, new TextEncoder().encode(md.replace(`# ${doc.name}`, `# ${stem}`)));
+        await vscode.workspace.fs.writeFile(vscode.Uri.joinPath(outDir, `${stem}.txt`),
+            new TextEncoder().encode(toText(sc.grid, gs) + '\n'));
+        await vscode.commands.executeCommand('markdown.showPreviewToSide', mdUri);
+    };
+    reg('gaffy.export', () => exportView(active()));
+
+    reg('gaffy.editStyle', async () => {
+        const folder = editor.active?.folder ?? vscode.workspace.workspaceFolders?.[0]?.uri;
+        if (!folder) throw new Error('no workspace folder');
+        const uri = vscode.Uri.joinPath(gaffyDir(folder), 'style.json');
+        try { await vscode.workspace.fs.stat(uri); } catch {
+            await vscode.workspace.fs.createDirectory(gaffyDir(folder));
+            await vscode.workspace.fs.writeFile(uri, new TextEncoder().encode(JSON.stringify(DEFAULT_STYLE, null, 2) + '\n'));
+        }
+        await vscode.window.showTextDocument(uri);
+    });
+
+    // ---- node commands (webview context menu) -------------------------------------------------------
+    const node = (fn: (s: Session, doc: ViewDoc, key: NodeKey) => unknown) => async (arg?: NodeArg) => {
+        const s = active();
+        if (!arg?.key) throw new Error('no node under the pointer');
+        await fn(s, s.doc(), arg.key);
+    };
+
+    reg('gaffy.node.open', node((_s, d, k) => openNode(nodeOf(d, k), true)));
+    reg('gaffy.node.editorMenu', node(async (_s, d, k) => {
+        if (await openNode(nodeOf(d, k), true)) await vscode.commands.executeCommand('editor.action.showContextMenu');
+    }));
+    reg('gaffy.node.references', node(async (_s, d, k) => {
+        if (await openNode(nodeOf(d, k), true)) await vscode.commands.executeCommand('editor.action.referenceSearch.trigger');
+    }));
+    reg('gaffy.node.callHierarchy', node(async (_s, d, k) => {
+        if (await openNode(nodeOf(d, k), true)) await vscode.commands.executeCommand('references-view.showCallHierarchy');
     }));
 
-  const active = (): Session => {
-    if (!editor.active) throw new Error('no active gaffy view');
-    return editor.active;
-  };
 
-  // ---- view creation ------------------------------------------------------------------------------
-  const seedAtCursor = async () => {
-    const ed = vscode.window.activeTextEditor;
-    if (!ed) throw new Error('no active editor');
-    const items = await vscode.window.withProgress(
-      { location: vscode.ProgressLocation.Notification, title: 'gaffy: asking the language server about the symbol at the cursor…' },
-      () => provider.prepare(ed.document.uri, ed.selection.active));
-    if (!items.length) throw new Error(`no call hierarchy at the cursor: ${(await provider.symbolsOf(ed.document.uri)).length ? noHierarchyHint(ed.document.uri.path) : serverHint(ed.document.uri.path)}`);
-    const acc: Record<NodeKey, GNode> = {};
-    const key = await provider.describe(items[0], acc);
-    if (!key) throw new Error('symbol outside the workspace (gaffy.includeExternal is off)');
-    return { key, acc, uri: ed.document.uri, node: acc[key] };
-  };
-
-  /**
-   * A new view under `.gaffy/views/`: the starting choices of style.json `view`, then `over` (a command's own
-   * choices). `gaffy.newViews: "unsaved"`: an untitled document bound to that path; Save keeps it, closing
-   * without saving discards it.
-   */
-  const createView = async (base: vscode.Uri, stem: string, doc: ViewDoc, over: Partial<Pick<ViewSpec, 'arrange' | 'depthUp' | 'depthDown'>> = {}) => {
-    const folder = folderOf(base);
-    const views = vscode.Uri.joinPath(gaffyDir(folder), 'views');
-    await vscode.workspace.fs.createDirectory(views);
-    // <symbol>_<short commit hash, or date>.gaffy
-    const uri = await uniqueUri(views, `${stem}_${(await gitShort(folder.fsPath)) ?? dateSlug()}`, '.gaffy');
-    // starting choices from style.json `view`
-    const start = (await editor.styles.get(folder)).view;
-    doc.view.depth = cfg().get<number>('depth') ?? 3;
-    doc.view.arrange = start.arrange;
-    if (start.traverse === 'both') doc.view.direction = 'both';
-    // one layer at a time: the seed's first side; full: the same sides to the configured depth
-    doc.view.depthUp = doc.view.direction !== 'out' ? doc.view.depth : 0;
-    doc.view.depthDown = doc.view.direction !== 'in' ? doc.view.depth : 0;
-    Object.assign(doc.view, over);
-    if (doc.view.arrange === 'grow') doc.view.open = {};
-    else delete doc.view.open;
-    doc.name = path.basename(uri.path, '.gaffy');
-    let target = uri;
-    if (cfg().get<string>('newViews') === 'unsaved') {
-      target = uri.with({ scheme: 'untitled' });
-      await vscode.workspace.openTextDocument(target);
-      const edit = new vscode.WorkspaceEdit();
-      edit.insert(target, new vscode.Position(0, 0), serializeDoc(doc));
-      await vscode.workspace.applyEdit(edit);
-    } else await vscode.workspace.fs.writeFile(uri, new TextEncoder().encode(serializeDoc(doc)));
-    await vscode.commands.executeCommand('vscode.openWith', target, GaffyEditor.viewType,
-      { viewColumn: vscode.ViewColumn.Active });
-  };
-
-  /** VS Code's own call hierarchy in the References view, next to the gaffy view (`gaffy.openCallHierarchy`). */
-  const showCallHierarchy = async (direction: Direction) => {
-    if (!cfg().get<boolean>('openCallHierarchy')) return;
-    const have = new Set(await vscode.commands.getCommands(true));
-    if (!have.has('references-view.showCallHierarchy')) return;
-    try {
-      await vscode.commands.executeCommand('references-view.showCallHierarchy');
-      const toggle = direction === 'out' ? 'references-view.showOutgoingCalls' : 'references-view.showIncomingCalls';
-      if (have.has(toggle)) await vscode.commands.executeCommand(toggle);
-    } catch { /* the view is optional */ }
-  };
-
-  const graphAtCursor = async (direction: Direction) => {
-    const s = await seedAtCursor();
-    await showCallHierarchy(direction);
-    const doc = emptyDoc(s.node.name, { seeds: [s.key], direction, depth: cfg().get<number>('depth') ?? 4 });
-    doc.graph.nodes = s.acc;
-    await createView(s.uri, s.node.name, doc);
-  };
-
-  reg('gaffy.graphCallers', () => graphAtCursor('in'));
-  reg('gaffy.graphCallees', () => graphAtCursor('out'));
-
-  reg('gaffy.addToView', async () => {
-    const sess = active();
-    const s = await seedAtCursor();
-    await sess.refresh((d) => {
-      Object.assign(d.graph.nodes, s.acc);
-      if (!d.view.seeds.includes(s.key)) d.view.seeds.push(s.key);
+    const collapse = (kinds: string[], label: string) => node((s, d, k) => {
+        const c = containerOfKind(d, k, kinds);
+        if (!c) throw new Error(`no enclosing ${label}`);
+        return s.update((doc) => { if (!doc.view.collapsed.includes(c)) doc.view.collapsed.push(c); });
     });
-  });
-
-  reg('gaffy.graphFile', async (uri?: vscode.Uri) => {
-    uri ??= vscode.window.activeTextEditor?.document.uri;
-    if (!uri) throw new Error('no file');
-    const syms = await provider.symbolsOf(uri);
-    const fnKinds = new Set([vscode.SymbolKind.Function, vscode.SymbolKind.Method, vscode.SymbolKind.Constructor]);
-    const targets: vscode.DocumentSymbol[] = [];
-    const walk = (ss: vscode.DocumentSymbol[]) => ss.forEach((x) => {
-      if (fnKinds.has(x.kind)) targets.push(x);
-      else if (x.kind === vscode.SymbolKind.Class) walk(x.children);
-    });
-    walk(syms);
-    const acc: Record<NodeKey, GNode> = {};
-    const seeds: NodeKey[] = [];
-    for (const t of targets.slice(0, 60)) {
-      const it = (await provider.prepare(uri, t.selectionRange.start))[0];
-      const key = it && (await provider.describe(it, acc));
-      if (key) seeds.push(key);
-    }
-    if (!seeds.length) throw new Error(syms.length ? `no function in this file has call hierarchy: ${noHierarchyHint(uri.path)}` : `no functions found in this file: ${serverHint(uri.path)}`);
-    // the file's functions and their callers, one level, all shown (full layout)
-    const doc = emptyDoc('', { seeds, direction: 'in', depth: 1 });
-    doc.graph.nodes = acc;
-    await createView(uri, path.basename(uri.path).replace(/\.[^.]+$/, ''), doc, { arrange: 'auto', depthUp: 1, depthDown: 0 });
-  });
-
-  // ---- view commands ------------------------------------------------------------------------------
-  reg('gaffy.refresh', () => active().refresh(undefined, 'revalidate'));
-  reg('gaffy.clearCache', () => { for (const c of editor.allCaches()) c.clear(); void vscode.window.showInformationMessage('gaffy: call cache cleared'); });
-  reg('gaffy.toggleEdges', async () => {
-    const s = active();
-    const st = await editor.styles.get(s.folder);
-    await s.update((d) => { d.view.edges = (d.view.edges ?? st.edges.mode) === 'glyph' ? 'vector' : 'glyph'; });
-  });
-  reg('gaffy.unhideAll', () => active().update((d) => { d.view.hidden = []; }));
-  reg('gaffy.toggleBoxes', async () => {
-    const s = active();
-    const st = await editor.styles.get(s.folder);
-    await s.update((d) => { d.view.boxes = !(d.view.boxes ?? st.boxes.enabled); });
-  });
-  reg('gaffy.rearrange', () => active().update((d) => { d.view.offset = {}; }));
-  reg('gaffy.unlockAll', () => active().update((d) => { d.view.lock = {}; }));
-
-  // commands that need the layout or the selection run in the webview
-  const forward = (cmd: string) => (arg?: NodeArg) => {
-    const s = active();
-    void s.panel.webview.postMessage({ type: 'cmd', cmd, key: arg?.key, unit: arg?.unit, to: arg?.to });
-  };
-  reg('gaffy.node.openCallers', forward('openUp'));
-  reg('gaffy.node.openCalls', forward('openDown'));
-  reg('gaffy.node.closeCallers', forward('closeUp'));
-  reg('gaffy.node.closeCalls', forward('closeDown'));
-  reg('gaffy.edge.straighten', forward('straighten'));
-  reg('gaffy.edge.subtree', forward('callSubtree'));
-  reg('gaffy.edge.path', forward('callPath'));
-  reg('gaffy.edge.callSite', forward('callSite'));
-  reg('gaffy.edge.callee', forward('callee'));
-  reg('gaffy.resetLayout', forward('resetLayout'));
-  reg('gaffy.showAll', forward('showAll'));
-  reg('gaffy.resetView', forward('resetView'));
-  reg('gaffy.isolateSelection', forward('isolateSelection'));
-  reg('gaffy.node.lock', forward('lock'));
-  reg('gaffy.node.unlock', forward('unlock'));
-  reg('gaffy.node.showHidden', forward('showHidden'));
-  reg('gaffy.sel.upstream', forward('upstream'));
-  reg('gaffy.sel.downstream', forward('downstream'));
-  reg('gaffy.sel.through', forward('through'));
-  reg('gaffy.sel.between', forward('between'));
-  reg('gaffy.sel.hide', forward('hideSelection'));
-  reg('gaffy.sel.rearrange', forward('rearrangeSelection'));
-  reg('gaffy.sel.isolate', forward('isolate'));
-  reg('gaffy.sel.clear', forward('clearSelection'));
-
-  const excludes = (s: Session) => (vscode.workspace.getConfiguration('gaffy', s.document.uri).get<string[]>('exclude') ?? []).map(globToRegExp);
-  const external = (s: Session) => vscode.workspace.getConfiguration('gaffy', s.document.uri).get<boolean>('includeExternal') ?? false;
-
-  const exportView = async (s: Session) => {
-    const doc = s.doc();
-    const style = await editor.styles.get(s.folder);
-    const sc = buildScene(doc, style, excludes(s), external(s));
-    const gs = glyphSet(style);
-    const outDir = gaffyDir(s.folder);
-    await vscode.workspace.fs.createDirectory(outDir);
-    const href = (key: NodeKey) => {
-      const n = nodeOf(doc, key);
-      if (!n?.uri) return undefined;
-      /* secure tooling: links always start with ./ or ../, so no path can read as a command */ 
-      const p = path.posix.relative(outDir.path, vscode.Uri.parse(n.uri).path);
-      const rel = p.startsWith('.') ? p : `./${p}`;
-      return n.line !== undefined && n.kind !== 'package' && n.kind !== 'folder' ? `${rel}#L${n.line + 1}` : rel;
-    };
-    const md = `# ${doc.name}\n\n<pre>\n${toHtmlPre(sc.grid, gs, href)}\n</pre>\n`;
-    // <symbol>_<short commit hash, or date>_<nn>.md and .txt, numbered per symbol and commit
-    const seed = doc.view.seeds[0];
-    const sym = ((seed && nodeOf(doc, seed)?.name) || s.name).replace(/[^\w.-]+/g, '_');
-    // .gaffy/<symbol>_<short commit hash, or date>.md; later exports of the same symbol and commit: _2, _3, …
-    const base = `${sym}_${(await gitShort(s.folder.fsPath)) ?? dateSlug()}`;
-    let n = 0;
-    try {
-      for (const [f] of await vscode.workspace.fs.readDirectory(outDir)) {
-        if (f === `${base}.md`) n = Math.max(n, 1);
-        const m = f.startsWith(`${base}_`) ? /^(\d+)\.md$/.exec(f.slice(base.length + 1)) : null;
-        if (m) n = Math.max(n, Number(m[1]));
-      }
-    } catch { /* new folder */ }
-    const stem = n ? `${base}_${n + 1}` : base;
-    const mdUri = vscode.Uri.joinPath(outDir, `${stem}.md`);
-    await vscode.workspace.fs.writeFile(mdUri, new TextEncoder().encode(md.replace(`# ${doc.name}`, `# ${stem}`)));
-    await vscode.workspace.fs.writeFile(vscode.Uri.joinPath(outDir, `${stem}.txt`),
-      new TextEncoder().encode(toText(sc.grid, gs) + '\n'));
-    await vscode.commands.executeCommand('markdown.showPreviewToSide', mdUri);
-  };
-  reg('gaffy.export', () => exportView(active()));
-
-  reg('gaffy.editStyle', async () => {
-    const folder = editor.active?.folder ?? vscode.workspace.workspaceFolders?.[0]?.uri;
-    if (!folder) throw new Error('no workspace folder');
-    const uri = vscode.Uri.joinPath(gaffyDir(folder), 'style.json');
-    try { await vscode.workspace.fs.stat(uri); } catch {
-      await vscode.workspace.fs.createDirectory(gaffyDir(folder));
-      await vscode.workspace.fs.writeFile(uri, new TextEncoder().encode(JSON.stringify(DEFAULT_STYLE, null, 2) + '\n'));
-    }
-    await vscode.window.showTextDocument(uri);
-  });
-
-  // ---- node commands (webview context menu) -------------------------------------------------------
-  const node = (fn: (s: Session, doc: ViewDoc, key: NodeKey) => unknown) => async (arg?: NodeArg) => {
-    const s = active();
-    if (!arg?.key) throw new Error('no node under the pointer');
-    await fn(s, s.doc(), arg.key);
-  };
-
-  reg('gaffy.node.open', node((_s, d, k) => openNode(nodeOf(d, k), true)));
-  reg('gaffy.node.editorMenu', node(async (_s, d, k) => {
-    if (await openNode(nodeOf(d, k), true)) await vscode.commands.executeCommand('editor.action.showContextMenu');
-  }));
-  reg('gaffy.node.references', node(async (_s, d, k) => {
-    if (await openNode(nodeOf(d, k), true)) await vscode.commands.executeCommand('editor.action.referenceSearch.trigger');
-  }));
-  reg('gaffy.node.callHierarchy', node(async (_s, d, k) => {
-    if (await openNode(nodeOf(d, k), true)) await vscode.commands.executeCommand('references-view.showCallHierarchy');
-  }));
-
-
-  const collapse = (kinds: string[], label: string) => node((s, d, k) => {
-    const c = containerOfKind(d, k, kinds);
-    if (!c) throw new Error(`no enclosing ${label}`);
-    return s.update((doc) => { if (!doc.view.collapsed.includes(c)) doc.view.collapsed.push(c); });
-  });
-  reg('gaffy.node.collapseClass', collapse(['class'], 'class'));
-  reg('gaffy.node.collapseFile', collapse(['module', 'file'], 'file or module'));
-  reg('gaffy.node.collapsePackage', collapse(['package', 'folder'], 'package or folder'));
-  // namespace grouping on demand: box a module, dissolve a box, box every module inside a box
-  reg('gaffy.node.groupModule', node((s, d, k) => {
-    const m = containerOfKind(d, k, ['module', 'file']);
-    if (!m) throw new Error('no enclosing module');
-    return s.update((doc) => { doc.view.ungroup = doc.view.ungroup.filter((x) => x !== m); if (!doc.view.group.includes(m)) doc.view.group.push(m); });
-  }));
-  reg('gaffy.node.ungroup', node((s, _d, k) =>
-    s.update((doc) => { doc.view.group = doc.view.group.filter((x) => x !== k); if (!doc.view.ungroup.includes(k)) doc.view.ungroup.push(k); })));
-  reg('gaffy.node.groupInside', node((s, d, k) => {
-    const nodes = d.graph.nodes;
-    const mods = Object.values(nodes).filter((n) => (n.kind === 'module' || n.kind === 'file') && ancestors(nodes, n.key).includes(k)).map((n) => n.key);
-    return s.update((doc) => {
-      doc.view.ungroup = doc.view.ungroup.filter((x) => !mods.includes(x));
-      for (const m of mods) if (!doc.view.group.includes(m)) doc.view.group.push(m);
-    });
-  }));
-  reg('gaffy.node.expandContainer', node((s, _d, k) =>
-    s.update((doc) => { doc.view.collapsed = doc.view.collapsed.filter((c) => c !== k); })));
-  reg('gaffy.node.hide', node((s, _d, k) => s.update((doc) => { if (!doc.view.hidden.includes(k)) doc.view.hidden.push(k); })));
-  // seeds change in the webview (the function keeps its place); its edit asks the language server for what is missing
-  reg('gaffy.node.makeSeed', forward('makeSeed'));
-  reg('gaffy.node.removeSeed', forward('removeSeed'));
-  reg('gaffy.node.tag', node(async (s, d, k) => {
-    const v = await vscode.window.showInputBox({ prompt: 'tag (empty removes)', value: d.view.tags[k] ?? '' });
-    if (v === undefined) return;
-    await s.update((doc) => { if (v) doc.view.tags[k] = v; else delete doc.view.tags[k]; });
-  }));
-
-  const move = (delta: -1 | 1) => node(async (s, d, k) => {
-    const sc = buildScene(d, await editor.styles.get(s.folder), excludes(s), external(s));
-    const { slot, list } = siblingsOf(sc, k);
-    const i = list.indexOf(k);
-    const j = i + delta;
-    if (i < 0 || j < 0 || j >= list.length) return;
-    const next = [...list];
-    [next[i], next[j]] = [next[j], next[i]];
-    await s.update((doc) => { doc.view.sibling[slot ?? ROOTS] = next; });
-  });
-  reg('gaffy.node.moveUp', move(-1));
-  reg('gaffy.node.moveDown', move(1));
-
-  reg('gaffy.node.revealInExplorer', node(async (_s, d, k) => {
-    const n = nodeOf(d, k);
-    if (n?.uri) await vscode.commands.executeCommand('revealInExplorer', vscode.Uri.parse(n.uri));
-  }));
-  reg('gaffy.node.copyPath', node(async (_s, d, k) => {
-    const n = nodeOf(d, k);
-    if (n?.path) await vscode.env.clipboard.writeText(n.line !== undefined ? `${n.path}:${n.line + 1}` : n.path);
-  }));
-  reg('gaffy.node.copyQualname', node(async (_s, d, k) => {
-    const n = nodeOf(d, k);
-    if (n) await vscode.env.clipboard.writeText(n.qual ? `${n.module}.${n.qual}` : n.module);
-  }));
-
-  // ---- webview messages that need the host ----------------------------------------------------------
-  editor.onMessage = async (s, m) => {
-    const key = m.key as NodeKey | undefined;
-    switch (m.type) {
-      case 'open': await openNode(key ? nodeOf(s.doc(), key) : undefined, false); break;
-      case 'openAt': {
-        const n = key ? nodeOf(s.doc(), key) : undefined;
-        const line = Number.isInteger(m.line) && (m.line as number) >= 0 ? m.line as number : undefined;
-        await openNode(n && line !== undefined ? { ...n, line, character: 0 } : n, false);
-        break;
-      }
-      case 'expand': if (key) await s.expand(key, m.dir === 'in' ? 'in' : 'out'); break;
-      case 'refresh': await s.refresh(undefined, 'revalidate'); break;
-      case 'export': await exportView(s); break;
-      case 'editStyle': await vscode.commands.executeCommand('gaffy.editStyle'); break;
-      case 'openSettings': await vscode.commands.executeCommand('workbench.action.openSettings', `@ext:${ctx.extension.id}`); break;
-      case 'setting': {
-        // Options > Settings: written to the workspace settings (user settings without a workspace)
-        // only these keys, only values of their type
-        const k = m.key as string;
-        const ok = (k === 'includeExternal' && typeof m.value === 'boolean') || (k === 'newViews' && (m.value === 'saved' || m.value === 'unsaved'));
-        if (!ok) break;
-        const target = vscode.workspace.workspaceFolders?.length ? vscode.ConfigurationTarget.Workspace : vscode.ConfigurationTarget.Global;
-        await vscode.workspace.getConfiguration('gaffy').update(k, m.value, target);
-        // external code turned on: answers fetched without it are asked again (on screen now, the rest when opened)
-        if (k === 'includeExternal' && m.value === true) {
-          for (const c of editor.allCaches()) c.clear();
-          for (const x of new Set(editor.sessions.values())) void x.refresh(undefined, 'revalidate');
-        }
-        break;
-      }
-      case 'hiddenNeighbors': {
-        const doc = s.doc();
-        const keys = (m.keys as NodeKey[] | undefined) ?? [];
-        const items = keys.map((k) => {
-          const n = nodeOf(doc, k);
-          return { label: visible(n ? (n.qual ? `${n.module}.${n.qual}` : n.module) : k), description: n?.path && visible(n.path), key: k, picked: true };
+    reg('gaffy.node.collapseClass', collapse(['class'], 'class'));
+    reg('gaffy.node.collapseFile', collapse(['module', 'file'], 'file or module'));
+    reg('gaffy.node.collapsePackage', collapse(['package', 'folder'], 'package or folder'));
+    // namespace grouping on demand: box a module, dissolve a box, box every module inside a box
+    reg('gaffy.node.groupModule', node((s, d, k) => {
+        const m = containerOfKind(d, k, ['module', 'file']);
+        if (!m) throw new Error('no enclosing module');
+        return s.update((doc) => { doc.view.ungroup = doc.view.ungroup.filter((x) => x !== m); if (!doc.view.group.includes(m)) doc.view.group.push(m); });
+    }));
+    reg('gaffy.node.ungroup', node((s, _d, k) =>
+        s.update((doc) => { doc.view.group = doc.view.group.filter((x) => x !== k); if (!doc.view.ungroup.includes(k)) doc.view.ungroup.push(k); })));
+    reg('gaffy.node.groupInside', node((s, d, k) => {
+        const nodes = d.graph.nodes;
+        const mods = Object.values(nodes).filter((n) => (n.kind === 'module' || n.kind === 'file') && ancestors(nodes, n.key).includes(k)).map((n) => n.key);
+        return s.update((doc) => {
+            doc.view.ungroup = doc.view.ungroup.filter((x) => !mods.includes(x));
+            for (const m of mods) if (!doc.view.group.includes(m)) doc.view.group.push(m);
         });
-        const pick = await vscode.window.showQuickPick(items, { canPickMany: true, title: 'Unhide neighbors', placeHolder: 'selected entries become visible' });
-        if (!pick?.length) break;
-        // a neighbor can be hidden itself or through a hidden container
-        const unhide = new Set<NodeKey>();
-        for (const p of pick) { unhide.add(p.key); for (const a of ancestors(doc.graph.nodes, p.key)) unhide.add(a); }
-        await s.update((d) => { d.view.hidden = d.view.hidden.filter((h) => !unhide.has(h)); });
-        break;
-      }
-    }
-  };
+    }));
+    reg('gaffy.node.expandContainer', node((s, _d, k) =>
+        s.update((doc) => { doc.view.collapsed = doc.view.collapsed.filter((c) => c !== k); })));
+    reg('gaffy.node.hide', node((s, _d, k) => s.update((doc) => { if (!doc.view.hidden.includes(k)) doc.view.hidden.push(k); })));
+    // seeds change in the webview (the function keeps its place); its edit asks the language server for what is missing
+    reg('gaffy.node.makeSeed', forward('makeSeed'));
+    reg('gaffy.node.removeSeed', forward('removeSeed'));
+    reg('gaffy.node.tag', node(async (s, d, k) => {
+        const v = await vscode.window.showInputBox({ prompt: 'tag (empty removes)', value: d.view.tags[k] ?? '' });
+        if (v === undefined) return;
+        await s.update((doc) => { if (v) doc.view.tags[k] = v; else delete doc.view.tags[k]; });
+    }));
+
+    const move = (delta: -1 | 1) => node(async (s, d, k) => {
+        const sc = buildScene(d, await editor.styles.get(s.folder), excludes(s), external(s));
+        const { slot, list } = siblingsOf(sc, k);
+        const i = list.indexOf(k);
+        const j = i + delta;
+        if (i < 0 || j < 0 || j >= list.length) return;
+        const next = [...list];
+        [next[i], next[j]] = [next[j], next[i]];
+        await s.update((doc) => { doc.view.sibling[slot ?? ROOTS] = next; });
+    });
+    reg('gaffy.node.moveUp', move(-1));
+    reg('gaffy.node.moveDown', move(1));
+
+    reg('gaffy.node.revealInExplorer', node(async (_s, d, k) => {
+        const n = nodeOf(d, k);
+        if (n?.uri) await vscode.commands.executeCommand('revealInExplorer', vscode.Uri.parse(n.uri));
+    }));
+    reg('gaffy.node.copyPath', node(async (_s, d, k) => {
+        const n = nodeOf(d, k);
+        if (n?.path) await vscode.env.clipboard.writeText(n.line !== undefined ? `${n.path}:${n.line + 1}` : n.path);
+    }));
+    reg('gaffy.node.copyQualname', node(async (_s, d, k) => {
+        const n = nodeOf(d, k);
+        if (n) await vscode.env.clipboard.writeText(n.qual ? `${n.module}.${n.qual}` : n.module);
+    }));
+
+    // ---- webview messages that need the host ----------------------------------------------------------
+    editor.onMessage = async (s, m) => {
+        const key = m.key as NodeKey | undefined;
+        switch (m.type) {
+            case 'open': await openNode(key ? nodeOf(s.doc(), key) : undefined, false); break;
+            case 'openAt': {
+                const n = key ? nodeOf(s.doc(), key) : undefined;
+                const line = Number.isInteger(m.line) && (m.line as number) >= 0 ? m.line as number : undefined;
+                await openNode(n && line !== undefined ? { ...n, line, character: 0 } : n, false);
+                break;
+            }
+            case 'expand': if (key) await s.expand(key, m.dir === 'in' ? 'in' : 'out'); break;
+            case 'refresh': await s.refresh(undefined, 'revalidate'); break;
+            case 'export': await exportView(s); break;
+            case 'editStyle': await vscode.commands.executeCommand('gaffy.editStyle'); break;
+            case 'openSettings': await vscode.commands.executeCommand('workbench.action.openSettings', `@ext:${ctx.extension.id}`); break;
+            case 'setting': {
+                // Options > Settings: written to the workspace settings (user settings without a workspace)
+                // only these keys, only values of their type
+                const k = m.key as string;
+                const ok = (k === 'includeExternal' && typeof m.value === 'boolean') || (k === 'newViews' && (m.value === 'saved' || m.value === 'unsaved'));
+                if (!ok) break;
+                const target = vscode.workspace.workspaceFolders?.length ? vscode.ConfigurationTarget.Workspace : vscode.ConfigurationTarget.Global;
+                await vscode.workspace.getConfiguration('gaffy').update(k, m.value, target);
+                // external code turned on: answers fetched without it are asked again (on screen now, the rest when opened)
+                if (k === 'includeExternal' && m.value === true) {
+                    for (const c of editor.allCaches()) c.clear();
+                    for (const x of new Set(editor.sessions.values())) void x.refresh(undefined, 'revalidate');
+                }
+                break;
+            }
+            case 'hiddenNeighbors': {
+                const doc = s.doc();
+                const keys = (m.keys as NodeKey[] | undefined) ?? [];
+                const items = keys.map((k) => {
+                    const n = nodeOf(doc, k);
+                    return { label: visible(n ? (n.qual ? `${n.module}.${n.qual}` : n.module) : k), description: n?.path && visible(n.path), key: k, picked: true };
+                });
+                const pick = await vscode.window.showQuickPick(items, { canPickMany: true, title: 'Unhide neighbors', placeHolder: 'selected entries become visible' });
+                if (!pick?.length) break;
+                // a neighbor can be hidden itself or through a hidden container
+                const unhide = new Set<NodeKey>();
+                for (const p of pick) { unhide.add(p.key); for (const a of ancestors(doc.graph.nodes, p.key)) unhide.add(a); }
+                await s.update((d) => { d.view.hidden = d.view.hidden.filter((h) => !unhide.has(h)); });
+                break;
+            }
+        }
+    };
 }

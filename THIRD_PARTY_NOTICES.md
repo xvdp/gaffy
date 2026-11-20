@@ -1,22 +1,13 @@
 # Third-party notices
 
-The webview bundle `dist/webview.js` includes the following modules of D3 (https://d3js.org), each under the ISC license.
+`dist/webview.js` bundles modules of D3 (https://d3js.org, https://github.com/d3), all by Mike Bostock:
 
-| Module | Version | Copyright |
-|---|---|---|
-| d3-selection | 3.0.1 | Copyright 2010-2026 Mike Bostock |
-| d3-zoom | 3.0.1 | Copyright 2010-2026 Mike Bostock |
-| d3-drag | 3.0.1 | Copyright 2010-2026 Mike Bostock |
-| d3-shape | 3.2.0 | Copyright 2010-2022 Mike Bostock |
-| d3-dispatch | 3.0.2 | Copyright 2010-2026 Mike Bostock |
-| d3-interpolate | 3.0.2 | Copyright 2010-2026 Mike Bostock |
-| d3-transition | 3.0.2 | Copyright 2010-2026 Mike Bostock |
-| d3-timer | 3.0.2 | Copyright 2010-2026 Mike Bostock |
-| d3-ease | 3.0.2 | Copyright 2010-2026 Mike Bostock |
-| d3-color | 3.1.1 | Copyright 2010-2026 Mike Bostock |
-| d3-path | 3.1.1 | Copyright 2015-2026 Mike Bostock |
+- d3-color 3.1.1, d3-dispatch 3.0.2, d3-drag 3.0.1, d3-interpolate 3.0.2, d3-selection 3.0.1, d3-timer 3.0.2, d3-transition 3.0.2, d3-zoom 3.0.1: ISC, Copyright 2010-2026 Mike Bostock
+- d3-shape 3.2.0: ISC, Copyright 2010-2022 Mike Bostock
+- d3-path 3.1.1: ISC, Copyright 2015-2026 Mike Bostock
+- d3-ease 3.0.2: BSD-3-Clause, Copyright 2010-2026 Mike Bostock, Copyright 2001 Robert Penner
 
-ISC license text (identical for each module, with its own copyright line above):
+## ISC License
 
 ```
 Permission to use, copy, modify, and/or distribute this software for any purpose
@@ -30,4 +21,37 @@ INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS
 OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
 TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF
 THIS SOFTWARE.
+```
+
+## BSD 3-Clause License (d3-ease)
+
+```
+Copyright 2010-2026 Mike Bostock
+Copyright 2001 Robert Penner
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without modification,
+are permitted provided that the following conditions are met:
+
+* Redistributions of source code must retain the above copyright notice, this
+  list of conditions and the following disclaimer.
+
+* Redistributions in binary form must reproduce the above copyright notice,
+  this list of conditions and the following disclaimer in the documentation
+  and/or other materials provided with the distribution.
+
+* Neither the name of the author nor the names of contributors may be used to
+  endorse or promote products derived from this software without specific prior
+  written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR
+ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+(INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON
+ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ```

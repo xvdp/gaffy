@@ -115,7 +115,7 @@
           "items": {
             "type": "string"
           },
-          "description": "Module prefixes removed from labels, e.g. \"gutai.\"."
+          "description": "Module prefixes removed from labels, e.g. \"foo.\"."
         },
         "parens": {
           "type": "boolean",

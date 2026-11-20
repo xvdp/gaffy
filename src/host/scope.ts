@@ -4,5 +4,5 @@
 import * as vscode from 'vscode';
 
 export function readable(u: vscode.Uri): boolean {
-  return u.scheme === 'file' || (vscode.workspace.workspaceFolders ?? []).some((f) => f.uri.scheme === u.scheme);
+    return u.scheme === 'file' || (vscode.workspace.workspaceFolders ?? []).some((f) => f.uri.scheme === u.scheme);
 }

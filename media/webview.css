@@ -1,71 +1,71 @@
 :root {
-  --g-fg: var(--vscode-editor-foreground);
-  --g-bg: var(--vscode-editor-background);
-  --g-edge: var(--vscode-editorLineNumber-foreground);
-  --g-highlight: var(--vscode-focusBorder);
-  --g-seed: var(--vscode-textLink-foreground);
-  --g-frame: var(--vscode-editorWidget-border);
-  --g-namespace: var(--vscode-descriptionForeground);
-  --g-external: var(--vscode-disabledForeground);
-  --g-selected: var(--vscode-editor-selectionBackground);
-  --g-selection: var(--vscode-textLink-activeForeground);
-  --g-twisty: var(--vscode-textLink-foreground);
-  --g-ew: 1;
+    --g-fg: var(--vscode-editor-foreground);
+    --g-bg: var(--vscode-editor-background);
+    --g-edge: var(--vscode-editorLineNumber-foreground);
+    --g-highlight: var(--vscode-focusBorder);
+    --g-seed: var(--vscode-textLink-foreground);
+    --g-frame: var(--vscode-editorWidget-border);
+    --g-namespace: var(--vscode-descriptionForeground);
+    --g-external: var(--vscode-disabledForeground);
+    --g-selected: var(--vscode-editor-selectionBackground);
+    --g-selection: var(--vscode-textLink-activeForeground);
+    --g-twisty: var(--vscode-textLink-foreground);
+    --g-ew: 1;
 }
 
 html, body {
-  margin: 0;
-  padding: 0;
-  height: 100%;
-  overflow: hidden;
-  background: var(--g-bg);
-  color: var(--g-fg);
-  font-family: var(--vscode-font-family);
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    overflow: hidden;
+    background: var(--g-bg);
+    color: var(--g-fg);
+    font-family: var(--vscode-font-family);
 }
 
 body { display: flex; flex-direction: column; }
 
 #toolbar {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  align-items: center;
-  padding: 4px 8px;
-  border-bottom: 1px solid var(--vscode-panel-border);
-  font-size: 12px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    align-items: center;
+    padding: 4px 8px;
+    border-bottom: 1px solid var(--vscode-panel-border);
+    font-size: 12px;
 }
 
 #toolbar button {
-  background: var(--vscode-button-secondaryBackground);
-  color: var(--vscode-button-secondaryForeground);
-  border: none;
-  border-radius: 2px;
-  padding: 2px 8px;
-  font: inherit;
-  cursor: pointer;
+    background: var(--vscode-button-secondaryBackground);
+    color: var(--vscode-button-secondaryForeground);
+    border: none;
+    border-radius: 2px;
+    padding: 2px 8px;
+    font: inherit;
+    cursor: pointer;
 }
 
 #toolbar button.on {
-  background: var(--vscode-button-background);
-  color: var(--vscode-button-foreground);
+    background: var(--vscode-button-background);
+    color: var(--vscode-button-foreground);
 }
 
 #toolbar button:disabled { opacity: 0.45; cursor: default; }
 #toolbar .opts { position: relative; margin-left: auto; }
 #toolbar .panel {
-  position: absolute;
-  right: 0;
-  top: calc(100% + 4px);
-  z-index: 5;
-  min-width: 260px;
-  max-height: 75vh;
-  overflow-y: auto;
-  padding: 4px 0;
-  background: var(--vscode-menu-background, var(--vscode-editorWidget-background));
-  color: var(--vscode-menu-foreground, var(--g-fg));
-  border: 1px solid var(--vscode-menu-border, var(--vscode-widget-border, var(--vscode-panel-border)));
-  border-radius: 4px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+    position: absolute;
+    right: 0;
+    top: calc(100% + 4px);
+    z-index: 5;
+    min-width: 260px;
+    max-height: 75vh;
+    overflow-y: auto;
+    padding: 4px 0;
+    background: var(--vscode-menu-background, var(--vscode-editorWidget-background));
+    color: var(--vscode-menu-foreground, var(--g-fg));
+    border: 1px solid var(--vscode-menu-border, var(--vscode-widget-border, var(--vscode-panel-border)));
+    border-radius: 4px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
 }
 #toolbar .panel .caption { padding: 6px 12px 2px; font-size: 11px; text-transform: uppercase; color: var(--vscode-descriptionForeground); }
 #toolbar .panel .item { display: flex; gap: 8px; padding: 3px 12px; cursor: pointer; white-space: nowrap; }
@@ -73,19 +73,19 @@ body { display: flex; flex-direction: column; }
 #toolbar .panel .check { width: 1em; text-align: center; }
 
 #banner {
-  position: absolute;
-  right: 12px;
-  top: 44px;
-  z-index: 2;
-  display: none;
-  padding: 3px 10px;
-  border-radius: 3px;
-  font-size: 12px;
-  background: var(--vscode-editorWidget-background);
-  color: var(--vscode-editorWidget-foreground, var(--g-fg));
-  border: 1px solid var(--vscode-focusBorder);
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
-  animation: gaffy-pulse 1.2s ease-in-out infinite;
+    position: absolute;
+    right: 12px;
+    top: 44px;
+    z-index: 2;
+    display: none;
+    padding: 3px 10px;
+    border-radius: 3px;
+    font-size: 12px;
+    background: var(--vscode-editorWidget-background);
+    color: var(--vscode-editorWidget-foreground, var(--g-fg));
+    border: 1px solid var(--vscode-focusBorder);
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+    animation: gaffy-pulse 1.2s ease-in-out infinite;
 }
 #banner.on { display: block; }
 @keyframes gaffy-pulse { 50% { opacity: 0.55; } }
@@ -94,13 +94,13 @@ body { display: flex; flex-direction: column; }
 #graph:active { cursor: grabbing; }
 
 #status {
-  padding: 2px 8px;
-  font-size: 11px;
-  color: var(--vscode-descriptionForeground);
-  border-top: 1px solid var(--vscode-panel-border);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+    padding: 2px 8px;
+    font-size: 11px;
+    color: var(--vscode-descriptionForeground);
+    border-top: 1px solid var(--vscode-panel-border);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 text { dominant-baseline: central; white-space: pre; }

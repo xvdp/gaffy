@@ -2,7 +2,7 @@
   "name": "gaffy",
   "displayName": "gaffy",
   "description": "Persistent, manipulable call graphs on a character grid, rendered with D3",
-  "version": "0.9.5",
+  "version": "0.9.6",
   "publisher": "xvdp",
   "license": "MIT",
   "private": true,
@@ -118,19 +118,19 @@
     "commands": [
       {
         "command": "gaffy.graphCallers",
-        "title": "gf> Call Hierarchy (up)"
+        "title": "gaffy> Call Hierarchy (up)"
       },
       {
         "command": "gaffy.graphCallees",
-        "title": "gf> Call Hierarchy (dn)"
+        "title": "gaffy> Call Hierarchy (dn)"
       },
       {
         "command": "gaffy.addToView",
-        "title": "gf> Add to Call Graph"
+        "title": "gaffy> Add to Call Graph"
       },
       {
         "command": "gaffy.graphFile",
-        "title": "gf> Call Hierarchies (all, up)",
+        "title": "Call Hierarchies (all, up)",
         "category": "gaffy"
       },
       {

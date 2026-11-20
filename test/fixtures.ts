@@ -1,149 +1,149 @@
 /**
- * Fixture graphs from giddy/example/main_0218_0217_gutai-src-gutai_pyMOD.md, inverted-trees section.
+ * Fixture graphs over made-up Python packages and scripts.
  * Definition ids `<module>:<qual>`; modules with `/` are scripts outside packages.
  */
 import { GEdge, GNode, NodeKey, Subgraph } from '../src/core/model';
 import { emptyDoc, ViewDoc, ViewSpec } from '../src/core/viewdoc';
 
 export function buildFixture(edges: [string, string][]): Subgraph {
-  const nodes: Record<NodeKey, GNode> = {};
-  let line = 0;
-  const fileKey = (module: string) => `py:${module.replace(/\./g, '/')}.py`;
-  const ensureDir = (dir: string): NodeKey | null => {
-    if (!dir) return null;
-    const key = `dir:${dir}`;
-    if (!nodes[key]) {
-      const i = dir.lastIndexOf('/');
-      nodes[key] = { key, kind: 'package', name: dir.slice(i + 1), qual: '', module: dir.replace(/\//g, '.'),
-        parent: ensureDir(i < 0 ? '' : dir.slice(0, i)) };
-    }
-    return key;
-  };
-  const ensure = (id: string): NodeKey => {
-    const [module, qual] = id.split(':');
-    const fk = fileKey(module);
-    const path = fk.slice(3);
-    if (!nodes[fk]) {
-      const dir = path.slice(0, path.lastIndexOf('/'));
-      nodes[fk] = { key: fk, kind: 'module', name: module.split(/[./]/).pop()!, qual: '', module,
-        parent: ensureDir(dir), path };
-    }
-    const parts = qual.split('.');
-    let parent = fk;
-    for (let i = 0; i < parts.length - 1; i++) {
-      const ck = `${fk}#${parts.slice(0, i + 1).join('.')}`;
-      if (!nodes[ck]) nodes[ck] = { key: ck, kind: 'class', name: parts[i], qual: parts.slice(0, i + 1).join('.'),
-        module, parent, path, line: line++ };
-      parent = ck;
-    }
-    const key = `${fk}#${qual}`;
-    if (!nodes[key]) nodes[key] = { key, kind: parts.length > 1 ? 'method' : 'function', name: parts[parts.length - 1],
-      qual, module, parent, path, line: line++, hash: 'h0' };
-    return key;
-  };
-  const out: GEdge[] = edges.map(([a, b], i) => ({ from: ensure(a), to: ensure(b), line: i }));
-  return { nodes, edges: out };
+    const nodes: Record<NodeKey, GNode> = {};
+    let line = 0;
+    const fileKey = (module: string) => `py:${module.replace(/\./g, '/')}.py`;
+    const ensureDir = (dir: string): NodeKey | null => {
+        if (!dir) return null;
+        const key = `dir:${dir}`;
+        if (!nodes[key]) {
+            const i = dir.lastIndexOf('/');
+            nodes[key] = { key, kind: 'package', name: dir.slice(i + 1), qual: '', module: dir.replace(/\//g, '.'),
+                parent: ensureDir(i < 0 ? '' : dir.slice(0, i)) };
+        }
+        return key;
+    };
+    const ensure = (id: string): NodeKey => {
+        const [module, qual] = id.split(':');
+        const fk = fileKey(module);
+        const path = fk.slice(3);
+        if (!nodes[fk]) {
+            const dir = path.slice(0, path.lastIndexOf('/'));
+            nodes[fk] = { key: fk, kind: 'module', name: module.split(/[./]/).pop()!, qual: '', module,
+                parent: ensureDir(dir), path };
+        }
+        const parts = qual.split('.');
+        let parent = fk;
+        for (let i = 0; i < parts.length - 1; i++) {
+            const ck = `${fk}#${parts.slice(0, i + 1).join('.')}`;
+            if (!nodes[ck]) nodes[ck] = { key: ck, kind: 'class', name: parts[i], qual: parts.slice(0, i + 1).join('.'),
+                module, parent, path, line: line++ };
+            parent = ck;
+        }
+        const key = `${fk}#${qual}`;
+        if (!nodes[key]) nodes[key] = { key, kind: parts.length > 1 ? 'method' : 'function', name: parts[parts.length - 1],
+            qual, module, parent, path, line: line++, hash: 'h0' };
+        return key;
+    };
+    const out: GEdge[] = edges.map(([a, b], i) => ({ from: ensure(a), to: ensure(b), line: i }));
+    return { nodes, edges: out };
 }
 
 export const k = (id: string) => {
-  const [module, qual] = id.split(':');
-  return `py:${module.replace(/\./g, '/')}.py#${qual}`;
+    const [module, qual] = id.split(':');
+    return `py:${module.replace(/\./g, '/')}.py#${qual}`;
 };
 
-const H = 'render.harmonics';
-export const EXP4: [string, string][] = [
-  ['scripts/mote_paths:traverse', 'scripts/mote_paths:speckle'],
-  ['scripts/mote_paths:traverse', 'scripts/mote_paths:stack'],
-  ['scripts/mote_paths:traverse', 'scripts/mote_paths:texel'],
-  ['scripts/mote_paths:traverse', 'scripts/mote_paths:plenoptic'],
-  ['scripts/mote_paths:traverse', 'scripts/mote_paths:streamed'],
-  ['scripts/mote_paths:traverse', 'scripts/mote_paths:layers'],
-  ['scripts/mote_paths:speckle', 'analysis.speckle:treatments'],
-  ['scripts/mote_paths:stack', 'gett.render:render_fitted'],
-  ['scripts/mote_paths:texel', 'gett.convert:Converter.texel'],
-  ['gett.convert:Converter.texel', 'gett.site_harmonics:harmonics'],
-  ['gett.site_harmonics:harmonics', 'fit.surfel:linear_harmonics'],
-  ['scripts/mote_paths:plenoptic', 'gett.convert:Converter.plenoptic'],
-  ['gett.convert:Converter.plenoptic', 'gett.surfel_fit:plenoptic_moteset'],
-  ['gett.surfel_fit:plenoptic_moteset', 'fit.surfel:linear_harmonics'],
-  ['fit.surfel:linear_harmonics', `${H}:sh_eval`],
-  ['scripts/mote_paths:streamed', `${H}:project_streamed`],
-  [`${H}:project_streamed`, `${H}:projector`],
-  [`${H}:projector`, `${H}:_projector_solve`],
-  [`${H}:_projector_solve`, `${H}:sh_eval`],
-  [`${H}:sh_eval`, `${H}:sh_eval_torch_compiled`],
-  [`${H}:sh_eval_torch_compiled`, `${H}:_compiled`],
-  [`${H}:_compiled`, 'gett.render:Pass.compile'],
-  ['gett.render:Pass.compile', 'render.mi_render:compile_aovs'],
-  ['render.mi_render:compile_aovs', 'render.mi_scene:load'],
-  ['analysis.speckle:treatments', 'render.mi_scene:load'],
-  ['gett.render:render_fitted', 'render.mi_scene:load'],
-  ['scripts/mote_paths:layers', 'render.mi_scene:load'],
-  ['render.mi_scene:load', 'render.mi_sensor:register_plugins'],
-  ['render.mi_sensor:register_plugins', 'render.mi_emitters:register_twosided_area'],
-  ['render.mi_sensor:register_plugins', 'render.mi_emitters:register_sphere_spot'],
+const H = 'moomoo.boogaloos';
+export const MOO: [string, string][] = [
+    ['scripts/moo_trucks:wanderoo', 'scripts/moo_trucks:flubber'],
+    ['scripts/moo_trucks:wanderoo', 'scripts/moo_trucks:hokey'],
+    ['scripts/moo_trucks:wanderoo', 'scripts/moo_trucks:snoot'],
+    ['scripts/moo_trucks:wanderoo', 'scripts/moo_trucks:doohickey'],
+    ['scripts/moo_trucks:wanderoo', 'scripts/moo_trucks:moonwalk'],
+    ['scripts/moo_trucks:wanderoo', 'scripts/moo_trucks:bonbon'],
+    ['scripts/moo_trucks:flubber', 'aardvark.flubber:tomfoolery'],
+    ['scripts/moo_trucks:hokey', 'goof.moomoo:moomoo_fluffy'],
+    ['scripts/moo_trucks:snoot', 'goof.kerplop:Gizmotron.snoot'],
+    ['goof.kerplop:Gizmotron.snoot', 'goof.shoo_boogaloos:boogaloos'],
+    ['goof.shoo_boogaloos:boogaloos', 'foo.wobble:jiggly_boogaloos'],
+    ['scripts/moo_trucks:doohickey', 'goof.kerplop:Gizmotron.doohickey'],
+    ['goof.kerplop:Gizmotron.doohickey', 'goof.wobble_foo:doohickey_muppets'],
+    ['goof.wobble_foo:doohickey_muppets', 'foo.wobble:jiggly_boogaloos'],
+    ['foo.wobble:jiggly_boogaloos', `${H}:scoobie`],
+    ['scripts/moo_trucks:moonwalk', `${H}:doodler_moonwalk`],
+    [`${H}:doodler_moonwalk`, `${H}:flimflams`],
+    [`${H}:flimflams`, `${H}:_jelly_doughnuts`],
+    [`${H}:_jelly_doughnuts`, `${H}:scoobie`],
+    [`${H}:scoobie`, `${H}:scoobie_zoinks_jinkies`],
+    [`${H}:scoobie_zoinks_jinkies`, `${H}:_burritos`],
+    [`${H}:_burritos`, 'goof.moomoo:Pogo.splotch'],
+    ['goof.moomoo:Pogo.splotch', 'moomoo.yo_moomoo:splotch_zaps'],
+    ['moomoo.yo_moomoo:splotch_zaps', 'moomoo.yo_nudge:shoo'],
+    ['aardvark.flubber:tomfoolery', 'moomoo.yo_nudge:shoo'],
+    ['goof.moomoo:moomoo_fluffy', 'moomoo.yo_nudge:shoo'],
+    ['scripts/moo_trucks:bonbon', 'moomoo.yo_nudge:shoo'],
+    ['moomoo.yo_nudge:shoo', 'moomoo.yo_wombat:wingding_widgets'],
+    ['moomoo.yo_wombat:wingding_widgets', 'moomoo.yo_blinkers:flibbity_jibbity_jabby'],
+    ['moomoo.yo_wombat:wingding_widgets', 'moomoo.yo_blinkers:flibbity_bibbidi_bob'],
 ];
 
-/** ..rrequest.md addendum 1a: `gutai.render.harmonics.sh_eval` and its callees. */
-const RH = 'gutai.render.harmonics', IO = 'gutai.runtime.interop', VA = 'gutai.runtime.variant', DV = 'gutai.runtime.device';
-export const SH: [string, string][] = [
-  [`${RH}:sh_eval`, `${RH}:resolve_backend`],
-  [`${RH}:resolve_backend`, `${RH}:_in_type`],
-  [`${RH}:sh_eval`, `${RH}:_in_type`],
-  [`${RH}:sh_eval`, `${RH}:sh_eval_torch_compiled`],
-  [`${RH}:sh_eval_torch_compiled`, `${RH}:_torch_order`],
-  [`${RH}:sh_eval_torch_compiled`, `${RH}:_poly_table`],
-  [`${RH}:sh_eval_torch_compiled`, `${RH}:_compiled`],
-  [`${RH}:sh_eval`, `${RH}:_from_tensor`],
-  [`${RH}:sh_eval`, `${RH}:_from_columns`],
-  [`${RH}:_from_columns`, `${RH}:_stacked`],
-  [`${RH}:_stacked`, `${IO}:to_torch`],
-  [`${RH}:sh_eval`, `${IO}:to_torch`],
-  [`${RH}:sh_eval`, `${RH}:_wrapped_mi`],
-  [`${RH}:_wrapped_mi`, `${IO}:unravel`],
-  [`${RH}:_wrapped_mi`, `${RH}:sh_eval_mi`],
-  [`${RH}:sh_eval`, `${RH}:sh_eval_mi`],
-  [`${RH}:sh_eval_mi`, `${VA}:pick_parallel`],
-  [`${VA}:pick_parallel`, `${VA}:_host_process`],
-  [`${VA}:_host_process`, `${DV}:_mask`],
-  [`${VA}:_host_process`, `${DV}:has_cards`],
-  [`${DV}:has_cards`, `${DV}:_nvml`],
-  [`${VA}:pick_parallel`, `${VA}:backend`],
-  [`${RH}:sh_eval_mi`, `${VA}:assert_variant`],
-  [`${VA}:assert_variant`, `${VA}:_validate`],
-  [`${VA}:_validate`, `${VA}:available`],
-  [`${VA}:pick_parallel`, `${VA}:available`],
-  [`${VA}:available`, `${VA}:_build_list`],
-  [`${VA}:assert_variant`, `${VA}:current`],
-  [`${VA}:pick_parallel`, `${VA}:current`],
-  [`${RH}:sh_eval_mi`, `${RH}:_order_check`],
-  [`${RH}:_wrapped_mi`, `${RH}:_tensorxf`],
-  [`${RH}:_from_columns`, `${RH}:_tensorxf`],
-  [`${RH}:sh_eval`, `${IO}:to_drjit`],
-  [`${RH}:_from_tensor`, `${IO}:to_drjit`],
-  [`${IO}:to_drjit`, `${IO}:_device_of`],
-  [`${IO}:to_drjit`, `${IO}:_on_device`],
-  [`${IO}:to_drjit`, `${IO}:_shape`],
-  [`${IO}:to_drjit`, `${IO}:to_drjit`],
+/** ..rrequest.md addendum 1a: `kazoo.moomoo.boogaloos.scoobie` and its callees. */
+const RH = 'kazoo.moomoo.boogaloos', IO = 'kazoo.noodles.jumbles', VA = 'kazoo.noodles.wibbles', DV = 'kazoo.noodles.doodle';
+export const KAZOO: [string, string][] = [
+    [`${RH}:scoobie`, `${RH}:hullabaloo_hoot`],
+    [`${RH}:hullabaloo_hoot`, `${RH}:_fritter`],
+    [`${RH}:scoobie`, `${RH}:_fritter`],
+    [`${RH}:scoobie`, `${RH}:scoobie_zoinks_jinkies`],
+    [`${RH}:scoobie_zoinks_jinkies`, `${RH}:_nacho_plate`],
+    [`${RH}:scoobie_zoinks_jinkies`, `${RH}:_hotdog_bun`],
+    [`${RH}:scoobie_zoinks_jinkies`, `${RH}:_burritos`],
+    [`${RH}:scoobie`, `${RH}:_donut_holes`],
+    [`${RH}:scoobie`, `${RH}:_cheese_puffs`],
+    [`${RH}:_cheese_puffs`, `${RH}:_lasagna`],
+    [`${RH}:_lasagna`, `${IO}:to_wacky`],
+    [`${RH}:scoobie`, `${IO}:to_wacky`],
+    [`${RH}:scoobie`, `${RH}:_pizza_roll`],
+    [`${RH}:_pizza_roll`, `${IO}:whoozit`],
+    [`${RH}:_pizza_roll`, `${RH}:scoobie_do`],
+    [`${RH}:scoobie`, `${RH}:scoobie_do`],
+    [`${RH}:scoobie_do`, `${VA}:mister_magoos`],
+    [`${VA}:mister_magoos`, `${VA}:_hokey_pokeys`],
+    [`${VA}:_hokey_pokeys`, `${DV}:_meep`],
+    [`${VA}:_hokey_pokeys`, `${DV}:honk_honk`],
+    [`${DV}:honk_honk`, `${DV}:_noot`],
+    [`${VA}:mister_magoos`, `${VA}:bazooka`],
+    [`${RH}:scoobie_do`, `${VA}:abba_dabba_doo`],
+    [`${VA}:abba_dabba_doo`, `${VA}:_whatsits`],
+    [`${VA}:_whatsits`, `${VA}:aloo_gobi`],
+    [`${VA}:mister_magoos`, `${VA}:aloo_gobi`],
+    [`${VA}:aloo_gobi`, `${VA}:_bean_stalk`],
+    [`${VA}:abba_dabba_doo`, `${VA}:cuckoos`],
+    [`${VA}:mister_magoos`, `${VA}:cuckoos`],
+    [`${RH}:scoobie_do`, `${RH}:_gummy_bears`],
+    [`${RH}:_pizza_roll`, `${RH}:_meatball`],
+    [`${RH}:_cheese_puffs`, `${RH}:_meatball`],
+    [`${RH}:scoobie`, `${IO}:to_magoo`],
+    [`${RH}:_donut_holes`, `${IO}:to_magoo`],
+    [`${IO}:to_magoo`, `${IO}:_doodle_of`],
+    [`${IO}:to_magoo`, `${IO}:_on_doodle`],
+    [`${IO}:to_magoo`, `${IO}:_shmoo`],
+    [`${IO}:to_magoo`, `${IO}:to_magoo`],
 ];
 
 /** rrequest.md example (*). */
 export const STAR: [string, string][] = [
-  ['fit.surfel:linear_harmonics', `${H}:sh_eval`],
-  ['scripts/mote_paths:streamed', `${H}:project_streamed`],
-  [`${H}:project_streamed`, `${H}:projector`],
-  [`${H}:projector`, `${H}:_projector_solve`],
-  [`${H}:_projector_solve`, `${H}:sh_eval`],
-  [`${H}:sh_eval`, `${H}:sh_eval_torch_compiled`],
-  [`${H}:sh_eval_torch_compiled`, `${H}:_compiled`],
-  [`${H}:_compiled`, 'gett.render:Pass.compile'],
+    ['foo.wobble:jiggly_boogaloos', `${H}:scoobie`],
+    ['scripts/moo_trucks:moonwalk', `${H}:doodler_moonwalk`],
+    [`${H}:doodler_moonwalk`, `${H}:flimflams`],
+    [`${H}:flimflams`, `${H}:_jelly_doughnuts`],
+    [`${H}:_jelly_doughnuts`, `${H}:scoobie`],
+    [`${H}:scoobie`, `${H}:scoobie_zoinks_jinkies`],
+    [`${H}:scoobie_zoinks_jinkies`, `${H}:_burritos`],
+    [`${H}:_burritos`, 'goof.moomoo:Pogo.splotch'],
 ];
 
 /** Fixture view; a full view shows every level of its direction unless the call depths are given. */
 export function fixtureDoc(edges: [string, string][], view: Partial<ViewSpec> = {}): ViewDoc {
-  const dir = view.direction ?? 'out';
-  const doc = emptyDoc('fixture', { depthUp: dir !== 'out' ? 'all' : 0, depthDown: dir !== 'in' ? 'all' : 0, ...view });
-  doc.graph = buildFixture(edges);
-  doc.explored = Object.fromEntries(Object.keys(doc.graph.nodes).map((x) => [x, 'both' as const]));
-  return doc;
+    const dir = view.direction ?? 'out';
+    const doc = emptyDoc('fixture', { depthUp: dir !== 'out' ? 'all' : 0, depthDown: dir !== 'in' ? 'all' : 0, ...view });
+    doc.graph = buildFixture(edges);
+    doc.explored = Object.fromEntries(Object.keys(doc.graph.nodes).map((x) => [x, 'both' as const]));
+    return doc;
 }

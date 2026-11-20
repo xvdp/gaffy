@@ -23,18 +23,20 @@ export interface BuildProgress { level: number; depth: number; definitions: numb
 type Dir = 'in' | 'out';
 
 async function pool<T>(items: T[], limit: number, fn: (t: T) => Promise<void>): Promise<void> {
-  let i = 0;
-  const run = async () => { while (i < items.length) await fn(items[i++]); };
-  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, run));
+    let i = 0;
+    const run = async () => { while (i < items.length) await fn(items[i++]); };
+    await Promise.all(Array.from({ length: Math.min(limit, items.length) }, run));
 }
 
 export type Pair = { key: NodeKey; dir: Dir };
 export interface Extension {
-  graph: Subgraph;
-  explored: Record<NodeKey, Direction>;
-  asked: number;          // pairs answered (cache or language server)
-  unresolved: Pair[];     // asked, no answer: calls kept, direction not recorded as explored
-  missed: Pair[];         // `cacheOnly`: no cached answer, not asked
+    graph: Subgraph;
+    explored: Record<NodeKey, Direction>;
+    asked: number;          // pairs answered (cache or language server)
+    unresolved: Pair[];     // asked, no answer: calls kept, direction not recorded as explored
+    missed: Pair[];         // `cacheOnly`: no cached answer, not asked
+    clamped: (Pair & { total: number })[];   // answers longer than the call limit: the first calls taken, `total` in the answer
+    capped: number;         // pairs not asked: the view holds `maxNodes` definitions
 }
 
 /**
@@ -45,50 +47,56 @@ export interface Extension {
  * Used by the stable arrangement: one layer at a time, then markers, then prefetch.
  */
 export async function extendGraph(
-  p: LspProvider, doc: ViewDoc, queries: Pair[],
-  opts: { cache?: CallCache; mode: BuildMode; token?: vscode.CancellationToken;
-    progress?: (p: BuildProgress) => void; maxNodes?: number },
+    p: LspProvider, doc: ViewDoc, queries: Pair[],
+    opts: { cache?: CallCache; mode: BuildMode; token?: vscode.CancellationToken;
+        progress?: (p: BuildProgress) => void; maxNodes?: number },
 ): Promise<Extension> {
-  const nodes: Record<NodeKey, GNode> = { ...doc.graph.nodes };
-  let edges = doc.graph.edges.slice();
-  const explored: Record<NodeKey, Direction> = { ...(doc.explored ?? {}) };
-  const stats: BuildProgress = { level: 1, depth: 1, definitions: 0, requests: 0, cached: 0 };
-  const mark = (k: NodeKey, d: Dir) => { const q = explored[k]; explored[k] = !q || q === d ? d : 'both'; };
-  const defs = () => Object.values(nodes).filter((n) => !isContainer(n)).length;
-  let asked = 0;
-  const unresolved: Pair[] = [];
-  const missed: Pair[] = [];
-  await pool(queries, 6, async ({ key, dir }) => {
-    if (opts.token?.isCancellationRequested) return;
-    if (opts.mode !== 'cacheOnly' && opts.maxNodes && defs() >= opts.maxNodes) return;
-    if (!nodes[key]) return;
-    let es: GEdge[] | undefined;
-    const hit = opts.mode !== 'fresh' ? opts.cache?.get(key, dir) : undefined;
-    if (hit) {
-      for (const [k, n] of Object.entries(hit.nodes)) if (!nodes[k]) nodes[k] = n;
-      es = hit.edges;
-      stats.cached++;
-    } else if (opts.mode === 'cacheOnly') {
-      missed.push({ key, dir });
-      return;
-    } else {
-      es = dir === 'out' ? await p.outgoing(key, nodes) : await p.incoming(key, nodes);
-      stats.requests++;
-      if (!es) { unresolved.push({ key, dir }); opts.progress?.({ ...stats }); return; }
-      opts.cache?.put(key, dir, es, nodes);
+    const nodes: Record<NodeKey, GNode> = { ...doc.graph.nodes };
+    let edges = doc.graph.edges.slice();
+    const explored: Record<NodeKey, Direction> = { ...(doc.explored ?? {}) };
+    const stats: BuildProgress = { level: 1, depth: 1, definitions: 0, requests: 0, cached: 0 };
+    const mark = (k: NodeKey, d: Dir) => { const q = explored[k]; explored[k] = !q || q === d ? d : 'both'; };
+    const defs = () => Object.values(nodes).filter((n) => !isContainer(n)).length;
+    let asked = 0;
+    const unresolved: Pair[] = [];
+    const missed: Pair[] = [];
+    const clamped: (Pair & { total: number })[] = [];
+    let capped = 0;
+    await pool(queries, 6, async ({ key, dir }) => {
+        if (opts.token?.isCancellationRequested) return;
+        if (opts.mode !== 'cacheOnly' && opts.maxNodes && defs() >= opts.maxNodes) { capped++; return; }
+        if (!nodes[key]) return;
+        let es: GEdge[] | undefined;
+        const hit = opts.mode !== 'fresh' ? opts.cache?.get(key, dir) : undefined;
+        if (hit) {
+            for (const [k, n] of Object.entries(hit.nodes)) if (!nodes[k]) nodes[k] = n;
+            es = hit.edges;
+            if (hit.clamped) clamped.push({ key, dir, total: hit.clamped });
+            stats.cached++;
+        } else if (opts.mode === 'cacheOnly') {
+            missed.push({ key, dir });
+            return;
+        } else {
+            es = dir === 'out' ? await p.outgoing(key, nodes, opts.token) : await p.incoming(key, nodes, opts.token);
+            stats.requests++;
+            const total = p.clampOf(key, dir);
+            // cancelled: the pair stays unasked (asked again later), not unresolved
+            if (!es) { if (!opts.token?.isCancellationRequested) unresolved.push({ key, dir }); opts.progress?.({ ...stats }); return; }
+            if (total) clamped.push({ key, dir, total });
+            opts.cache?.put(key, dir, es, nodes, total);
+        }
+        asked++;
+        edges = edges.filter((e) => !(dir === 'out' ? e.from === key : e.to === key)).concat(es);
+        mark(key, dir);
+        stats.definitions = defs();
+        opts.progress?.({ ...stats });
+    });
+    // one edge per (caller, callee), earliest call line
+    const byPair = new Map<string, GEdge>();
+    for (const e of edges) {
+        const id = `${e.from}\u0000${e.to}`;
+        const prev = byPair.get(id);
+        if (!prev || (e.line ?? Infinity) < (prev.line ?? Infinity)) byPair.set(id, e);
     }
-    asked++;
-    edges = edges.filter((e) => !(dir === 'out' ? e.from === key : e.to === key)).concat(es);
-    mark(key, dir);
-    stats.definitions = defs();
-    opts.progress?.({ ...stats });
-  });
-  // one edge per (caller, callee), earliest call line
-  const byPair = new Map<string, GEdge>();
-  for (const e of edges) {
-    const id = `${e.from}\u0000${e.to}`;
-    const prev = byPair.get(id);
-    if (!prev || (e.line ?? Infinity) < (prev.line ?? Infinity)) byPair.set(id, e);
-  }
-  return { graph: { nodes, edges: [...byPair.values()] }, explored, asked, unresolved, missed };
+    return { graph: { nodes, edges: [...byPair.values()] }, explored, asked, unresolved, missed, clamped, capped };
 }

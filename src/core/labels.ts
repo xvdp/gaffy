@@ -11,29 +11,29 @@ import { relativeName } from './boxes';
 import { GNode, isContainer, visible } from './model';
 
 export interface LabelOptions {
-  strip: string[];
-  parens: boolean;
+    strip: string[];
+    parens: boolean;
 }
 
 export function stripModule(module: string, strip: readonly string[]): string {
-  for (const p of strip) if (p && module.startsWith(p) && module.length > p.length) return module.slice(p.length);
-  return module;
+    for (const p of strip) if (p && module.startsWith(p) && module.length > p.length) return module.slice(p.length);
+    return module;
 }
 
 export function containerLabel(n: GNode, strip: readonly string[], ns = ''): string {
-  const full = n.kind === 'class' ? `${n.module}.${n.qual}` : n.module || n.name;
-  return ns ? relativeName(full, ns) || n.name : stripModule(full, strip);
+    const full = n.kind === 'class' ? `${n.module}.${n.qual}` : n.module || n.name;
+    return ns ? relativeName(full, ns) || n.name : stripModule(full, strip);
 }
 
 export function nodeLabel(n: GNode, opts: LabelOptions, ns = '', members = 0, collapsed = false): string {
-  return visible(rawLabel(n, opts, ns, members, collapsed));
+    return visible(rawLabel(n, opts, ns, members, collapsed));
 }
 
 function rawLabel(n: GNode, opts: LabelOptions, ns: string, members: number, collapsed: boolean): string {
-  if (collapsed) return `[${containerLabel(n, opts.strip, ns)}] (${members})`;
-  if (isContainer(n) && n.kind !== 'class') return containerLabel(n, opts.strip, ns);
-  const call = opts.parens && n.qual !== '<module>' ? '()' : '';
-  const module = ns ? relativeName(n.module, ns) : stripModule(n.module, opts.strip);
-  if (!n.qual) return module;
-  return module ? `${module}.${n.qual}${call}` : `${n.qual}${call}`;
+    if (collapsed) return `[${containerLabel(n, opts.strip, ns)}] (${members})`;
+    if (isContainer(n) && n.kind !== 'class') return containerLabel(n, opts.strip, ns);
+    const call = opts.parens && n.qual !== '<module>' ? '()' : '';
+    const module = ns ? relativeName(n.module, ns) : stripModule(n.module, opts.strip);
+    if (!n.qual) return module;
+    return module ? `${module}.${n.qual}${call}` : `${n.qual}${call}`;
 }

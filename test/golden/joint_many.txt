@@ -1,16 +1,16 @@
-╭┄ gutai ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄╮
-┆  ╭┄ fit ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄╮     ╭┄ render ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄╮                           ┆
-┆  ┆  design._basis() ────────────────┐ ┆  g_raster.view_colors() ─────┐       ┆                           ┆
-┆  ┆  probe_field.angular_basis() ────┤ ┆  g_raster.sky() ─────────────┤       ┆                           ┆
-┆  ╰┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄╯   │ ┆  harmonics.fit_sh() ─────────┤       ┆                           ┆
-┆  ╭┄ gett.materials ┄╮               │ ┆  harmonics.evaluate() ───────┤       ┆                           ┆
-┆  ┆  _sky_fit() ─────────────────────┤ ┆  harmonics.irradiance_sh() ──┤       ┆                           ┆
+╭┄ kazoo ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄╮
+┆  ╭┄ foo ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄╮     ╭┄ moomoo ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄╮                           ┆
+┆  ┆  dingus._bingo() ────────────────┐ ┆  b_zapper.woo_woo_woo() ─────┐       ┆                           ┆
+┆  ┆  poke_wiggle.zippity_bingo() ────┤ ┆  b_zapper.pip() ─────────────┤       ┆                           ┆
+┆  ╰┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄╯   │ ┆  boogaloos.boogie() ─────────┤       ┆                           ┆
+┆  ╭┄ goof.moonbeams ┄╮               │ ┆  boogaloos.alakazam() ───────┤       ┆                           ┆
+┆  ┆  _pip_foo() ─────────────────────┤ ┆  boogaloos.cowabunga_doo() ──┤       ┆                           ┆
 ┆  ╰┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄╯               │ ┆                              │       ┆                           ┆
-┆  ╭┄ cost.frameworks ┄┄╮             │ ┆  ┌───────────────────────────┘       ┆     ╭┄ runtime.interop ┄╮ ┆
-┆  ┆  sh_eval_mitsuba() ──────────────┴────┴─> harmonics.sh_eval() ───────────────────> to_torch()       ┆ ┆
-┆  ╰┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄╯               ┆      ├─> harmonics.resolve_backend() ┆     ╰┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄╯ ┆
-┆                                       ┆      ├───┴─> harmonics._in_type()    ┆                           ┆
-┆                                       ┆      ├─> harmonics._wrapped_mi()     ┆                           ┆
-┆                                       ┆      └───┴─> harmonics.sh_eval_mi()  ┆                           ┆
+┆  ╭┄ boop.fizzwizzle ┄┄╮             │ ┆  ┌───────────────────────────┘       ┆     ╭┄ noodles.jumbles ┄╮ ┆
+┆  ┆  scoobie_snackie() ──────────────┴────┴─> boogaloos.scoobie() ───────────────────> to_wacky()       ┆ ┆
+┆  ╰┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄╯               ┆      ├─> boogaloos.hullabaloo_hoot() ┆     ╰┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄╯ ┆
+┆                                       ┆      ├───┴─> boogaloos._fritter()    ┆                           ┆
+┆                                       ┆      ├─> boogaloos._pizza_roll()     ┆                           ┆
+┆                                       ┆      └───┴─> boogaloos.scoobie_do()  ┆                           ┆
 ┆                                       ╰┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄╯                           ┆
 ╰┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄╯
