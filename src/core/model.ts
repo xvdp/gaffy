@@ -94,8 +94,8 @@ export function bodyHash(text: string): string {
 }
 
 /**
- * Characters that make a label show something other than it is: C0/C1 controls, zero-width and
- * joiner characters, bidirectional embeddings, overrides and isolates ("Trojan Source", CVE-2021-42574),
+ * Security tooling: prevent disguised name Trojan source label characters, CVE-2021-42574.
+ * C0/C1 controls, zero-width and joiner characters, bidirectional embeddings, overrides and isolates,
  * the byte-order mark. Text from a language server or a view file is shown with them as `\u{…}` instead.
  */
 const HIDDEN = /[\u0000-\u001f\u007f-\u009f\u00ad\u061c\u180e\u200b-\u200f\u2028-\u202e\u2060-\u206f\ufeff]/g;

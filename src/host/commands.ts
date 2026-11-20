@@ -48,7 +48,7 @@ const dateSlug = (d = new Date()) =>
 async function openNode(n: GNode | undefined, focus: boolean): Promise<vscode.TextEditor | undefined> {
   if (!n?.uri) return undefined;
   const uri = vscode.Uri.parse(n.uri);
-  // a view file is data: it names no document outside the schemes of the workspace
+  /*security tooling: prevent abitrary scheme URIs.*/
   if (!readable(uri)) return undefined;
   if (n.kind === 'package' || n.kind === 'folder') {
     await vscode.commands.executeCommand('revealInExplorer', uri);
@@ -248,7 +248,7 @@ export function registerCommands(ctx: vscode.ExtensionContext, editor: GaffyEdit
     const href = (key: NodeKey) => {
       const n = nodeOf(doc, key);
       if (!n?.uri) return undefined;
-      // `./` keeps a path whose first segment looks like a scheme (`command:…`) a relative link
+      /* secure tooling: links always start with ./ or ../, so no path can read as a command */ 
       const p = path.posix.relative(outDir.path, vscode.Uri.parse(n.uri).path);
       const rel = p.startsWith('.') ? p : `./${p}`;
       return n.line !== undefined && n.kind !== 'package' && n.kind !== 'folder' ? `${rel}#L${n.line + 1}` : rel;

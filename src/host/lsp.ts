@@ -43,12 +43,9 @@ function kindOf(k: vscode.SymbolKind): Kind {
 
 type Sym = vscode.DocumentSymbol;
 
-/**
- * A language-server request that has not answered after `ms` counts as no answer (retried later): one
- * stalled request would otherwise hold a view's request queue, and every open, close and refresh behind it.
- */
+/* Time limit to prevent requests stalling. */
 const REQUEST_MS = 30000;
-/** Calls taken from one answer: a function with more callers or callees than this is a hub; an answer this long is not read whole. */
+/* secure tooling: limit max calls in either direction to prevent functions becoming hubs. */
 const MAX_CALLS = 5000;
 function timed<T>(p: Thenable<T>, ms = REQUEST_MS): Promise<T | undefined> {
   return new Promise((res) => {
@@ -133,7 +130,7 @@ export class LspProvider {
     this.bridges.invalidate(uri);
   }
 
-  /** Call hierarchy items at a position; for text languages without a call hierarchy, the enclosing function. */
+  /** Call hierarchy items at a position, or enclosing function for text languages without a call hierarchy. */
   async prepare(uri: vscode.Uri, pos: vscode.Position): Promise<vscode.CallHierarchyItem[]> {
     if (!readable(uri)) return [];
     let r: vscode.CallHierarchyItem[] | vscode.CallHierarchyItem | undefined;

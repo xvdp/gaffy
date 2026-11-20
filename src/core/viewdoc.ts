@@ -109,7 +109,7 @@ export function parseDoc(text: string, fallbackName = 'view'): ViewDoc {
   if (v.curve) view.curve = v.curve;
   if (v.parentRule) view.parentRule = v.parentRule;
   const doc = emptyDoc(raw.name ?? fallbackName, view);
-  // node keys are `<lang>:<path>#<qual>`; a key naming an object's prototype is not one, and is dropped
+  /* secure tooling: drop object behaviour altering prototype keys, `<lang>:<path>#<qual>`, e.g. `JSON __proto__`. */
   const nodes = Object.fromEntries(Object.entries(raw.graph?.nodes ?? {}).filter(([key]) => !PROTO.has(key)));
   doc.graph = { nodes, edges: Array.isArray(raw.graph?.edges) ? raw.graph!.edges : [] };
   if (raw.explored) doc.explored = raw.explored;

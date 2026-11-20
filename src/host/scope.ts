@@ -1,10 +1,6 @@
 /**
- * URI schemes gaffy reads: `file`, and the schemes of the workspace folders (a remote or virtual
- * workspace). VS Code loads the document of a URI through the file-system provider registered for its
- * scheme, which any extension may register. A location of another scheme in a language server's answer
- * or in a cache file is dropped where it arrives, so a URI from outside data reaches no provider and
- * opens no document beyond these.
- */
+* Security tooling: prevent abitrary scheme URIs. Block URIs from outside data reaching external providers.
+**/
 import * as vscode from 'vscode';
 
 export function readable(u: vscode.Uri): boolean {

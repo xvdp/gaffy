@@ -42,7 +42,7 @@ export class CallCache {
       raw = JSON.parse(new TextDecoder().decode(await vscode.workspace.fs.readFile(this.file)));
       if (raw.version !== 2) return;
     } catch { return; }
-    // keys naming an object's prototype are no node keys: dropped
+    /* secure tooling: drop object behaviour altering prototype keys, `<lang>:<path>#<qual>`, e.g. `JSON __proto__`. */
     const ok = (k: string) => k !== '__proto__' && k !== 'constructor' && k !== 'prototype';
     for (const [k, n] of Object.entries(raw.nodes ?? {})) if (ok(k)) this.remember(k, n);
     for (const d of ['in', 'out'] as Dir[]) for (const [k, e] of Object.entries(raw[d] ?? {})) if (ok(k) && Array.isArray(e?.edges)) this.entries[d].set(k, e);

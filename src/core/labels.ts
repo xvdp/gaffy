@@ -1,12 +1,11 @@
 /**
  * Node label text. One string per vertex; its length sets the grid width of the label.
  *
- * definition:          `<module>.<qual>()`, e.g. `render.harmonics.projector()`
+ * definition:          `<module>.<qual>()`, e.g. `foo.scoobie.do()`
  * module-level code:   `<module>.<module>`
  * collapsed container: `[<container label>] (<members>)`
- * Inside a namespace box the module part is relative to the box namespace `ns`:
- * `projector()` in box `render.harmonics`, `interop.to_drjit()` in box `runtime`.
- * `strip` removes leading module prefixes when no box applies, e.g. "gutai.".
+ * Modules inside namespace boxes show relative names, e.g. functions `foo.magoo()` and `foo.scoobie.do()` 
+ * show up as magoo() and scoobie.do() when in namespace box `foo`.
  */
 import { relativeName } from './boxes';
 import { GNode, isContainer, visible } from './model';
