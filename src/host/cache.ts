@@ -5,9 +5,10 @@
  * Validity: a saved or renamed file drops the outgoing entries of its definitions and every incoming
  * entry (a change anywhere can add or remove a call into any definition). On load, files whose
  * modification time differs from the recorded one are treated as saved. Only answers of resolved
- * definitions are stored (version 4; older files are dropped: version 1 may hold empty answers of unresolved
+ * definitions are stored (version 5; older files are dropped: version 1 may hold empty answers of unresolved
  * definitions, version 2 a second key per overload of a method, `C.f` and `f`, version 3 answers whose body
- * scans (instance calls, bindings) saw only the definition's name).
+ * scans (instance calls, bindings) saw only the definition's name),
+ * version 4 empty answers a loading server gave for definitions with calls).
  */
 import * as vscode from 'vscode';
 import { ancestors, GEdge, GNode, NodeKey } from '../core/model';
@@ -17,7 +18,7 @@ type Dir = 'in' | 'out';
 const extOf = (uri: string) => /\.([A-Za-z0-9]+)$/.exec(uri)?.[1];
 interface Entry { edges: GEdge[]; at: number; clamped?: number }   // clamped: full answer length when over the call limit
 interface Stored {
-    version: 4;
+    version: 5;
     nodes: Record<NodeKey, GNode>;
     out: Record<NodeKey, Entry>;
     in: Record<NodeKey, Entry>;
@@ -42,7 +43,7 @@ export class CallCache {
         let raw: Stored;
         try {
             raw = JSON.parse(new TextDecoder().decode(await vscode.workspace.fs.readFile(this.file)));
-            if (raw.version !== 4) return;
+            if (raw.version !== 5) return;
         } catch { return; }
         /* secure tooling: drop object behaviour altering prototype keys, `<lang>:<path>#<qual>`, e.g. `JSON __proto__`. */
         const ok = (k: string) => k !== '__proto__' && k !== 'constructor' && k !== 'prototype';
@@ -134,7 +135,7 @@ export class CallCache {
             try { files[uri] = (await vscode.workspace.fs.stat(vscode.Uri.parse(uri))).mtime; } catch { /* gone */ }
         }));
         const out: Stored = {
-            version: 4,
+            version: 5,
             nodes: Object.fromEntries(this.nodes),
             out: Object.fromEntries(this.entries.out),
             in: Object.fromEntries(this.entries.in),

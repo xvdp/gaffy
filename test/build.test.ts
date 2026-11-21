@@ -79,6 +79,19 @@ describe('extendGraph merge', () => {
         expect(r4.unresolved).toEqual([]);
     });
 
+    it('an empty answer for a body with call sites counts only when confirmed, with nothing stored', async () => {
+        const doubted = new Map<string, number>();
+        const leaf = Object.keys(doc.graph.nodes).find((x) => x.includes('#') && !doc.graph.edges.some((e) => e.from === x))!;
+        const p = { outgoing: async () => [], incoming: async () => [], clampOf: () => undefined, silentOf: () => true } as unknown as LspProvider;
+        for (const round of [1, 2]) {
+            const r = await extendGraph(p, doc, [{ key: leaf, dir: 'out' }], { mode: 'fresh', doubted });
+            expect(r.unresolved, `round ${round}`).toEqual([{ key: leaf, dir: 'out' }]);
+            expect(r.explored[leaf], `round ${round}`).not.toBe('out');
+        }
+        const r3 = await extendGraph(p, doc, [{ key: leaf, dir: 'out' }], { mode: 'fresh', doubted });
+        expect(r3.unresolved).toEqual([]);
+    });
+
     it('cacheOnly reports misses without asking', async () => {
         let asked = 0;
         const p = { outgoing: async () => { asked++; return []; }, incoming: async () => { asked++; return []; } } as unknown as LspProvider;

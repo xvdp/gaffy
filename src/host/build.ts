@@ -10,9 +10,10 @@
  *
  * No answer is not an empty answer: a definition the language server does not resolve (still
  * analyzing, request failed) keeps the calls the view already holds, and its answer is not cached.
- * An empty answer that would drop every stored call of a definition is doubted (a server still analyzing
- * can answer empty instead of not at all): it counts as no answer until `DOUBTS` such answers in a row,
- * across the view's retries (`doubted`, kept by the view), confirm it.
+ * An empty answer is doubted when it would drop every stored call of a definition, or when the server
+ * answered no call although the definition's text has call sites (`silentOf`): a server still analyzing or
+ * loading can answer empty instead of not at all. It counts as no answer until `DOUBTS` such answers in a
+ * row, across the view's retries (`doubted`, kept by the view), confirm it.
  */
 import * as vscode from 'vscode';
 import { GEdge, GNode, isContainer, NodeKey, Subgraph } from '../core/model';
@@ -89,7 +90,8 @@ export async function extendGraph(
             if (!es) { if (!opts.token?.isCancellationRequested) unresolved.push({ key, dir }); opts.progress?.({ ...stats }); return; }
             const id = `${dir}:${key}`;
             const stored = edges.some((e) => (dir === 'out' ? e.from === key : e.to === key));
-            if (!es.length && stored && opts.doubted) {
+            const silent = p.silentOf?.(key, dir) ?? false;
+            if (!es.length && (stored || silent) && opts.doubted) {
                 const n = (opts.doubted.get(id) ?? 0) + 1;
                 if (n < DOUBTS) { opts.doubted.set(id, n); unresolved.push({ key, dir }); opts.progress?.({ ...stats }); return; }
             }

@@ -15,6 +15,7 @@ import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { EXTERNAL, externalPath, extsOf, LANG, langOf, segments, TEXT_LANGS } from '../core/langs';
 import { bodyHash, GEdge, GNode, Kind, NodeKey } from '../core/model';
+import { pyCallSites } from '../core/bindings';
 import { callSites, mask, outline, TextSym } from '../core/textcalls';
 import { Bridges } from './bridges';
 import { Implicit } from './implicit';
@@ -123,6 +124,8 @@ export class LspProvider {
     private items = new Map<NodeKey, vscode.CallHierarchyItem>();
     private symbols = new Map<string, Promise<Sym[]>>();
     private packages = new Map<string, Promise<boolean>>();
+    /** Outgoing answers with no call at all for a body whose text has calls, by `<dir>:<key>` (read once by `silentOf`). */
+    private silent = new Set<string>();
     /** Answers longer than `MAX_CALLS`, by `<dir>:<key>`: their full length (read once by `clampOf`). */
     private clamps = new Map<string, number>();
 
@@ -163,6 +166,14 @@ export class LspProvider {
         const n = this.clamps.get(`${dir}:${key}`);
         this.clamps.delete(`${dir}:${key}`);
         return n;
+    }
+
+    /**
+     * Whether the last answer for (`key`, `dir`) held no call although the definition's text has call sites
+     * (a server still loading, e.g. TypeScript's syntax-only server, answers empty); read once. build.ts doubts it.
+     */
+    silentOf(key: NodeKey, dir: 'in' | 'out'): boolean {
+        return this.silent.delete(`${dir}:${key}`);
     }
 
     invalidate(uri: vscode.Uri): void {
@@ -448,6 +459,14 @@ export class LspProvider {
             const r = await this.lspOutgoing(key, it, acc, await this.bridges.boundIn(it.uri).catch(() => undefined), token);
             own = r?.edges;
             answered = r?.ranges ?? [];
+            if (r && !r.ranges.length) {
+                try {
+                    const doc = await vscode.workspace.openTextDocument(it.uri);
+                    const text = doc.getText(), from = doc.offsetAt(it.selectionRange.end), to = doc.offsetAt((await this.bodyOf(it)).end);
+                    const sites = langOf(it.uri.path) === 'py' ? pyCallSites(text, from, to) : callSites(text, from, to);
+                    if (sites.length) this.silent.add(`out:${key}`);
+                } catch { /* unreadable: taken as answered */ }
+            }
         }
         if (!own) return undefined;
         // calls across languages (a Python function calling bound C++/CUDA or Slang), and implicit calls, join the answer

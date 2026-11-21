@@ -26,3 +26,4 @@ Examples.md
 HEURISTICS.md
 heuristics.gaffy
 dist/heuristics.cjs
+*.gaffy
