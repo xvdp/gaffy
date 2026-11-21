@@ -2,7 +2,7 @@
   "name": "gaffy",
   "displayName": "gaffy",
   "description": "Persistent, manipulable call graphs on a character grid, rendered with D3",
-  "version": "0.9.13",
+  "version": "0.9.15",
   "publisher": "xvdp",
   "license": "MIT",
   "private": true,
@@ -879,7 +879,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "package": "npm run typecheck && npm test && npm run build && vsce package --no-dependencies --allow-missing-repository --no-rewrite-relative-links",
-    "preview": "npm run build && node scripts/preview.mjs"
+    "preview": "npm run build && node scripts/preview.mjs",
+    "heuristics": "node scripts/heuristics.mjs"
   },
   "dependencies": {
     "d3-drag": "3.0.1",

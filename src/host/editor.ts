@@ -231,7 +231,11 @@ export class Session {
         } finally { bg.end(); }
     }
 
+    /** A static view (`view.static`) holds a fixed graph: no task asks the language server. */
+    private get fixed(): boolean { return !!this.doc().view.static; }
+
     ensure(): Promise<void> {
+        if (this.fixed) return Promise.resolve();
         return this.urgent(async () => {
             const doc = this.doc();
             if (!this.unaskedPairs(doc, frontierOf(doc, this.opts().exclude, this.opts().outside)).length) return;
@@ -245,6 +249,7 @@ export class Session {
      * markers), then a prefetch along the traversal direction up to `view.depth` layers, in the background.
      */
     grow(): Promise<void> {
+        if (this.fixed) return Promise.resolve();
         return this.enqueue(async () => {
             await this.progress(async (show, token) => {
                 let doc = this.doc();
@@ -268,6 +273,7 @@ export class Session {
 
     /** Ask a side of one definition, then the neighbors of what that reveals. */
     expand(key: NodeKey, dir: 'in' | 'out'): Promise<void> {
+        if (this.fixed) return Promise.resolve();
         return this.urgent(async () => {
             await this.progress(async (show, token) => {
                 await this.ask([{ key, dir }], 'cached', 'opening', show, token);
@@ -286,6 +292,7 @@ export class Session {
      * With nothing changed since the view was saved this asks the language server nothing.
      */
     revalidate(force = false): Promise<void> {
+        if (this.fixed) return Promise.resolve();
         return this.enqueue(async () => {
             let doc = this.doc();
             if (!Object.keys(doc.explored ?? {}).length) { void this.grow(); return; }

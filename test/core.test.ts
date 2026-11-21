@@ -528,6 +528,34 @@ describe('classes', () => {
     });
 });
 
+describe('hidden functions leave markers', () => {
+    // magoo → shoo → scoobie, and boo → scoobie; seed magoo
+    const n = (q: string): GNode => ({ key: `py:foo.py#${q}`, kind: 'function', name: q, qual: q, module: 'foo', parent: 'py:foo.py', path: 'foo.py' });
+    const doc = (view: object) => {
+        const d = parseDoc(JSON.stringify({ gaffy: 1, name: 'h', view: { seeds: ['py:foo.py#magoo'], ...view } }), 'h');
+        d.graph.nodes = Object.fromEntries([{ key: 'py:foo.py', kind: 'module', name: 'foo', qual: '', module: 'foo', parent: null, path: 'foo.py' } as GNode,
+            ...['magoo', 'shoo', 'scoobie', 'boo'].map(n)].map((x) => [x.key, x]));
+        d.graph.edges = [['magoo', 'shoo'], ['shoo', 'scoobie'], ['boo', 'scoobie'], ['magoo', 'boo']].map(([a, b], i) => ({ from: `py:foo.py#${a}`, to: `py:foo.py#${b}`, line: i }));
+        return d;
+    };
+    const K = (q: string) => `py:foo.py#${q}`;
+    it('full layout: the function that showed a hidden group gets its marker, and knows the way back', () => {
+        const sc = buildScene(doc({ arrange: 'auto', direction: 'out', depthUp: 0, depthDown: 'all', hidden: [K('shoo'), K('scoobie')] }), flat());
+        invariants(sc);
+        expect(sc.hiddenOn(K('magoo'), 'down')).toEqual([K('shoo')]);
+        expect(sc.drawn.nodes.has(`\u22efmore:${K('magoo')}`)).toBe(true);
+        expect(sc.hiddenPath(K('scoobie'))).toEqual([K('shoo')]);
+    });
+    it('one layer at a time: hidden callers of a callee show `>> `, though the callee opens only its calls', () => {
+        const d = doc({ arrange: 'grow', direction: 'out', open: { [K('magoo')]: 'down', [K('shoo')]: 'down' }, hidden: [K('boo')] });
+        const sc = buildScene(d, flat());
+        invariants(sc);
+        expect(sc.rev.allowed.get(K('scoobie'))).toBe('down');
+        expect(sc.hiddenOn(K('scoobie'), 'up')).toEqual([K('boo')]);
+        expect(sc.decor.get(K('scoobie'))!.pre).toBe('>> ');
+    });
+});
+
 describe('style merge', () => {
     it('keys naming a prototype are ignored', () => {
         const evil = JSON.parse('{"__proto__": {"polluted": 1}, "constructor": {"x": 1}, "grid": {"indent": 6}}');
@@ -539,6 +567,11 @@ describe('style merge', () => {
 });
 
 describe('view documents', () => {
+    it('a static view keeps its flag through save and load; an ordinary view has none', () => {
+        const d = parseDoc(JSON.stringify({ gaffy: 1, name: 's', view: { seeds: [], static: true } }), 's');
+        expect(parseDoc(serializeDoc(d), 's').view.static).toBe(true);
+        expect(parseDoc(JSON.stringify({ gaffy: 1, name: 'o', view: { seeds: [], static: 'yes' } }), 'o').view.static).toBeUndefined();
+    });
     it('a full view from before per-side call depths takes them from its direction and depth; removed options drop', () => {
         const old = parseDoc(JSON.stringify({ gaffy: 1, name: 'v', view: { seeds: ['k'], direction: 'in', depth: 3, arrange: 'auto', order: 'callees', fold: { k: 'down' }, expanded: { k: 'in' } }, graph: { nodes: {}, edges: [] } }));
         expect([old.view.depthUp, old.view.depthDown, old.view.depthRule]).toEqual([3, 0, 'shortest']);

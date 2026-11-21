@@ -23,3 +23,6 @@ NOTES.md
 
 readme-drafts/**
 Examples.md
+HEURISTICS.md
+heuristics.gaffy
+dist/heuristics.cjs

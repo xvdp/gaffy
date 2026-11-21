@@ -44,6 +44,7 @@ export interface ViewSpec {
     curve?: Curve;                           // overrides style.edges.curve
     parentRule?: ParentRule;                 // overrides style.grid.parentRule
     tight?: boolean;                         // namespace frames hug their content (moved content pulls the frame edges); overrides style.boxes.tight
+    static?: boolean;                        // a fixed graph (written by hand or generated): no language-server requests
     tags: Record<NodeKey, string>;
     straight?: string[];                     // calls routed before all others (caller\u0000callee)
     cut?: [NodeKey, NodeKey][];              // one layer at a time: removed calls [caller, callee], not drawn, not followed
@@ -110,6 +111,7 @@ export function parseDoc(text: string, fallbackName = 'view'): ViewDoc {
     if (v.curve) view.curve = v.curve;
     if (v.parentRule) view.parentRule = v.parentRule;
     if (typeof v.tight === 'boolean') view.tight = v.tight;
+    if (v.static === true) view.static = true;
     const doc = emptyDoc(raw.name ?? fallbackName, view);
     /* secure tooling: drop object behaviour altering prototype keys, `<lang>:<path>#<qual>`, e.g. `JSON __proto__`. */
     const nodes = Object.fromEntries(Object.entries(raw.graph?.nodes ?? {}).filter(([key]) => !PROTO.has(key)));

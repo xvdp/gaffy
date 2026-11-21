@@ -34,6 +34,8 @@ export interface Scene {
     hiddenOf: Map<NodeKey, NodeKey[]>;   // hidden callers and callees per visible vertex
     rev: Reveal;                         // visible vertices, who revealed them, sides they may open
     hasMore: (k: NodeKey, side: 'up' | 'down') => boolean;   // neighbors on that side not on screen
+    hiddenOn: (k: NodeKey, side: 'up' | 'down') => NodeKey[]; // hidden neighbors and ends of removed calls on that side
+    hiddenPath: (k: NodeKey) => NodeKey[];                   // hidden functions on k's way from the seeds
     decor: Map<NodeKey, Decor>;          // label parts around the name: disclosure markers, tag, hidden badge
     offsets: Record<string, Cell>;       // unit moves drawn: the view's, with moved units settled off content (settle.ts)
 }
@@ -121,7 +123,22 @@ export function buildScene(doc: ViewDoc, style: Style, exclude: readonly RegExp[
     const hasMore = (k: NodeKey, side: 'up' | 'down') => opens(rev.allowed.get(k), side) &&
         (side === 'down' ? full.out.get(k) ?? [] : full.inc.get(k) ?? [])
             .some((e) => !keep.has(side === 'down' ? e.to : e.from) || cut.has(cutKey(e.from, e.to)));
-    const owners = [...vg.nodes.keys()].filter((k) => hasMore(k, 'down'));
+    // hidden neighbors and removed calls, on either side whatever side the vertex may open: its marker brings
+    // them back, with the hidden functions on their way from the seeds (`hiddenPath`, a reveal that hides nothing)
+    const hiddenOn = (k: NodeKey, side: 'up' | 'down'): NodeKey[] => {
+        if (!hidden.size && !cut.size) return [];
+        const es = (side === 'down' ? full.out.get(k) : full.inc.get(k)) ?? [];
+        const far = (e: VEdge) => (side === 'down' ? e.to : e.from);
+        return [...new Set(es.filter((e) => hidden.has(far(e)) || cut.has(cutKey(e.from, e.to))).map(far))];
+    };
+    const fullRev = hidden.size ? revealView(full, doc) : rev;
+    const hiddenPath = (k: NodeKey): NodeKey[] => {
+        const out: NodeKey[] = [];
+        for (let o = fullRev.opener.get(k); o; o = fullRev.opener.get(o.by)) if (hidden.has(o.by)) out.push(o.by);
+        return out;
+    };
+    const marked = (k: NodeKey, side: 'up' | 'down') => hasMore(k, side) || hiddenOn(k, side).length > 0;
+    const owners = [...vg.nodes.keys()].filter((k) => marked(k, 'down'));
     const nodesX: Record<NodeKey, GNode> = { ...graph.nodes };
     const drawn = withStubs(vg, owners, nodesX);
 
@@ -145,7 +162,7 @@ export function buildScene(doc: ViewDoc, style: Style, exclude: readonly RegExp[
     const decor = new Map<NodeKey, Decor>();
     for (const k of vg.nodes.keys()) {
         const tag = view.tags[k];
-        decor.set(k, { pre: hasMore(k, 'up') ? '>> ' : '', post: tag ? ` [${tag}]` : '', badge: '' });
+        decor.set(k, { pre: marked(k, 'up') ? '>> ' : '', post: tag ? ` [${tag}]` : '', badge: '' });
     }
     const label = (k: NodeKey) => {
         if (isStub(k)) return '';
@@ -201,7 +218,7 @@ export function buildScene(doc: ViewDoc, style: Style, exclude: readonly RegExp[
         joint: (view.parentRule ?? style.grid.parentRule) === 'joint',
         cost: { bend: style.route.bend, cross: style.route.cross, border: style.route.border, adjacent: style.route.adjacent },
     });
-    return { graph, vg, drawn, tree, placement, grid, seeds: new Set(view.seeds), hiddenOf, decor, rev, hasMore, offsets };
+    return { graph, vg, drawn, tree, placement, grid, seeds: new Set(view.seeds), hiddenOf, decor, rev, hasMore, hiddenOn, hiddenPath, offsets };
 }
 
 function fallbackNode(key: NodeKey): GNode {

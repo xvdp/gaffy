@@ -396,7 +396,7 @@ function render() {
         .on('click', (ev: MouseEvent, p) => {
             ev.stopPropagation();
             // a marker row's elbow opens that side, like its `>`; a line only selects (arrowheads close, below)
-            if (isStub(p.to)) { if (grows) markerClick(p.from, 'down'); return; }
+            if (isStub(p.to)) { markerClick(p.from, 'down'); return; }
             const hit = callsAt(ev, p).map(callKey);
             if (ev.shiftKey) {
                 const all = hit.every((x) => selCalls.has(x));
@@ -413,7 +413,7 @@ function render() {
             const sel = hit.some((c) => selCalls.has(callKey(c))) ? [...selCalls].map(unkey) : hit;
             isolateCalls(sel);
         })
-        .append('title').text((p) => (isStub(p.to) ? markerTitle('down') : callTitle(p)));
+        .append('title').text((p) => (isStub(p.to) ? markerTitle(p.from, 'down') : callTitle(p)));
 
     // arrowheads (one layer at a time): the arrowhead cell and the blank before the name close the level the
     // arrow points into; hovering shows which
@@ -447,9 +447,9 @@ function render() {
         const base = d.text.slice(dec.pre.length, d.text.length - dec.post.length - dec.badge.length);
         const t = select(this);
         if (dec.pre) {
-            t.append('tspan').attr('class', grows ? 'twisty' : 'twisty off').text(dec.pre)
-                .on('click', (ev: MouseEvent) => { ev.stopPropagation(); if (grows) markerClick(d.key, 'up'); })
-                .append('title').text(markerTitle('up'));
+            t.append('tspan').attr('class', markerLive(d.key, 'up') ? 'twisty' : 'twisty off').text(dec.pre)
+                .on('click', (ev: MouseEvent) => { ev.stopPropagation(); markerClick(d.key, 'up'); })
+                .append('title').text(markerTitle(d.key, 'up'));
         }
         t.append('tspan').text(base);
         if (dec.post) t.append('tspan').text(dec.post);
@@ -480,9 +480,9 @@ function render() {
         .attr('class', 'marker')
         .attr('x', (m) => m.col * cw).attr('y', (m) => (m.row + 0.5) * ch)
         .text((m) => m.text)
-        .attr('class', grows ? 'marker' : 'marker off')
-        .on('click', (ev: MouseEvent, m) => { ev.stopPropagation(); if (grows) markerClick(m.key, m.side); })
-        .append('title').text((m) => (grows ? markerTitle(m.side) : 'more beyond the call depth: raise it in the toolbar'));
+        .attr('class', (m) => (markerLive(m.key, m.side) ? 'marker' : 'marker off'))
+        .on('click', (ev: MouseEvent, m) => { ev.stopPropagation(); markerClick(m.key, m.side); })
+        .append('title').text((m) => markerTitle(m.key, m.side));
 
     // frame headers
     const gh = root.append('g').attr('class', 'heads');
@@ -656,13 +656,45 @@ function setSide(k: NodeKey, side: 'up' | 'down', on: boolean, restore = false) 
     if (on && ex !== dir && ex !== 'both') api.postMessage({ type: 'expand', key: k, dir });
 }
 
-/** A marker (`>> ` before a label, `└─>>` row below it): open that side with everything removed from it. */
+/** A side `k` opens one layer at a time (the direction rule allows it). */
+const opensHere = (k: NodeKey, side: 'up' | 'down') => doc?.view.arrange === 'grow' && opens(scene?.rev.allowed.get(k), side);
+/** Whether a marker acts: it opens its side (one layer at a time), or brings back hidden neighbors (both layouts). */
+const markerLive = (k: NodeKey, side: 'up' | 'down') => opensHere(k, side) || !!scene?.hiddenOn(k, side).length;
+
+/**
+ * A marker (`>> ` before a label, `└─>>` row below it). One layer at a time, on a side the function opens:
+ * open that side with everything removed from it. Otherwise (full layout, or a side the direction rule
+ * does not open), bring back the hidden neighbors and removed calls of that side.
+ */
 function markerClick(k: NodeKey, side: 'up' | 'down') {
-    setSide(k, side, true, true);
+    if (opensHere(k, side)) { setSide(k, side, true, true); return; }
+    restoreHidden(k, side);
 }
 
-function markerTitle(side: 'up' | 'down'): string {
-    return `${side === 'up' ? 'callers' : 'calls'} not on screen: click to show them (also removed ones)`;
+/**
+ * Hidden neighbors of `k` on one side back on screen, with the hidden functions on their way from the
+ * seeds (otherwise they would stay off screen); removed calls between `k` and them restored. `k` keeps its
+ * place. Further hidden functions beyond them keep their marker, one layer at a time.
+ */
+function restoreHidden(k: NodeKey, side: 'up' | 'down') {
+    if (!scene || !doc) return;
+    const back = scene.hiddenOn(k, side);
+    if (!back.length) return;
+    const show = new Set([...back, ...back.flatMap((b) => scene!.hiddenPath(b))]);
+    anchorAt(k);
+    commit((x) => {
+        x.view.hidden = x.view.hidden.filter((h) => !show.has(h));
+        const cut = (x.view.cut ?? []).filter(([a, b]) => !(side === 'down' ? a === k && show.has(b) : b === k && show.has(a)));
+        if (cut.length) x.view.cut = cut; else delete x.view.cut;
+    });
+}
+
+function markerTitle(k: NodeKey, side: 'up' | 'down'): string {
+    const who = side === 'up' ? 'callers' : 'calls';
+    const n = scene?.hiddenOn(k, side).length ?? 0;
+    if (opensHere(k, side)) return `${who} not on screen: click to show them (also removed ones)`;
+    if (n) return `${n} hidden or removed ${who}: click to show them again`;
+    return 'more beyond the call depth: raise it in the toolbar';
 }
 
 /**
@@ -1411,6 +1443,7 @@ function status() {
     if (scene.grid.unrouted) parts.push(`${scene.grid.unrouted} calls unrouted`);
     if (doc.truncated) parts.push('truncated at gaffy.maxNodes');
     if (settings.untitled) parts.push('unsaved view: right click > Save keeps it');
+    if (doc.view.static) parts.push('static view: no language server');
     if (note) parts.push(note);
     if (busy) parts.push('building…');
     else if (doc.updated) parts.push(`built ${new Date(doc.updated).toLocaleString()}`);
