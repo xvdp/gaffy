@@ -114,7 +114,7 @@ const simulate = () => {
       dumps.push({ collapsed: v.collapsed.map((c) => c.split('#').pop()), offset, cells });
     }
   }
-  if (dumps.length) { const el = document.getElementById('log'); el.style.whiteSpace = 'pre'; el.textContent = dumps.map((d) => JSON.stringify(d)).join('\\n'); }
+  if (dumps.length || traced.length) { const el = document.getElementById('log'); el.style.whiteSpace = 'pre'; el.textContent = [...dumps.map((d) => JSON.stringify(d)), ...traced].join('\\n'); }
   if (params.get('callclick')) {
     // click a point on a call's path: callclick=<caller>,<callee>,<fraction of its length>
     const [a, b, f] = params.get('callclick').split(',');
@@ -150,13 +150,15 @@ const simulate = () => {
 };
 // messages to the webview are delivered synchronously, so the page is final when it finishes loading
 // settings shown in Options: external=1 includes external code, std=1 the standard library
-const settings = { includeExternal: params.get('external') === '1', includeStandardLibrary: params.get('std') === '1', saveViews: false, untitled: false };
+// trace=1: gaffy.trace on; each edit's cause and number of moved cells are listed in #log after the steps
+const settings = { includeExternal: params.get('external') === '1', includeStandardLibrary: params.get('std') === '1', saveViews: false, untitled: false, trace: params.get('trace') === '1' };
+const traced = [];
 const deliver = () => window.dispatchEvent(new MessageEvent('message', { data: { type: 'state', text, name: which, style: DATA.style, settings } }));
 window.acquireVsCodeApi = () => ({
   postMessage(m) {
     log(m);
     if (m.type === 'ready') queueMicrotask(() => { deliver(); simulate(); });
-    if (m.type === 'edit') { text = m.text; deliver(); }
+    if (m.type === 'edit') { if (m.cause) traced.push(JSON.stringify({ cause: m.cause, moved: m.moved?.length ?? 0 })); text = m.text; deliver(); }
   },
   getState() { return state; },
   setState(s) { state = s; },

@@ -5,9 +5,9 @@
  *
  * Geometry only, no relayout: moving a unit by (a, b) shifts its labels and the frames inside it by (a, b);
  * placement keeps everything that was not moved where it is (place.ts, 5). Greedy: of the colliding units,
- * the one with the nearest clean offset moves first (ties: boxes before functions, a frame on a label being
- * the box's doing; then the smaller unit), then the rest are measured again against the moved picture. A
- * small box moved into a large one therefore leaves it, and the large one stays.
+ * the one whose clean offset displaces least (move distance × labels moved) moves first (ties: boxes before
+ * functions, a frame on a label being the box's doing; then the smaller unit), then the rest are measured
+ * again against the moved picture. A small box moved into a large one therefore leaves it, and the large one stays.
  *
  * Collisions of a unit at (a, b):
  * - one of its labels, or the arrowhead and blank cells before it, on the border of another frame;
@@ -91,8 +91,10 @@ export function settleMoved(P: Placement, doc: ViewDoc, units: Units): [string, 
     const moves: [string, number, number][] = [];
     let todo = moved.filter((x) => hits(x, 0, 0));
     while (todo.length) {
+        // least displacement first: move distance × labels moved (a small unit yields to a large one)
+        const cost = (r: { x: Unit; to?: [number, number] }) => (Math.abs(r.to![0]) + Math.abs(r.to![1])) * Math.max(1, r.x.mine.length);
         const ranked = todo.map((x) => ({ x, to: nearest(x) })).filter((r) => r.to)
-            .sort((p, q) => Math.abs(p.to![0]) + Math.abs(p.to![1]) - Math.abs(q.to![0]) - Math.abs(q.to![1])
+            .sort((p, q) => cost(p) - cost(q)
                 || Number(!p.x.u.startsWith('box:')) - Number(!q.x.u.startsWith('box:')) || p.x.keys.size - q.x.keys.size);
         if (!ranked.length) break;
         const { x, to } = ranked[0];

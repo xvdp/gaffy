@@ -11,6 +11,7 @@ vitest.config.*
 
 images/**
 scripts/**
+tools/**
 
 dist/preview*
 dist/*.png
@@ -25,6 +26,7 @@ dist/ffprofile/**
 
 
 dist/heuristics.cjs
+dist/ordering.cjs
 
 refs.bib
 plan.md

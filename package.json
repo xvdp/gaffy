@@ -2,7 +2,7 @@
   "name": "gaffy",
   "displayName": "gaffy",
   "description": "Persistent, manipulable call graphs on a character grid, rendered with D3",
-  "version": "0.9.19",
+  "version": "0.9.20",
   "publisher": "xvdp",
   "license": "MIT",
   "repository": {
@@ -113,6 +113,11 @@
           "type": "boolean",
           "default": false,
           "description": "Save gaffy views: a new view is written to .gaffy/views/ at once and saved after every change. Off: a new view opens unsaved (bound to its .gaffy/views/ path); right click > Save writes it there, closing it without saving discards it."
+        },
+        "gaffy.trace": {
+          "type": "boolean",
+          "default": false,
+          "description": "Record every change of a view (the click, key or menu entry and its grid cell, the functions that acted, the view fields changed, the labels and boxes that moved; undo and redo included) to .gaffy/trace/<view>.jsonl. Read it with tools/gaffy-trace.mjs from the gaffy repository."
         }
       }
     },
@@ -300,11 +305,11 @@
       },
       {
         "command": "gaffy.edge.callee",
-        "title": "Go to Called Symbol"
+        "title": "Go to Called Symbol"s
       },
       {
         "command": "gaffy.resetLayout",
-        "title": "Reset Layout (moves, locks, sibling order)",
+        "title": "Reset Layout: moves, locks, order",
         "category": "gaffy"
       },
       {
@@ -331,7 +336,7 @@
       },
       {
         "command": "gaffy.resetView",
-        "title": "Reset View (seeds, direction, depth)",
+        "title": "Reset graph: seeds, depth, direction",
         "category": "gaffy"
       },
       {
@@ -366,7 +371,7 @@
       },
       {
         "command": "gaffy.view.save",
-        "title": "Save",
+        "title": "Save Graph",
         "category": "gaffy"
       },
       {
@@ -381,12 +386,12 @@
       },
       {
         "command": "gaffy.toggleSaveViews",
-        "title": "Save gaffy Views",
+        "title": "Autosave Graphs",
         "category": "gaffy"
       },
       {
         "command": "gaffy.toggleSaveViews.checked",
-        "title": "✓ Save gaffy Views",
+        "title": "✓ Autosave Graphs",
         "category": "gaffy"
       }
     ],

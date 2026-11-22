@@ -13,6 +13,7 @@ import { frontierOf, visibleOf } from '../core/scene';
 import { CallCache } from './cache';
 import { LspProvider, MAX_CALLS } from './lsp';
 import { folderOf, gaffyDir, StyleService } from './style';
+import { Trace } from './trace';
 
 export class Session {
     private busy = false;
@@ -51,7 +52,7 @@ export class Session {
         const exclude = cfg.get<string[]>('exclude') ?? [];
         // settings the Options panel shows and toggles
         const settings = { includeExternal: cfg.get<boolean>('includeExternal') ?? false, includeStandardLibrary: cfg.get<boolean>('includeStandardLibrary') ?? false,
-            saveViews: cfg.get<boolean>('saveViews') ?? false, untitled: this.document.isUntitled };
+            saveViews: cfg.get<boolean>('saveViews') ?? false, untitled: this.document.isUntitled, trace: cfg.get<boolean>('trace') ?? false };
         void this.panel.webview.postMessage({ type: 'state', text: this.document.getText(), name: this.name, style, exclude, settings, busy: this.busy });
     }
 
@@ -202,7 +203,7 @@ export class Session {
             this.retries = 0;
             this.note(`language server: ${n} calls lists unresolved, stored calls kept`);
             void vscode.window.showWarningMessage(plain(`gaffy: ${this.name}: the language server resolved no answer for ${n} (definition, direction) pairs `
-                + '(still analyzing, renamed or removed). The view keeps their stored calls; Options > Refresh from Language Server retries.'));
+                + '(still analyzing, renamed or removed). The view keeps their stored calls; Options > Refresh Language Server retries.'));
             return;
         }
         const sec = RETRY_S[this.retries++];
@@ -382,6 +383,8 @@ export class GaffyEditor implements vscode.CustomTextEditorProvider {
     readonly sessions = new Map<string, Session>();
     active: Session | undefined;
     private caches = new Map<string, CallCache>();
+    /** Change records of open views (setting gaffy.trace). */
+    readonly trace = new Trace();
 
     /** Call cache of a workspace folder, `.gaffy/cache/calls.json`. */
     cacheFor(folder: vscode.Uri): CallCache {
@@ -405,10 +408,15 @@ export class GaffyEditor implements vscode.CustomTextEditorProvider {
         ctx.subscriptions.push(vscode.workspace.onDidChangeConfiguration((e) => {
             if (e.affectsConfiguration('gaffy')) this.sessions.forEach((s) => void s.post());
         }));
+        // one record per document change, whatever number of panels show the document
+        ctx.subscriptions.push(vscode.workspace.onDidChangeTextDocument((e) => {
+            if (e.contentChanges.length && [...this.sessions.values()].some((s) => s.document === e.document)) void this.trace.change(e.document, e.reason);
+        }));
     }
 
     async resolveCustomTextEditor(document: vscode.TextDocument, panel: vscode.WebviewPanel): Promise<void> {
         const s = new Session(document, panel, this);
+        this.trace.open(document);
         const id = `${document.uri.toString()}#${Math.random().toString(36).slice(2)}`;
         this.sessions.set(id, s);
         this.active = s;
@@ -430,6 +438,7 @@ export class GaffyEditor implements vscode.CustomTextEditorProvider {
                         // stored data at once, then only what changed since (no language server when nothing did)
                         if (doc.view.seeds.length) void s.revalidate();
                     } else if (m.type === 'edit') {
+                        if (m.text !== document.getText()) this.trace.edit(document, m.cause, m.moved);
                         await s.write(parseDoc(m.text, s.name));
                         void s.ensure();
                     } else {

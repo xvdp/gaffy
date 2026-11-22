@@ -83,6 +83,7 @@ export function registerCommands(ctx: vscode.ExtensionContext, editor: GaffyEdit
     const provider = editor.provider;
     const reg = (id: string, fn: (...a: any[]) => unknown) =>
         ctx.subscriptions.push(vscode.commands.registerCommand(id, async (...a: any[]) => {
+            editor.trace.ran(id);
             try { await fn(...a); } catch (e) { void vscode.window.showErrorMessage(plain(`gaffy: ${(e as Error).message}`)); }
         }));
 

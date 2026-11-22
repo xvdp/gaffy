@@ -8,7 +8,9 @@
  * 2. Column: right of the rightmost earlier sibling item that calls into the item, plus a routing
  *    channel; the content column of the box when no earlier sibling calls into it.
  * 3. Row: an item called from vertices placed earlier starts at the row of its first such caller;
- *    otherwise below the earlier siblings. Unmoved items descend until they overlap no placed sibling.
+ *    otherwise below the earlier siblings. Unmoved items descend until they overlap no placed sibling; a
+ *    sibling box moved by an offset counts at its unmoved place (settle.ts clears it where it collides), so a
+ *    move never pushes unmoved items down.
  * 4. Rows inside a block: roots of the block are ordered by the rows of their callers outside the
  *    block; a root starts no higher than its latest outside caller, so the call draws level. Rows only
  *    move down: row(i) = max(row(i-1) + 1, pref(i)) (greedy, monotone).
@@ -276,7 +278,9 @@ export function place(inp: PlaceInput): Placement {
             const stack = placed.filter((p) => !inp.lock[unitOf(p.i)]);
             const below = stack.length ? Math.max(...stack.map((p) => p.base.r1)) + 1 : cr;
             const top = callers.length ? Math.max(cr, Math.min(...callers.map(baseRow))) : (sibCallers.length ? cr : below);
-            const avoid = [...placed.map((p) => p.rect), ...avoidOuter];
+            // what was not moved stays where it was: a sibling box moved by an offset counts where it sits unmoved
+            // (settle.ts clears it where it collides); locked siblings and frames stretched by moves inside count as drawn
+            const avoid = [...placed.map((p) => (inp.offset[unitOf(p.i)] && !inp.lock[unitOf(p.i)] ? p.base : p.rect)), ...avoidOuter];
             let r: Area;
             if (it.kind === 'block') {
                 r = placeBlock(box, col, top, true, avoid);
@@ -292,7 +296,8 @@ export function place(inp: PlaceInput): Placement {
                     for (const v of inside) addMove(v, off[0], off[1]);
                     r = { ...r, base: shifted(r.base, -off[0], -off[1]) };
                 } else {
-                    // trial placement, then descend below overlapped siblings
+                    // trial placement, then descend below overlapped siblings: by the distance from the top of
+                    // what was placed (its frame reaches above `rr` when content inside moved up) to below the hit
                     let rr = Math.max(cr, top - 1);
                     const snapshot = snapshotP();
                     r = placeBox(it.box, col, rr, []);
@@ -300,7 +305,7 @@ export function place(inp: PlaceInput): Placement {
                         const hit = avoid.find((a) => overlaps(a, r));
                         if (!hit) break;
                         restoreP(snapshot);
-                        rr = hit.r1 + 1;
+                        rr += Math.max(1, hit.r1 + 1 - r.r0);
                         r = placeBox(it.box, col, rr, []);
                     }
                 }
@@ -323,14 +328,17 @@ export function place(inp: PlaceInput): Placement {
         return { ...rect, base: unmoved };
     };
 
-    // placement state snapshots for trial placements of boxes
+    // placement state snapshots for trial placements of boxes; `moved` included, else every retry adds the moves
+    // inside the box again and `baseRow` (caller rows of later blocks) drifts by retries × offset
     const snapshotP = () => ({
-        blocks: P.blocks.length, frames: P.frames.length,
+        blocks: P.blocks.length, frames: P.frames.length, moved: new Map(moved),
         pos: new Map(P.pos), end: new Map(P.end), port: new Map(P.port), text: new Map(P.text), blockOf: new Map(P.blockOf),
     });
     const restoreP = (s: ReturnType<typeof snapshotP>) => {
         P.blocks.length = s.blocks;
         P.frames.length = s.frames;
+        moved.clear();
+        for (const [k, m] of s.moved) moved.set(k, m);
         P.pos = s.pos; P.end = s.end; P.port = s.port; P.text = s.text; P.blockOf = s.blockOf;
     };
 

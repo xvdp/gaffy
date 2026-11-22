@@ -1,0 +1,616 @@
+{
+ "gaffy": 1,
+ "name": "runaway",
+ "view": {
+  "seeds": [
+   "py:ax_scoobie_doo/bi_scoob/bh_sc.py#Ac_scoob",
+   "py:ax_scoobie_doo/bc_scoob.py#au_scoobie_doo_ma"
+  ],
+  "direction": "in",
+  "depth": 3,
+  "collapsed": [],
+  "hidden": [],
+  "depthUp": 3,
+  "depthDown": 0,
+  "depthRule": "shortest",
+  "sibling": {},
+  "offset": {
+   "box:dir:aj_scoobie_": [
+    118,
+    36
+   ],
+   "py:aj_scoobie_/aw_scoobie_doo_magoo.py#ap_scoo": [
+    21,
+    -7
+   ],
+   "box:dir:ax_scoobie_doo/bi_scoob": [
+    0,
+    -17
+   ]
+  },
+  "lock": {},
+  "exclude": [
+   "stdlib",
+   "site-packages",
+   "tests"
+  ],
+  "include": [],
+  "group": [],
+  "ungroup": [],
+  "tags": {},
+  "arrange": "grow",
+  "open": {
+   "py:ax_scoobie_doo/bi_scoob/bh_sc.py#Ac_scoob": "both",
+   "py:ax_scoobie_doo/bi_scoob/bh_sc.py#_af_scoobie": "down",
+   "py:ax_scoobie_doo/as_scoo.py#bg_scoobie_doo_magoo_pa": "down",
+   "py:ax_scoobie_doo/be_scoobie_doo.py#am_scoobie_doo_mag": "up",
+   "py:ax_scoobie_doo/be_scoobie_doo.py#al_scoobie_doo_mago": "up",
+   "py:ax_scoobie_doo/bd_scoob.py#al_scoobie_doo_mago": "up"
+  },
+  "edges": "vector",
+  "curve": "orthogonal",
+  "parentRule": "joint"
+ },
+ "graph": {
+  "nodes": {
+   "dir:ax_scoobie_doo": {
+    "key": "dir:ax_scoobie_doo",
+    "kind": "package",
+    "name": "ax_scoobie_doo",
+    "qual": "",
+    "module": "ax_scoobie_doo",
+    "parent": null,
+    "path": "ax_scoobie_doo"
+   },
+   "py:ax_scoobie_doo/as_scoo.py": {
+    "key": "py:ax_scoobie_doo/as_scoo.py",
+    "kind": "module",
+    "name": "as_scoo",
+    "qual": "",
+    "module": "ax_scoobie_doo.as_scoo",
+    "parent": "dir:ax_scoobie_doo",
+    "path": "ax_scoobie_doo/as_scoo.py",
+    "line": 0,
+    "external": false
+   },
+   "dir:ax_scoobie_doo/bi_scoob": {
+    "key": "dir:ax_scoobie_doo/bi_scoob",
+    "kind": "package",
+    "name": "bi_scoob",
+    "qual": "",
+    "module": "ax_scoobie_doo.bi_scoob",
+    "parent": "dir:ax_scoobie_doo",
+    "path": "ax_scoobie_doo/bi_scoob"
+   },
+   "py:ax_scoobie_doo/bi_scoob/bh_sc.py": {
+    "key": "py:ax_scoobie_doo/bi_scoob/bh_sc.py",
+    "kind": "module",
+    "name": "bh_sc",
+    "qual": "",
+    "module": "ax_scoobie_doo.bi_scoob.bh_sc",
+    "parent": "dir:ax_scoobie_doo/bi_scoob",
+    "path": "ax_scoobie_doo/bi_scoob/bh_sc.py",
+    "line": 0,
+    "external": false
+   },
+   "py:ax_scoobie_doo/bi_scoob/bh_sc.py#Aa_scoobie_doo_magoo_patata_sho": {
+    "key": "py:ax_scoobie_doo/bi_scoob/bh_sc.py#Aa_scoobie_doo_magoo_patata_sho",
+    "kind": "function",
+    "name": "Aa_scoobie_doo_magoo_patata_sho",
+    "qual": "Aa_scoobie_doo_magoo_patata_sho",
+    "module": "ax_scoobie_doo.bi_scoob.bh_sc",
+    "parent": "py:ax_scoobie_doo/bi_scoob/bh_sc.py",
+    "path": "ax_scoobie_doo/bi_scoob/bh_sc.py",
+    "line": 289,
+    "external": false
+   },
+   "py:ax_scoobie_doo/bi_scoob/bh_sc.py#Ac_scoob": {
+    "key": "py:ax_scoobie_doo/bi_scoob/bh_sc.py#Ac_scoob",
+    "kind": "function",
+    "name": "Ac_scoob",
+    "qual": "Ac_scoob",
+    "module": "ax_scoobie_doo.bi_scoob.bh_sc",
+    "parent": "py:ax_scoobie_doo/bi_scoob/bh_sc.py",
+    "path": "ax_scoobie_doo/bi_scoob/bh_sc.py",
+    "line": 201,
+    "external": false
+   },
+   "py:ax_scoobie_doo/bi_scoob/bh_sc.py#_af_scoobie": {
+    "key": "py:ax_scoobie_doo/bi_scoob/bh_sc.py#_af_scoobie",
+    "kind": "function",
+    "name": "_af_scoobie",
+    "qual": "_af_scoobie",
+    "module": "ax_scoobie_doo.bi_scoob.bh_sc",
+    "parent": "py:ax_scoobie_doo/bi_scoob/bh_sc.py",
+    "path": "ax_scoobie_doo/bi_scoob/bh_sc.py",
+    "line": 171,
+    "external": false
+   },
+   "py:ax_scoobie_doo/bi_scoob/bh_sc.py#ar_scoo": {
+    "key": "py:ax_scoobie_doo/bi_scoob/bh_sc.py#ar_scoo",
+    "kind": "function",
+    "name": "ar_scoo",
+    "qual": "ar_scoo",
+    "module": "ax_scoobie_doo.bi_scoob.bh_sc",
+    "parent": "py:ax_scoobie_doo/bi_scoob/bh_sc.py",
+    "path": "ax_scoobie_doo/bi_scoob/bh_sc.py",
+    "line": 363,
+    "external": false
+   },
+   "py:ax_scoobie_doo/as_scoo.py#bg_scoobie_doo_magoo_pa": {
+    "key": "py:ax_scoobie_doo/as_scoo.py#bg_scoobie_doo_magoo_pa",
+    "kind": "function",
+    "name": "bg_scoobie_doo_magoo_pa",
+    "qual": "bg_scoobie_doo_magoo_pa",
+    "module": "ax_scoobie_doo.as_scoo",
+    "parent": "py:ax_scoobie_doo/as_scoo.py",
+    "path": "ax_scoobie_doo/as_scoo.py",
+    "line": 193,
+    "external": false
+   },
+   "py:ax_scoobie_doo/as_scoo.py#bf_scoobie_doo_magoo_patata_sh": {
+    "key": "py:ax_scoobie_doo/as_scoo.py#bf_scoobie_doo_magoo_patata_sh",
+    "kind": "function",
+    "name": "bf_scoobie_doo_magoo_patata_sh",
+    "qual": "bf_scoobie_doo_magoo_patata_sh",
+    "module": "ax_scoobie_doo.as_scoo",
+    "parent": "py:ax_scoobie_doo/as_scoo.py",
+    "path": "ax_scoobie_doo/as_scoo.py",
+    "line": 364,
+    "external": false
+   },
+   "py:ax_scoobie_doo/bc_scoob.py": {
+    "key": "py:ax_scoobie_doo/bc_scoob.py",
+    "kind": "module",
+    "name": "bc_scoob",
+    "qual": "",
+    "module": "ax_scoobie_doo.bc_scoob",
+    "parent": "dir:ax_scoobie_doo",
+    "path": "ax_scoobie_doo/bc_scoob.py",
+    "line": 0,
+    "external": false
+   },
+   "py:ax_scoobie_doo/as_scoo.py#av_scoobie_doo_magoo_patata_sho": {
+    "key": "py:ax_scoobie_doo/as_scoo.py#av_scoobie_doo_magoo_patata_sho",
+    "kind": "function",
+    "name": "av_scoobie_doo_magoo_patata_sho",
+    "qual": "av_scoobie_doo_magoo_patata_sho",
+    "module": "ax_scoobie_doo.as_scoo",
+    "parent": "py:ax_scoobie_doo/as_scoo.py",
+    "path": "ax_scoobie_doo/as_scoo.py",
+    "line": 44,
+    "external": false
+   },
+   "py:ax_scoobie_doo/as_scoo.py#ag_scoobie_doo_magoo_pata": {
+    "key": "py:ax_scoobie_doo/as_scoo.py#ag_scoobie_doo_magoo_pata",
+    "kind": "function",
+    "name": "ag_scoobie_doo_magoo_pata",
+    "qual": "ag_scoobie_doo_magoo_pata",
+    "module": "ax_scoobie_doo.as_scoo",
+    "parent": "py:ax_scoobie_doo/as_scoo.py",
+    "path": "ax_scoobie_doo/as_scoo.py",
+    "line": 99,
+    "external": false
+   },
+   "py:ax_scoobie_doo/as_scoo.py#az_scoobie_doo_magoo_pata": {
+    "key": "py:ax_scoobie_doo/as_scoo.py#az_scoobie_doo_magoo_pata",
+    "kind": "function",
+    "name": "az_scoobie_doo_magoo_pata",
+    "qual": "az_scoobie_doo_magoo_pata",
+    "module": "ax_scoobie_doo.as_scoo",
+    "parent": "py:ax_scoobie_doo/as_scoo.py",
+    "path": "ax_scoobie_doo/as_scoo.py",
+    "line": 125,
+    "external": false
+   },
+   "py:ax_scoobie_doo/bc_scoob.py#ah_sc": {
+    "key": "py:ax_scoobie_doo/bc_scoob.py#ah_sc",
+    "kind": "function",
+    "name": "ah_sc",
+    "qual": "ah_sc",
+    "module": "ax_scoobie_doo.bc_scoob",
+    "parent": "py:ax_scoobie_doo/bc_scoob.py",
+    "path": "ax_scoobie_doo/bc_scoob.py",
+    "line": 32,
+    "external": false
+   },
+   "py:ax_scoobie_doo/bc_scoob.py#at_s": {
+    "key": "py:ax_scoobie_doo/bc_scoob.py#at_s",
+    "kind": "function",
+    "name": "at_s",
+    "qual": "at_s",
+    "module": "ax_scoobie_doo.bc_scoob",
+    "parent": "py:ax_scoobie_doo/bc_scoob.py",
+    "path": "ax_scoobie_doo/bc_scoob.py",
+    "line": 44,
+    "external": false
+   },
+   "py:ax_scoobie_doo/bc_scoob.py#au_scoobie_doo_ma": {
+    "key": "py:ax_scoobie_doo/bc_scoob.py#au_scoobie_doo_ma",
+    "kind": "function",
+    "name": "au_scoobie_doo_ma",
+    "qual": "au_scoobie_doo_ma",
+    "module": "ax_scoobie_doo.bc_scoob",
+    "parent": "py:ax_scoobie_doo/bc_scoob.py",
+    "path": "ax_scoobie_doo/bc_scoob.py",
+    "line": 51,
+    "external": false
+   },
+   "py:ax_scoobie_doo/ak_scoo.py": {
+    "key": "py:ax_scoobie_doo/ak_scoo.py",
+    "kind": "module",
+    "name": "ak_scoo",
+    "qual": "",
+    "module": "ax_scoobie_doo.ak_scoo",
+    "parent": "dir:ax_scoobie_doo",
+    "path": "ax_scoobie_doo/ak_scoo.py",
+    "line": 0,
+    "external": false
+   },
+   "py:ax_scoobie_doo/bd_scoob.py": {
+    "key": "py:ax_scoobie_doo/bd_scoob.py",
+    "kind": "module",
+    "name": "bd_scoob",
+    "qual": "",
+    "module": "ax_scoobie_doo.bd_scoob",
+    "parent": "dir:ax_scoobie_doo",
+    "path": "ax_scoobie_doo/bd_scoob.py",
+    "line": 0,
+    "external": false
+   },
+   "py:ax_scoobie_doo/be_scoobie_doo.py": {
+    "key": "py:ax_scoobie_doo/be_scoobie_doo.py",
+    "kind": "module",
+    "name": "be_scoobie_doo",
+    "qual": "",
+    "module": "ax_scoobie_doo.be_scoobie_doo",
+    "parent": "dir:ax_scoobie_doo",
+    "path": "ax_scoobie_doo/be_scoobie_doo.py",
+    "line": 0,
+    "external": false
+   },
+   "py:ax_scoobie_doo/ak_scoo.py#ai_scoobie_doo_": {
+    "key": "py:ax_scoobie_doo/ak_scoo.py#ai_scoobie_doo_",
+    "kind": "function",
+    "name": "ai_scoobie_doo_",
+    "qual": "ai_scoobie_doo_",
+    "module": "ax_scoobie_doo.ak_scoo",
+    "parent": "py:ax_scoobie_doo/ak_scoo.py",
+    "path": "ax_scoobie_doo/ak_scoo.py",
+    "line": 39,
+    "external": false
+   },
+   "py:ax_scoobie_doo/ak_scoo.py#an_scoobie_doo_magoo": {
+    "key": "py:ax_scoobie_doo/ak_scoo.py#an_scoobie_doo_magoo",
+    "kind": "function",
+    "name": "an_scoobie_doo_magoo",
+    "qual": "an_scoobie_doo_magoo",
+    "module": "ax_scoobie_doo.ak_scoo",
+    "parent": "py:ax_scoobie_doo/ak_scoo.py",
+    "path": "ax_scoobie_doo/ak_scoo.py",
+    "line": 79,
+    "external": false
+   },
+   "py:ax_scoobie_doo/ak_scoo.py#aq_scoobie_doo_mago": {
+    "key": "py:ax_scoobie_doo/ak_scoo.py#aq_scoobie_doo_mago",
+    "kind": "function",
+    "name": "aq_scoobie_doo_mago",
+    "qual": "aq_scoobie_doo_mago",
+    "module": "ax_scoobie_doo.ak_scoo",
+    "parent": "py:ax_scoobie_doo/ak_scoo.py",
+    "path": "ax_scoobie_doo/ak_scoo.py",
+    "line": 99,
+    "external": false
+   },
+   "py:ax_scoobie_doo/bd_scoob.py#Ae_scoobie_d": {
+    "key": "py:ax_scoobie_doo/bd_scoob.py#Ae_scoobie_d",
+    "kind": "class",
+    "name": "Ae_scoobie_d",
+    "qual": "Ae_scoobie_d",
+    "module": "ax_scoobie_doo.bd_scoob",
+    "parent": "py:ax_scoobie_doo/bd_scoob.py",
+    "path": "ax_scoobie_doo/bd_scoob.py",
+    "line": 707,
+    "external": false
+   },
+   "py:ax_scoobie_doo/bd_scoob.py#Ae_scoobie_d.bb_scoobie_doo_magoo_patata_shoo_zoinks_jinkies_sco": {
+    "key": "py:ax_scoobie_doo/bd_scoob.py#Ae_scoobie_d.bb_scoobie_doo_magoo_patata_shoo_zoinks_jinkies_sco",
+    "kind": "method",
+    "name": "bb_scoobie_doo_magoo_patata_shoo_zoinks_jinkies_sco",
+    "qual": "Ae_scoobie_d.bb_scoobie_doo_magoo_patata_shoo_zoinks_jinkies_sco",
+    "module": "ax_scoobie_doo.bd_scoob",
+    "parent": "py:ax_scoobie_doo/bd_scoob.py#Ae_scoobie_d",
+    "path": "ax_scoobie_doo/bd_scoob.py",
+    "line": 1432,
+    "external": false
+   },
+   "py:ax_scoobie_doo/be_scoobie_doo.py#Ad_scoobie_doo_mag": {
+    "key": "py:ax_scoobie_doo/be_scoobie_doo.py#Ad_scoobie_doo_mag",
+    "kind": "class",
+    "name": "Ad_scoobie_doo_mag",
+    "qual": "Ad_scoobie_doo_mag",
+    "module": "ax_scoobie_doo.be_scoobie_doo",
+    "parent": "py:ax_scoobie_doo/be_scoobie_doo.py",
+    "path": "ax_scoobie_doo/be_scoobie_doo.py",
+    "line": 467,
+    "external": false
+   },
+   "py:ax_scoobie_doo/be_scoobie_doo.py#am_scoobie_doo_mag": {
+    "key": "py:ax_scoobie_doo/be_scoobie_doo.py#am_scoobie_doo_mag",
+    "kind": "function",
+    "name": "am_scoobie_doo_mag",
+    "qual": "am_scoobie_doo_mag",
+    "module": "ax_scoobie_doo.be_scoobie_doo",
+    "parent": "py:ax_scoobie_doo/be_scoobie_doo.py",
+    "path": "ax_scoobie_doo/be_scoobie_doo.py",
+    "line": 416,
+    "external": false
+   },
+   "py:ax_scoobie_doo/be_scoobie_doo.py#Ad_scoobie_doo_mag.ba_scoobie_doo_ma": {
+    "key": "py:ax_scoobie_doo/be_scoobie_doo.py#Ad_scoobie_doo_mag.ba_scoobie_doo_ma",
+    "kind": "method",
+    "name": "ba_scoobie_doo_ma",
+    "qual": "Ad_scoobie_doo_mag.ba_scoobie_doo_ma",
+    "module": "ax_scoobie_doo.be_scoobie_doo",
+    "parent": "py:ax_scoobie_doo/be_scoobie_doo.py#Ad_scoobie_doo_mag",
+    "path": "ax_scoobie_doo/be_scoobie_doo.py",
+    "line": 1117,
+    "external": false
+   },
+   "py:ax_scoobie_doo/be_scoobie_doo.py#Ad_scoobie_doo_mag.ay_scoobie_doo_magoo": {
+    "key": "py:ax_scoobie_doo/be_scoobie_doo.py#Ad_scoobie_doo_mag.ay_scoobie_doo_magoo",
+    "kind": "method",
+    "name": "ay_scoobie_doo_magoo",
+    "qual": "Ad_scoobie_doo_mag.ay_scoobie_doo_magoo",
+    "module": "ax_scoobie_doo.be_scoobie_doo",
+    "parent": "py:ax_scoobie_doo/be_scoobie_doo.py#Ad_scoobie_doo_mag",
+    "path": "ax_scoobie_doo/be_scoobie_doo.py",
+    "line": 1165,
+    "external": false
+   },
+   "dir:aj_scoobie_": {
+    "key": "dir:aj_scoobie_",
+    "kind": "folder",
+    "name": "aj_scoobie_",
+    "qual": "",
+    "module": "aj_scoobie_",
+    "parent": null,
+    "path": "aj_scoobie_"
+   },
+   "py:aj_scoobie_/aw_scoobie_doo_magoo.py": {
+    "key": "py:aj_scoobie_/aw_scoobie_doo_magoo.py",
+    "kind": "module",
+    "name": "aw_scoobie_doo_magoo",
+    "qual": "",
+    "module": "aj_scoobie_/aw_scoobie_doo_magoo",
+    "parent": "dir:aj_scoobie_",
+    "path": "aj_scoobie_/aw_scoobie_doo_magoo.py",
+    "line": 0,
+    "external": false
+   },
+   "py:aj_scoobie_/aw_scoobie_doo_magoo.py#ap_scoo": {
+    "key": "py:aj_scoobie_/aw_scoobie_doo_magoo.py#ap_scoo",
+    "kind": "function",
+    "name": "ap_scoo",
+    "qual": "ap_scoo",
+    "module": "aj_scoobie_/aw_scoobie_doo_magoo",
+    "parent": "py:aj_scoobie_/aw_scoobie_doo_magoo.py",
+    "path": "aj_scoobie_/aw_scoobie_doo_magoo.py",
+    "line": 59,
+    "external": false
+   },
+   "py:ax_scoobie_doo/ao_sc.py": {
+    "key": "py:ax_scoobie_doo/ao_sc.py",
+    "kind": "module",
+    "name": "ao_sc",
+    "qual": "",
+    "module": "ax_scoobie_doo.ao_sc",
+    "parent": "dir:ax_scoobie_doo",
+    "path": "ax_scoobie_doo/ao_sc.py",
+    "line": 0,
+    "external": false
+   },
+   "py:ax_scoobie_doo/be_scoobie_doo.py#al_scoobie_doo_mago": {
+    "key": "py:ax_scoobie_doo/be_scoobie_doo.py#al_scoobie_doo_mago",
+    "kind": "function",
+    "name": "al_scoobie_doo_mago",
+    "qual": "al_scoobie_doo_mago",
+    "module": "ax_scoobie_doo.be_scoobie_doo",
+    "parent": "py:ax_scoobie_doo/be_scoobie_doo.py",
+    "path": "ax_scoobie_doo/be_scoobie_doo.py",
+    "line": 449,
+    "external": false
+   },
+   "py:ax_scoobie_doo/be_scoobie_doo.py#Ad_scoobie_doo_mag.al_scoobie_doo_mago": {
+    "key": "py:ax_scoobie_doo/be_scoobie_doo.py#Ad_scoobie_doo_mag.al_scoobie_doo_mago",
+    "kind": "method",
+    "name": "al_scoobie_doo_mago",
+    "qual": "Ad_scoobie_doo_mag.al_scoobie_doo_mago",
+    "module": "ax_scoobie_doo.be_scoobie_doo",
+    "parent": "py:ax_scoobie_doo/be_scoobie_doo.py#Ad_scoobie_doo_mag",
+    "path": "ax_scoobie_doo/be_scoobie_doo.py",
+    "line": 1157,
+    "external": false
+   },
+   "py:ax_scoobie_doo/ao_sc.py#Ab_scoobie_d": {
+    "key": "py:ax_scoobie_doo/ao_sc.py#Ab_scoobie_d",
+    "kind": "class",
+    "name": "Ab_scoobie_d",
+    "qual": "Ab_scoobie_d",
+    "module": "ax_scoobie_doo.ao_sc",
+    "parent": "py:ax_scoobie_doo/ao_sc.py",
+    "path": "ax_scoobie_doo/ao_sc.py",
+    "line": 17,
+    "external": false
+   },
+   "py:ax_scoobie_doo/bd_scoob.py#al_scoobie_doo_mago": {
+    "key": "py:ax_scoobie_doo/bd_scoob.py#al_scoobie_doo_mago",
+    "kind": "function",
+    "name": "al_scoobie_doo_mago",
+    "qual": "al_scoobie_doo_mago",
+    "module": "ax_scoobie_doo.bd_scoob",
+    "parent": "py:ax_scoobie_doo/bd_scoob.py",
+    "path": "ax_scoobie_doo/bd_scoob.py",
+    "line": 1521,
+    "external": false
+   },
+   "py:ax_scoobie_doo/ao_sc.py#Ab_scoobie_d.__init__": {
+    "key": "py:ax_scoobie_doo/ao_sc.py#Ab_scoobie_d.__init__",
+    "kind": "method",
+    "name": "__init__",
+    "qual": "Ab_scoobie_d.__init__",
+    "module": "ax_scoobie_doo.ao_sc",
+    "parent": "py:ax_scoobie_doo/ao_sc.py#Ab_scoobie_d",
+    "path": "ax_scoobie_doo/ao_sc.py",
+    "line": 33,
+    "external": false
+   }
+  },
+  "edges": [
+   {
+    "from": "py:ax_scoobie_doo/bi_scoob/bh_sc.py#ar_scoo",
+    "to": "py:ax_scoobie_doo/bi_scoob/bh_sc.py#Ac_scoob",
+    "line": 367
+   },
+   {
+    "from": "py:ax_scoobie_doo/bi_scoob/bh_sc.py#Ac_scoob",
+    "to": "py:ax_scoobie_doo/bi_scoob/bh_sc.py#_af_scoobie",
+    "line": 225
+   },
+   {
+    "from": "py:ax_scoobie_doo/bi_scoob/bh_sc.py#Aa_scoobie_doo_magoo_patata_sho",
+    "to": "py:ax_scoobie_doo/bi_scoob/bh_sc.py#Ac_scoob",
+    "line": 367
+   },
+   {
+    "from": "py:ax_scoobie_doo/bi_scoob/bh_sc.py#_af_scoobie",
+    "to": "py:ax_scoobie_doo/as_scoo.py#bg_scoobie_doo_magoo_pa",
+    "line": 173
+   },
+   {
+    "from": "py:ax_scoobie_doo/bi_scoob/bh_sc.py#_af_scoobie",
+    "to": "py:ax_scoobie_doo/as_scoo.py#bf_scoobie_doo_magoo_patata_sh",
+    "line": 175
+   },
+   {
+    "from": "py:ax_scoobie_doo/as_scoo.py#bg_scoobie_doo_magoo_pa",
+    "to": "py:ax_scoobie_doo/as_scoo.py#av_scoobie_doo_magoo_patata_sho",
+    "line": 222
+   },
+   {
+    "from": "py:ax_scoobie_doo/as_scoo.py#bg_scoobie_doo_magoo_pa",
+    "to": "py:ax_scoobie_doo/bc_scoob.py#ah_sc",
+    "line": 324
+   },
+   {
+    "from": "py:ax_scoobie_doo/as_scoo.py#bg_scoobie_doo_magoo_pa",
+    "to": "py:ax_scoobie_doo/as_scoo.py#ag_scoobie_doo_magoo_pata",
+    "line": 329
+   },
+   {
+    "from": "py:ax_scoobie_doo/as_scoo.py#bf_scoobie_doo_magoo_patata_sh",
+    "to": "py:ax_scoobie_doo/as_scoo.py#az_scoobie_doo_magoo_pata",
+    "line": 398
+   },
+   {
+    "from": "py:ax_scoobie_doo/as_scoo.py#av_scoobie_doo_magoo_patata_sho",
+    "to": "py:ax_scoobie_doo/bc_scoob.py#at_s",
+    "line": 57
+   },
+   {
+    "from": "py:ax_scoobie_doo/as_scoo.py#ag_scoobie_doo_magoo_pata",
+    "to": "py:ax_scoobie_doo/bc_scoob.py#at_s",
+    "line": 112
+   },
+   {
+    "from": "py:ax_scoobie_doo/bc_scoob.py#au_scoobie_doo_ma",
+    "to": "py:ax_scoobie_doo/bc_scoob.py#at_s",
+    "line": 64
+   },
+   {
+    "from": "py:aj_scoobie_/aw_scoobie_doo_magoo.py#ap_scoo",
+    "to": "py:ax_scoobie_doo/bc_scoob.py#au_scoobie_doo_ma",
+    "line": 69
+   },
+   {
+    "from": "py:ax_scoobie_doo/ak_scoo.py#ai_scoobie_doo_",
+    "to": "py:ax_scoobie_doo/bc_scoob.py#au_scoobie_doo_ma",
+    "line": 47
+   },
+   {
+    "from": "py:ax_scoobie_doo/ak_scoo.py#an_scoobie_doo_magoo",
+    "to": "py:ax_scoobie_doo/bc_scoob.py#au_scoobie_doo_ma",
+    "line": 92
+   },
+   {
+    "from": "py:ax_scoobie_doo/ak_scoo.py#aq_scoobie_doo_mago",
+    "to": "py:ax_scoobie_doo/bc_scoob.py#au_scoobie_doo_ma",
+    "line": 109
+   },
+   {
+    "from": "py:ax_scoobie_doo/bd_scoob.py#Ae_scoobie_d.bb_scoobie_doo_magoo_patata_shoo_zoinks_jinkies_sco",
+    "to": "py:ax_scoobie_doo/bc_scoob.py#au_scoobie_doo_ma",
+    "line": 1479
+   },
+   {
+    "from": "py:ax_scoobie_doo/be_scoobie_doo.py#am_scoobie_doo_mag",
+    "to": "py:ax_scoobie_doo/bc_scoob.py#au_scoobie_doo_ma",
+    "line": 431
+   },
+   {
+    "from": "py:ax_scoobie_doo/be_scoobie_doo.py#Ad_scoobie_doo_mag.ba_scoobie_doo_ma",
+    "to": "py:ax_scoobie_doo/bc_scoob.py#au_scoobie_doo_ma",
+    "line": 1144
+   },
+   {
+    "from": "py:ax_scoobie_doo/be_scoobie_doo.py#Ad_scoobie_doo_mag.ay_scoobie_doo_magoo",
+    "to": "py:ax_scoobie_doo/bc_scoob.py#au_scoobie_doo_ma",
+    "line": 1168
+   },
+   {
+    "from": "py:ax_scoobie_doo/be_scoobie_doo.py#al_scoobie_doo_mago",
+    "to": "py:ax_scoobie_doo/be_scoobie_doo.py#am_scoobie_doo_mag",
+    "line": 459
+   },
+   {
+    "from": "py:ax_scoobie_doo/be_scoobie_doo.py#Ad_scoobie_doo_mag.al_scoobie_doo_mago",
+    "to": "py:ax_scoobie_doo/be_scoobie_doo.py#am_scoobie_doo_mag",
+    "line": 1160
+   },
+   {
+    "from": "py:ax_scoobie_doo/bd_scoob.py#al_scoobie_doo_mago",
+    "to": "py:ax_scoobie_doo/be_scoobie_doo.py#al_scoobie_doo_mago",
+    "line": 1530
+   },
+   {
+    "from": "py:ax_scoobie_doo/ao_sc.py#Ab_scoobie_d.__init__",
+    "to": "py:ax_scoobie_doo/bd_scoob.py#al_scoobie_doo_mago",
+    "line": 77
+   }
+  ]
+ },
+ "explored": {
+  "py:ax_scoobie_doo/bi_scoob/bh_sc.py#Ac_scoob": "both",
+  "py:ax_scoobie_doo/bi_scoob/bh_sc.py#Aa_scoobie_doo_magoo_patata_sho": "both",
+  "py:ax_scoobie_doo/bi_scoob/bh_sc.py#ar_scoo": "in",
+  "py:ax_scoobie_doo/bi_scoob/bh_sc.py#_af_scoobie": "out",
+  "py:ax_scoobie_doo/as_scoo.py#bg_scoobie_doo_magoo_pa": "out",
+  "py:ax_scoobie_doo/as_scoo.py#bf_scoobie_doo_magoo_patata_sh": "out",
+  "py:ax_scoobie_doo/as_scoo.py#av_scoobie_doo_magoo_patata_sho": "out",
+  "py:ax_scoobie_doo/bc_scoob.py#ah_sc": "out",
+  "py:ax_scoobie_doo/as_scoo.py#ag_scoobie_doo_magoo_pata": "out",
+  "py:ax_scoobie_doo/bc_scoob.py#au_scoobie_doo_ma": "both",
+  "py:aj_scoobie_/aw_scoobie_doo_magoo.py#ap_scoo": "in",
+  "py:ax_scoobie_doo/be_scoobie_doo.py#am_scoobie_doo_mag": "in",
+  "py:ax_scoobie_doo/ak_scoo.py#an_scoobie_doo_magoo": "in",
+  "py:ax_scoobie_doo/ak_scoo.py#aq_scoobie_doo_mago": "in",
+  "py:ax_scoobie_doo/ak_scoo.py#ai_scoobie_doo_": "in",
+  "py:ax_scoobie_doo/be_scoobie_doo.py#Ad_scoobie_doo_mag.ba_scoobie_doo_ma": "in",
+  "py:ax_scoobie_doo/be_scoobie_doo.py#Ad_scoobie_doo_mag.ay_scoobie_doo_magoo": "in",
+  "py:ax_scoobie_doo/bd_scoob.py#Ae_scoobie_d.bb_scoobie_doo_magoo_patata_shoo_zoinks_jinkies_sco": "in",
+  "py:ax_scoobie_doo/be_scoobie_doo.py#al_scoobie_doo_mago": "in",
+  "py:ax_scoobie_doo/be_scoobie_doo.py#Ad_scoobie_doo_mag.al_scoobie_doo_mago": "in",
+  "py:ax_scoobie_doo/bd_scoob.py#al_scoobie_doo_mago": "in",
+  "py:ax_scoobie_doo/ao_sc.py#Ab_scoobie_d.__init__": "in"
+ }
+}

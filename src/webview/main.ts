@@ -29,7 +29,7 @@ let style: Style | undefined;
 let styleText = '';
 let excludeGlobs: string[] = [];
 let excludeRx: RegExp[] = [];          // `gaffy.exclude` globs as expressions, for buildScene
-let settings = { includeExternal: false, includeStandardLibrary: false, saveViews: false, untitled: false };   // VS Code settings shown in Options
+let settings = { includeExternal: false, includeStandardLibrary: false, saveViews: false, untitled: false, trace: false };   // VS Code settings (Options; `trace`: gaffy.trace)
 /** External code drawn (scene.ts `Outside`): from the settings above. */
 const outside = () => ({ external: settings.includeExternal, standard: settings.includeStandardLibrary });
 let scene: Scene | undefined;
@@ -139,6 +139,8 @@ window.addEventListener('message', (ev) => {
         note = m.text ?? '';
         status();
     } else if (m.type === 'cmd') {
+        // a context menu entry: the right click that opened the menu gave the cell
+        cause = { event: `menu ${m.cmd}`, target: m.key ?? cause.target, cell: cause.event === 'contextmenu' ? cause.cell : undefined };
         runCmd(m.cmd, m.key, m.unit, m.to);
     }
 });
@@ -149,8 +151,44 @@ function commit(mut: (d: ViewDoc) => void) {
     mut(d);
     doc = d;
     text = serializeDoc(d);
+    const before = settings.trace ? cells(scene) : undefined;
     render();
-    api.postMessage({ type: 'edit', text });
+    api.postMessage({ type: 'edit', text, ...(before ? { cause, moved: movedCells(before, cells(scene)) } : {}) });
+}
+
+// ---- trace (setting gaffy.trace): why each edit happened, and what moved; the host appends it to .gaffy/trace/ ----
+/** The user event an edit answers (type, target key or text, grid cell [row, column]) and the functions that acted. */
+interface Cause { event?: string; target?: string; cell?: [number, number]; fn?: string; args?: unknown }
+let cause: Cause = {};
+/** Names a function acting on the current event; nested ones chain (`runCmd:remove › runCmd:hideSelection`). */
+function why(fn: string, args?: unknown) {
+    cause = { ...cause, fn: cause.fn ? `${cause.fn} › ${fn}` : fn, ...(args !== undefined ? { args } : {}) };
+}
+// every user event starts a new cause, captured before the handlers run
+for (const type of ['click', 'dblclick', 'mousedown', 'contextmenu', 'keydown'] as const) {
+    document.addEventListener(type, (ev) => {
+        const el = (ev.target as Element | null)?.closest?.('.labels g, .heads g, .markers text, .arrowhits rect, .hits path, button, tspan, .row') ?? undefined;
+        const d = (el as { __data__?: { key?: string; from?: string; to?: string } } | undefined)?.__data__;
+        const target = d?.key ?? (d?.from && d?.to ? `${d.from} → ${d.to}` : el?.textContent?.trim().slice(0, 60) || undefined);
+        let cell: [number, number] | undefined;
+        if (ev instanceof MouseEvent && ch && cw) { const [x, y] = rootPoint(ev); cell = [Math.floor(y / ch), Math.floor(x / cw)]; }
+        cause = { event: ev instanceof KeyboardEvent ? `key ${ev.altKey ? 'Alt+' : ''}${ev.key}` : type, target, cell };
+    }, true);
+}
+/** Grid cells of labels (vertex keys) and frames (box units): [row, column]. */
+function cells(sc: Scene | undefined): Map<string, [number, number]> {
+    const m = new Map<string, [number, number]>();
+    if (!sc) return m;
+    for (const [k, p] of sc.placement.pos) if (!isStub(k)) m.set(k, [p.row, p.col]);
+    for (const f of sc.placement.frames) m.set(f.unit, [f.r0, f.c0]);
+    return m;
+}
+/** Labels and frames whose cell changed: [key, before, after] (before or after null when it appeared or left). */
+function movedCells(a: Map<string, [number, number]>, b: Map<string, [number, number]>) {
+    const out: [string, [number, number] | null, [number, number] | null][] = [];
+    for (const [k, p] of a) { const q = b.get(k); if (!q || q[0] !== p[0] || q[1] !== p[1]) out.push([k, p, q ?? null]); }
+    for (const [k, q] of b) if (!a.has(k)) out.push([k, null, q]);
+    return out.slice(0, 2000);
 }
 
 // ---- geometry -----------------------------------------------------------------------------------
@@ -470,7 +508,7 @@ function render() {
         })
         .on('dblclick', (ev: MouseEvent, d) => {
             ev.stopPropagation();
-            if (sc.vg.nodes.get(d.key)?.collapsed) { anchorAt(d.key); commit((x) => { x.view.collapsed = x.view.collapsed.filter((c) => c !== d.key); }); }
+            if (sc.vg.nodes.get(d.key)?.collapsed) { why('expand', { key: d.key }); anchorAt(d.key); commit((x) => { x.view.collapsed = x.view.collapsed.filter((c) => c !== d.key); }); }
             else if (grows) toggleSides(d.key);
         })
         .on('mouseenter', (_ev, d) => highlight(d.key))
@@ -509,6 +547,7 @@ function render() {
     });
     heads.on('dblclick', (ev: MouseEvent, d) => {
         ev.stopPropagation();
+        why('collapse', { key: d.key.slice(4) });
         commit((x) => { if (!x.view.collapsed.includes(d.key.slice(4))) x.view.collapsed.push(d.key.slice(4)); });
     });
     heads.call(dragUnit((d) => d.key) as any);
@@ -546,6 +585,7 @@ function afterRender() {
         const off = doc.view.offset[k];
         if (p && off && !doc.view.offset[p] && !doc.view.lock[p] && !doc.view.lock[k] && sc.rev.opener.get(p)?.by === k) {
             adopt = undefined;
+            cause = { event: 'auto', fn: 'afterRender:adopt', args: { from: k, to: p } };
             commit((x) => { x.view.offset[p] = off; delete x.view.offset[k]; });
             return;
         }
@@ -556,6 +596,7 @@ function afterRender() {
     if (sc.offsets === doc.view.offset) { settleStreak = 0; return; }
     settleStreak++;
     const settled = structuredClone(sc.offsets);
+    cause = { event: 'auto', fn: 'afterRender:settle', args: { round: settleStreak } };
     commit((x) => { x.view.offset = settled; });
 }
 
@@ -627,6 +668,7 @@ function anchorAt(k: NodeKey) {
 
 /** Double click, one layer at a time: close both sides, or open every side that has more. */
 function toggleSides(k: NodeKey) {
+    why('toggleSides', { key: k });
     if (effSide(k) !== 'none') { anchorAt(k); commit((x) => { x.view.open = { ...(x.view.open ?? {}), [k]: 'none' }; }); }
     else for (const s0 of ['down', 'up'] as const) if (scene!.hasMore(k, s0)) setSide(k, s0, true);
 }
@@ -637,6 +679,7 @@ function toggleSides(k: NodeKey) {
  */
 function setSide(k: NodeKey, side: 'up' | 'down', on: boolean, restore = false) {
     if (!doc || !scene || doc.view.arrange !== 'grow') return;   // full views: the call depths decide
+    why('setSide', { key: k, side, on, restore });
     anchorAt(k);
     // a moved function opening its callers: the caller that becomes its tree parent takes its move (afterRender)
     if (on && side === 'up' && doc.view.offset[k]) adopt = { key: k, renders: 0 };
@@ -669,6 +712,7 @@ const markerLive = (k: NodeKey, side: 'up' | 'down') => opensHere(k, side) || !!
  * does not open), bring back the hidden neighbors and removed calls of that side.
  */
 function markerClick(k: NodeKey, side: 'up' | 'down') {
+    why('markerClick', { key: k, side });
     if (opensHere(k, side)) { setSide(k, side, true, true); return; }
     restoreHidden(k, side);
 }
@@ -680,6 +724,7 @@ function markerClick(k: NodeKey, side: 'up' | 'down') {
  */
 function restoreHidden(k: NodeKey, side: 'up' | 'down') {
     if (!scene || !doc) return;
+    why('restoreHidden', { key: k, side });
     const back = scene.hiddenOn(k, side);
     if (!back.length) return;
     const show = new Set([...back, ...back.flatMap((b) => scene!.hiddenPath(b))]);
@@ -741,6 +786,7 @@ function highlightCalls(ps: { from: NodeKey; to: NodeKey }[]) {
 /** Keep each call's caller and what lies below its callee in the drawn graph; hide the rest. */
 function isolateCalls(calls: { from: NodeKey; to: NodeKey }[]) {
     if (!calls.length) return;
+    why('isolateCalls', { calls: calls.length });
     const keep = new Set<NodeKey>();
     for (const c of calls) { keep.add(c.from); for (const k of reachDrawn(c.to, 'down')) keep.add(k); }
     selCalls.clear();
@@ -762,6 +808,7 @@ function reachDrawn(start: NodeKey, dir: 'up' | 'down'): Set<NodeKey> {
 
 /** Hide everything but `keep` (and its paths from the seeds); `pin` (else the focus, else a kept function) keeps its place on screen. */
 function isolate(keep: Set<NodeKey>, pin?: NodeKey) {
+    why('isolate', { keep: keep.size, pin });
     const all = withPath(keep);
     const at = [pin, focusKey, ...keep].find((k) => k && keep.has(k) && scene!.placement.pos.has(k));
     if (at) anchorAt(at);
@@ -773,6 +820,7 @@ function isolate(keep: Set<NodeKey>, pin?: NodeKey) {
  * Right click > Remove Seed takes a seed out.
  */
 function hide(keys: NodeKey[]) {
+    why('hide', { keys: keys.length });
     const seeds = new Set(doc!.view.seeds);
     const drop = keys.filter((k) => !seeds.has(k));
     if (drop.length) commit((x) => { for (const s of drop) if (!x.view.hidden.includes(s)) x.view.hidden.push(s); });
@@ -893,6 +941,7 @@ function dragUnit(unitOf: (d: LabelSpan) => string) {
             if (still) anchorAt(still); else anchor = undefined;
             const [a, b] = settleDrop(units, dc, dr);
             const us = units;
+            why('dragUnit', { units: us, drag: [dc, dr], drop: [a, b] });
             commit((x) => { for (const u of us) moveUnit(x, u, a, b); });
             if (!still) svg.call(zoomer.translateBy, a * cw, b * ch);   // everything moved: the same as a pan
         });
@@ -973,6 +1022,7 @@ function settleDrop(units: string[], dc: number, dr: number): [number, number] {
 
 function lockUnit(unit: string) {
     if (!scene || !doc) return;
+    why('lockUnit', { unit });
     const at = unitAnchor(scene, unit);
     if (!at) return;
     commit((x) => { x.view.lock[unit] = at; delete x.view.offset[unit]; });
@@ -980,6 +1030,7 @@ function lockUnit(unit: string) {
 
 function unlockUnit(unit: string) {
     if (!scene || !doc || !doc.view.lock[unit]) return;
+    why('unlockUnit', { unit });
     const here = unitAnchor(scene, unit)!;
     // keep the unit where it is: its offset becomes the distance to its computed place
     const probe = structuredClone(doc);
@@ -1016,6 +1067,7 @@ function need(ok: unknown, missing: string): boolean {
 
 function runCmd(cmd: string, key?: NodeKey, unit?: string, to?: NodeKey) {
     if (!scene || !doc) return;
+    why(`runCmd:${cmd}`, { key, unit, to });
     const k = key ?? focusKey;
     const call = key && to ? { from: key, to } : selCalls.size ? unkey([...selCalls][0]) : undefined;
     const NO_CALL = `${cmd}: no call: click a line, or right click one`;
@@ -1223,6 +1275,7 @@ function moveFocus(delta: number) {
 
 function moveSibling(delta: -1 | 1) {
     if (!scene || !focusKey) return;
+    why('moveSibling', { key: focusKey, delta });
     const { slot, list } = siblingsOf(scene, focusKey);
     const i = list.indexOf(focusKey);
     const j = i + delta;
@@ -1234,6 +1287,7 @@ function moveSibling(delta: -1 | 1) {
 
 function collapseInnermost(key: NodeKey) {
     if (!doc) return;
+    why('collapseInnermost', { key });
     const nodes = doc.graph.nodes;
     const c = ancestors(nodes, key).find((a) => isContainer(nodes[a]) && !doc!.view.collapsed.includes(a));
     if (c) commit((d) => { d.view.collapsed.push(c); });
@@ -1253,7 +1307,7 @@ svg.on('keydown', (ev: KeyboardEvent) => {
             break;
         case 'e': case ' ': if (k && doc.view.arrange === 'grow') for (const s0 of ['down', 'up'] as const) if (scene?.hasMore(k, s0)) setSide(k, s0, true); break;
         case 'ArrowLeft': case 'c': if (k) collapseInnermost(k); break;
-        case 'ArrowRight': if (k && scene?.vg.nodes.get(k)?.collapsed) { anchorAt(k); commit((d) => { d.view.collapsed = d.view.collapsed.filter((x) => x !== k); }); } break;
+        case 'ArrowRight': if (k && scene?.vg.nodes.get(k)?.collapsed) { why('expand', { key: k }); anchorAt(k); commit((d) => { d.view.collapsed = d.view.collapsed.filter((x) => x !== k); }); } break;
         case 'Delete': case 'Backspace': runCmd('remove'); break;
         case 'h': runCmd('hideSelection'); break;
         case 'a': runCmd(selected.size ? 'rearrangeSelection' : 'rearrange'); break;
@@ -1307,6 +1361,7 @@ function levelOf(side: 'up' | 'down'): number {
  */
 function setArrange(to: 'grow' | 'auto') {
     if (!doc || !scene || doc.view.arrange === to) return;
+    why('setArrange', { to });
     const rev = scene.rev;
     if (to === 'auto') {
         const up = levelOf('up'), down = levelOf('down');
@@ -1327,6 +1382,7 @@ function setArrange(to: 'grow' | 'auto') {
 
 /** Full: one side's call depth; `all` keeps every level the data holds. */
 function setDepth(side: 'up' | 'down', d: Depth | ((n: number) => number)) {
+    why('setDepth', { side, depth: typeof d === 'function' ? 'step' : d });
     commit((x) => {
         const cur = side === 'up' ? x.view.depthUp : x.view.depthDown;
         const next = typeof d === 'function' ? Math.max(0, d(cur === 'all' ? levelOf(side) : cur)) : d;
@@ -1368,10 +1424,10 @@ function toolbar() {
     ];
     const fl = folders();
     const sections: Section[] = [
-        { caption: 'Layout', radio: true, items: [
-            { label: '>> : Expand Individual Callers', title: '>> and └─>> open a side; an arrowhead closes the level it points into; Delete removes the selection; the function acted on stays in place on screen', on: v.arrange === 'grow',
+        { caption: 'Call Expansion', radio: true, items: [
+            { label: 'Individual On Graph: >>', title: '>> and └─>> open a side; an arrowhead closes the level it points into; Delete removes the selection; the function acted on stays in place on screen', on: v.arrange === 'grow',
                 act: () => setArrange('grow') },
-            { label: '+ - call depth - + : Expand Toolbar', title: 'caller and callee levels from the toolbar; the same picture, no opening or closing of single functions', on: v.arrange !== 'grow',
+            { label: 'Global Toolbar: + - call depth - +', title: 'caller and callee levels from the toolbar; the same picture, no opening or closing of single functions', on: v.arrange !== 'grow',
                 act: () => setArrange('auto') },
         ] },
         ...(v.arrange !== 'grow' ? [{ caption: 'Call depth by', radio: true, items: (['shortest', 'longest'] as const).map((r) => ({
@@ -1385,13 +1441,13 @@ function toolbar() {
                 act: () => commit((x) => { x.view.group = []; x.view.ungroup = []; }) }] : []),
         ] },
         { caption: 'Edges', radio: true, items: (['glyph', 'vector'] as const).map((m) => ({
-            label: m === 'glyph' ? 'ASCII Graph' : 'Vectors', title: 'edge drawing (g)', on: mode === m, act: () => commit((x) => { x.view.edges = m; }),
+            label: m === 'glyph' ? 'ASCII (UTF) Style' : 'D3 Vector Style', title: 'edge drawing (g)', on: mode === m, act: () => commit((x) => { x.view.edges = m; }),
         })) },
         ...(mode === 'vector' ? [{ caption: 'Curve', radio: true, items: (['orthogonal', 'rounded', 'sigmoid', 'spline'] as Curve[]).map((c) => ({
             label: c, title: 'curve style of vector edges', on: curve === c, act: () => commit((x) => { x.view.curve = c; }),
         })) } as Section] : []),
         { caption: 'Tree parent', radio: true, items: (['dfs', 'nearest', 'joint'] as const).map((m) => ({
-            label: m === 'dfs' ? 'First caller found (dfs)' : m === 'nearest' ? 'Nearest caller above' : 'Joint: shared functions entered from the left',
+            label: m === 'dfs' ? 'First caller found' : m === 'nearest' ? 'Nearest caller above' : 'Left merge incoming calls',
             title: m === 'joint' ? 'no caller privileged: a caller right above joins the elbow (├───┴─>), several callers join one collector (┌──┘ └─>)'
                 : 'which caller a shared function hangs under', on: rule === m,
             act: () => commit((x) => { x.view.parentRule = m; }) })) },
@@ -1425,16 +1481,16 @@ function toolbar() {
                 on: settings.includeExternal, act: () => api.postMessage({ type: 'setting', key: 'includeExternal', value: !settings.includeExternal }) },
             { label: 'Include standard library', title: 'gaffy.includeStandardLibrary: with external code, also the builtins and standard library of each language (Python builtins, Rust std, C++ std, TypeScript lib); drawn without the language server',
                 on: settings.includeStandardLibrary, act: () => api.postMessage({ type: 'setting', key: 'includeStandardLibrary', value: !settings.includeStandardLibrary }) },
-            { label: 'Save gaffy Views', title: 'gaffy.saveViews: new views are written to .gaffy/views/ and saved after every change; off: a new view opens unsaved, right click > Save keeps it',
+            { label: 'Autosave Graphs', title: 'gaffy.saveViews: new views are written to .gaffy/views/ and saved after every change; off: a new view opens unsaved, right click > Save keeps it',
                 on: settings.saveViews, act: () => api.postMessage({ type: 'setting', key: 'saveViews', value: !settings.saveViews }) },
-            { label: 'All gaffy settings…', title: 'VS Code Settings, filtered to gaffy', act: () => api.postMessage({ type: 'openSettings' }) },
+            { label: 'Settings ', title: 'Settings', act: () => api.postMessage({ type: 'openSettings' }) },
         ] },
         { caption: 'File', items: [
-            { label: 'Refresh from Language Server', title: v.arrange === 'grow'
+            { label: 'Refresh Language Server', title: v.arrange === 'grow'
                 ? 'calls of the functions on screen from the language server; the others when a side opens onto them. Unanswered functions keep their calls (r)'
                 : 'calls of the functions on screen from the language server, then the levels within the call depths. Unanswered functions keep their calls (r)',
             act: () => api.postMessage({ type: 'refresh' }) },
-            { label: 'Export UNICODE graph', title: '.gaffy/<symbol>_<commit>.md and .txt, then _2, _3 (x)', act: () => api.postMessage({ type: 'export' }) },
+            { label: 'Save as Text (.txt, .md)', title: '.gaffy/<symbol>_<commit>.md and .txt, then _2, _3 (x)', act: () => api.postMessage({ type: 'export' }) },
             { label: 'Edit style.json', title: '.gaffy/style.json', act: () => api.postMessage({ type: 'editStyle' }) },
         ] },
     ];

@@ -664,3 +664,17 @@ describe('what the language server is asked', () => {
         expect(pairs.has('out:scoobie')).toBe(false);
     });
 });
+
+describe('moves stay local', () => {
+    // test/data/runaway.gaffy: a view reduced from one where dragging a box made the picture thousands of rows tall
+    // (names made up). An unmoved box descending below a moved sibling made no progress while a box inside it was
+    // moved up, and every retry re-added the moves inside it, so the caller rows of later blocks drifted.
+    it('an unmoved box descends below a moved sibling without drift', () => {
+        const doc = parseDoc(readFileSync(join(__dirname, 'data', 'runaway.gaffy'), 'utf8'), 'runaway');
+        const unmoved = structuredClone(doc);
+        unmoved.view.offset = {};
+        const sc = buildScene(doc, DEFAULT_STYLE, [], true);
+        invariants(sc);
+        expect(sc.placement.height).toBeLessThan(buildScene(unmoved, DEFAULT_STYLE, [], true).placement.height + 60);
+    });
+});
