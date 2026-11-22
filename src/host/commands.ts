@@ -1,4 +1,4 @@
-/**
+/** (c) 2026 xvdp
  * Commands: graph creation from the editor and explorer, view commands, and node commands invoked from
  * the webview context menu. A `webview/context` command receives the merged `data-vscode-context`
  * object of the clicked element: `{ webviewSection, key, webview }`.

@@ -1,4 +1,4 @@
-/**
+/** @xvdp
  * View change trace, on with the setting `gaffy.trace`: one JSON line per change of a view document, appended
  * to `.gaffy/trace/<view>.jsonl` in the view's workspace folder. VS Code's undo stack keeps whole document
  * texts only, without the event that made them; the trace adds that event.

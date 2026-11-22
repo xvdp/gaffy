@@ -1,4 +1,4 @@
-/**
+/** @xvdp
  * Settling moved units after the picture changed. A unit the user moved (`view.offset`) keeps its offset
  * while the layout around it grows (a side opened, new data, a depth changed), and can end up on content
  * that appeared since. `settleMoved` finds, per colliding unit, the nearest offset change that clears it.

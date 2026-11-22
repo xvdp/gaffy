@@ -1,4 +1,4 @@
-/**
+/** @xvdp
  * Character grid from a placement. Each cell holds, per net, a direction mask (N, S, E, W). A net is
  * one drawn connection set: `t:<parent>` (stem and elbows to tree children) or `l:<target>` (all
  * calls into one vertex: lanes, routed paths, their arrival). Glyph text and vector paths derive

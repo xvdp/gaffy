@@ -1,4 +1,6 @@
-/** Trace records (trace.ts), without VS Code: testable, and the format `tools/gaffy-trace.mjs` reads. */
+/** @xvdp 
+ * Trace records (trace.ts), without VS Code: testable, and the format `tools/gaffy-trace.mjs` reads.
+**/
 import { ViewDoc } from '../core/viewdoc';
 
 export interface Cause { event?: string; target?: string; cell?: [number, number]; fn?: string; args?: unknown }

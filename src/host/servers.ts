@@ -1,4 +1,4 @@
-/**
+/** @xvdp
  * Language servers for the languages of a workspace: which VS Code extensions give gaffy document
  * symbols and call hierarchy, which are installed and enabled, and what to install.
  *

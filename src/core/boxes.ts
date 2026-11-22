@@ -1,4 +1,4 @@
-/**
+/** @xvdp
  * Namespace boxes: the containment tree restricted to boxable containers, chain-compressed.
  *
  * 1. Boxable kinds: package, folder; module and file too with `modules`.

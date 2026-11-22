@@ -1,4 +1,4 @@
-/**
+/** @xvdp
  * Grid lanes layout. Integer cells (row, col); the SVG view and the text export print the same grid.
  *
  * 1. DFS over the quotient graph from its sources (in-degree 0), then from vertices left unvisited

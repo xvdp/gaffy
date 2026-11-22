@@ -1,4 +1,4 @@
-/**
+/** @xvdp
  * Webview renderer. Receives the view text, style and exclude globs from the host, runs the core
  * pipeline (quotient, boxes, placement, routing) and draws the grid with D3:
  *   glyph mode:  one <text> per edge or frame cell (box-drawing glyphs at exact cell positions)

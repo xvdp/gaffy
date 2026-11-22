@@ -1,4 +1,4 @@
-/**
+/** @xvdp
  * Entry point. Registers the `.gaffy` custom editor, commands, and change adaptation:
  * - save of a source file: provider caches for the file drop; open views rebuild per
  *   `gaffy.refreshOnSave` (views containing the file, all views, or none), debounced 800 ms;

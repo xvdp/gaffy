@@ -1,4 +1,4 @@
-/**
+/** @xvdp
  * Collapse as quotient graph.
  *
  * Collapse set K ⊆ containers. Representative ρ_K(x): the outermost ancestor of x in K, or x itself

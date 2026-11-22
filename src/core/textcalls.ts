@@ -1,4 +1,4 @@
-/**
+/** @xvdp
  * Calls found in source text, for languages whose language server has no call hierarchy (shader
  * languages: GLSL, HLSL, Slang, WGSL, Metal). Pure functions over a file's text; the provider resolves
  * the names (go to definition, else by name in the workspace).

@@ -1,4 +1,4 @@
-/**
+/** @xvdp
  * Calls across languages through binding layers, found in source text (pure functions, no VS Code API).
  * No language server sees both sides of a binding: Pylance stops at a compiled module (or its `.pyi`
  * stub), a C++ server knows no Python callers, and a slangpy call resolves at run time. The binding

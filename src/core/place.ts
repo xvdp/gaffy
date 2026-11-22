@@ -1,4 +1,4 @@
-/**
+/** @xvdp
  * 2D placement of namespace boxes and blocks on the character grid. A block is the set of direct
  * members of one box, laid out by the grid lanes layout (layout.ts).
  *

@@ -261,4 +261,8 @@ npm run preview           # dist/preview.html?doc=sh|exp4|star|grow|two[&edges=v
 
 The preview loads the webview bundle in a browser with a mocked VS Code API and fixture views: `sh` (..rrequest.md addendum 1a), `exp4` (giddy experiment 4), `star` (..rrequest.md example (*)).
 
+## License
+
+Apache License 2.0 ([LICENSE](LICENSE)). Copies and derived works keep the attribution in [NOTICE](NOTICE): name, copyright, repository. Third-party code: [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+
 [^lsp]: LSP, Language Server Protocol: JSON-RPC protocol between editors and language servers; call hierarchy requests `textDocument/prepareCallHierarchy`, `callHierarchy/incomingCalls`, `callHierarchy/outgoingCalls` since version 3.16.

@@ -1,4 +1,4 @@
-/**
+/** @xvdp
  * Language-server answers folded into a view's graph, one (definition, direction) pair at a time.
  *
  * Modes: `cacheOnly` uses cached answers and asks no language server (instant); `cached` uses cached

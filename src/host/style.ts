@@ -1,4 +1,4 @@
-/**
+/** @xvdp
  * Style per workspace folder: DEFAULT_STYLE ← setting `gaffy.style` ← `<folder>/.gaffy/style.json`.
  * Fires `onDidChange` when either source changes.
  */

@@ -1,4 +1,4 @@
-/**
+/** @xvdp
  * View document: the content of a `.gaffy` file. One view = seeds, traversal, user overrides, and the
  * last resolved subgraph, so a view opens without a language server.
  *

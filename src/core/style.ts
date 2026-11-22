@@ -1,4 +1,4 @@
-/**
+/** @xvdp
  * Style: defaults, merged with the `gaffy.style` setting, then `.gaffy/style.json`, then per-view
  * overrides (ViewSpec.boxes, edges, curve, parentRule). `view` holds the choices a new view starts
  * with (layout, traverse); they are written into the view file at creation.

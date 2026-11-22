@@ -1,4 +1,4 @@
-/**
+/** @xvdp
  * Node label text. One string per vertex; its length sets the grid width of the label.
  *
  * definition:          `<module>.<qual>()`, e.g. `foo.scoobie.do()`

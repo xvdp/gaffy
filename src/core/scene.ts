@@ -1,4 +1,4 @@
-/**
+/** @xvdp
  * Pipeline from a view document to a drawable grid: quotient (collapse, hide), visibility by open
  * sides (reveal.ts), namespace boxes, labels, placement, routing. Runs in the webview for rendering and
  * in the extension host for export.

@@ -1,4 +1,4 @@
-/**
+/** @xvdp
  * Language rules of the call graph provider, kept apart from its behaviour (pure, no VS Code API).
  *
  * - `LANG`: file extension → key prefix of the language (`<lang>:<relpath>#<qual>`).

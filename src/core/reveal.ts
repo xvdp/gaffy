@@ -1,4 +1,4 @@
-/**
+/** @xvdp
  * Visibility by open sides, as in the VS Code call hierarchy, in both directions.
  *
  * Each vertex has open sides (`view.open`): `down` shows what it calls, `up` what calls it, one layer.

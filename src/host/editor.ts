@@ -1,4 +1,4 @@
-/**
+/** @xvdp
  * Custom text editor for `*.gaffy` view files. The TextDocument holds the view as JSON; the webview
  * renders it and posts whole-document edits back. VS Code supplies tabs, dirty state, undo, redo,
  * save and hot exit through the TextDocument.
