@@ -11,7 +11,7 @@ import { toHtmlPre, toText } from '../core/grid';
 import { ancestors, GNode, NodeKey, plain, visible } from '../core/model';
 import { buildScene, siblingsOf } from '../core/scene';
 import { DEFAULT_STYLE, glyphSet } from '../core/style';
-import { Direction, emptyDoc, globToRegExp, ROOTS, serializeDoc, ViewDoc, ViewSpec } from '../core/viewdoc';
+import { Direction, dropMovesWithin, emptyDoc, globToRegExp, ROOTS, serializeDoc, ViewDoc, ViewSpec } from '../core/viewdoc';
 import { GaffyEditor, Session } from './editor';
 import { readable } from './scope';
 import { folderOf, gaffyDir } from './style';
@@ -221,13 +221,13 @@ export function registerCommands(ctx: vscode.ExtensionContext, editor: GaffyEdit
     };
     reg('gaffy.tightBoxes', tightBoxes);
     reg('gaffy.tightBoxes.checked', tightBoxes);
-    reg('gaffy.toggleBoxes', async () => {
+    const toggleBoxes = async () => {
         const s = active();
         const st = await editor.styles.get(s.folder);
         await s.update((d) => { d.view.boxes = !(d.view.boxes ?? st.boxes.enabled); });
-    });
-    reg('gaffy.rearrange', () => active().update((d) => { d.view.offset = {}; }));
-    reg('gaffy.unlockAll', () => active().update((d) => { d.view.lock = {}; }));
+    };
+    reg('gaffy.toggleBoxes', toggleBoxes);
+    reg('gaffy.toggleBoxes.checked', toggleBoxes);
 
     // commands that need the layout or the selection run in the webview
     const forward = (cmd: string) => (arg?: NodeArg) => {
@@ -244,6 +244,9 @@ export function registerCommands(ctx: vscode.ExtensionContext, editor: GaffyEdit
     reg('gaffy.edge.callSite', forward('callSite'));
     reg('gaffy.edge.callee', forward('callee'));
     reg('gaffy.resetLayout', forward('resetLayout'));
+    reg('gaffy.rearrange', forward('rearrange'));
+    reg('gaffy.unlockAll', forward('unlockAll'));
+    reg('gaffy.expandAll', forward('expandAll'));
     reg('gaffy.showAll', forward('showAll'));
     reg('gaffy.resetView', forward('resetView'));
     reg('gaffy.isolateSelection', forward('isolateSelection'));
@@ -256,7 +259,6 @@ export function registerCommands(ctx: vscode.ExtensionContext, editor: GaffyEdit
     reg('gaffy.sel.between', forward('between'));
     reg('gaffy.sel.hide', forward('hideSelection'));
     reg('gaffy.sel.rearrange', forward('rearrangeSelection'));
-    reg('gaffy.sel.isolate', forward('isolate'));
     reg('gaffy.sel.clear', forward('clearSelection'));
 
     const excludes = (s: Session) => (vscode.workspace.getConfiguration('gaffy', s.document.uri).get<string[]>('exclude') ?? []).map(globToRegExp);
@@ -360,21 +362,20 @@ export function registerCommands(ctx: vscode.ExtensionContext, editor: GaffyEdit
     reg('gaffy.node.groupModule', node((s, d, k) => {
         const m = containerOfKind(d, k, ['module', 'file']);
         if (!m) throw new Error('no enclosing module');
-        return s.update((doc) => { doc.view.ungroup = doc.view.ungroup.filter((x) => x !== m); if (!doc.view.group.includes(m)) doc.view.group.push(m); });
+        return s.update((doc) => { doc.view.ungroup = doc.view.ungroup.filter((x) => x !== m); if (!doc.view.group.includes(m)) doc.view.group.push(m); dropMovesWithin(doc, m); });
     }));
     reg('gaffy.node.ungroup', node((s, _d, k) =>
-        s.update((doc) => { doc.view.group = doc.view.group.filter((x) => x !== k); if (!doc.view.ungroup.includes(k)) doc.view.ungroup.push(k); })));
+        s.update((doc) => { doc.view.group = doc.view.group.filter((x) => x !== k); if (!doc.view.ungroup.includes(k)) doc.view.ungroup.push(k); dropMovesWithin(doc, k); })));
     reg('gaffy.node.groupInside', node((s, d, k) => {
         const nodes = d.graph.nodes;
         const mods = Object.values(nodes).filter((n) => (n.kind === 'module' || n.kind === 'file') && ancestors(nodes, n.key).includes(k)).map((n) => n.key);
         return s.update((doc) => {
             doc.view.ungroup = doc.view.ungroup.filter((x) => !mods.includes(x));
-            for (const m of mods) if (!doc.view.group.includes(m)) doc.view.group.push(m);
+            for (const m of mods) { if (!doc.view.group.includes(m)) doc.view.group.push(m); dropMovesWithin(doc, m); }
         });
     }));
     reg('gaffy.node.expandContainer', node((s, _d, k) =>
         s.update((doc) => { doc.view.collapsed = doc.view.collapsed.filter((c) => c !== k); })));
-    reg('gaffy.node.hide', node((s, _d, k) => s.update((doc) => { if (!doc.view.hidden.includes(k)) doc.view.hidden.push(k); })));
     // seeds change in the webview (the function keeps its place); its edit asks the language server for what is missing
     reg('gaffy.node.makeSeed', forward('makeSeed'));
     reg('gaffy.node.removeSeed', forward('removeSeed'));
@@ -425,6 +426,7 @@ export function registerCommands(ctx: vscode.ExtensionContext, editor: GaffyEdit
             case 'expand': if (key) await s.expand(key, m.dir === 'in' ? 'in' : 'out'); break;
             case 'refresh': await s.refresh(undefined, 'revalidate'); break;
             case 'export': await exportView(s); break;
+            case 'save': await vscode.commands.executeCommand('gaffy.view.save'); break;
             // a webview command lacked what it acts on (a selection, a call, a function): say what
             case 'warn': void vscode.window.showWarningMessage(plain(`gaffy: ${String(m.text ?? '').slice(0, 300)}`)); break;
             case 'editStyle': await vscode.commands.executeCommand('gaffy.editStyle'); break;

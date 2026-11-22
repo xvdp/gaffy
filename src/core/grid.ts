@@ -17,7 +17,9 @@
  *    (`──> f()`) for vertices without a drawn tree elbow, else at the right (`f() <──`).
  *
  * Glyph per cell: one net → box glyph of its mask; several nets → union mask, except a pure crossing
- * (each mask exactly N|S or exactly E|W, both present), which renders `GlyphSet.cross`.
+ * (each mask exactly N|S or exactly E|W, both present), which renders `GlyphSet.cross`. A straight cell that
+ * only implicit calls, or only calls across languages, pass (`Grid.kinds`) takes `GlyphSet.kinds`: dotted, or
+ * dash and dot alternating by cell.
  */
 import { NodeKey } from './model';
 import { Frame, Placement } from './place';
@@ -71,9 +73,13 @@ export interface Grid {
     failed: [NodeKey, NodeKey][];
     markers: { row: number; col: number; text: string; key: NodeKey; side: 'up' | 'down' }[];
     arrowTo: Map<number, NodeKey>;      // arrowhead cell → the vertex it points at
+    kinds: Map<number, CallKind>;       // cells only calls of one kind pass (`bridge` where both kinds meet)
 }
 
 export interface RouteCost { bend: number; cross: number; border: number; adjacent: number }
+
+/** A call the runtime makes without a call expression (`implicit`), or one across languages (`bridge`, GEdge.via). */
+export type CallKind = 'implicit' | 'bridge';
 
 const STRIDE = 1 << 16;
 export const cellId = (r: number, c: number) => r * STRIDE + c;
@@ -102,7 +108,7 @@ function bends(cells: number[]): [number, number][] {
  * can join them; collector lanes enter their target from the left; routed calls arrive from the left
  * whenever the two cells before the label are free (callers' positions do not vote).
  */
-export function buildGrid(P: Placement, vg: VGraph, opts: { arrow: boolean; cost: RouteCost; first?: string[]; joint?: boolean }): Grid {
+export function buildGrid(P: Placement, vg: VGraph, opts: { arrow: boolean; cost: RouteCost; first?: string[]; joint?: boolean; kind?: (from: NodeKey, to: NodeKey) => CallKind | undefined }): Grid {
     const cells = new Map<number, Map<string, number>>();
     const srcOf = new Map<number, Set<NodeKey>>();
     const marks: Mark[] = [];
@@ -604,7 +610,21 @@ export function buildGrid(P: Placement, vg: VGraph, opts: { arrow: boolean; cost
         if (l.kind !== 'node') continue;
         for (let c = l.col; c < l.col + l.text.length; c++) if (cells.has(cellId(l.row, c))) conflicts++;
     }
-    return { width, height, cells, marks, labels, nets, paths, frames: P.frames, roots, conflicts, unrouted, failed, markers, arrowTo };
+    // cells only implicit calls or only calls across languages pass: a plain call on a cell makes it plain
+    const kinds = new Map<number, CallKind>();
+    if (opts.kind) {
+        const plain = new Set<number>();
+        for (const p of paths) {
+            if (p.fallback) continue;
+            const k = opts.kind(p.from, p.to);
+            for (const id of p.cells) {
+                if (!k) plain.add(id);
+                else kinds.set(id, kinds.get(id) === 'bridge' ? 'bridge' : k);
+            }
+        }
+        for (const id of plain) kinds.delete(id);
+    }
+    return { width, height, cells, marks, labels, nets, paths, frames: P.frames, roots, conflicts, unrouted, failed, markers, arrowTo, kinds };
 }
 
 export function cellGlyph(nets: Map<string, number>, gs: GlyphSet): string {
@@ -619,6 +639,14 @@ export function cellGlyph(nets: Map<string, number>, gs: GlyphSet): string {
     }
     if (vert && horiz && !other) return gs.cross;
     return gs.mask(union);
+}
+
+/** A straight call cell in the style of its call kind: dotted (implicit), dash and dot by cell parity (bridge). */
+function kindGlyph(glyph: string, kind: CallKind, r: number, c: number, gs: GlyphSet): string {
+    const k = gs.kinds;
+    if (glyph === gs.mask(E | W)) return kind === 'implicit' ? k.implicit.h : k.bridge.h[c % 2];
+    if (glyph === gs.mask(N | S)) return kind === 'implicit' ? k.implicit.v : k.bridge.v[r % 2];
+    return glyph;
 }
 
 function markGlyph(m: Mark, gs: GlyphSet): string {
@@ -644,7 +672,9 @@ export function charRows(g: Grid, gs: GlyphSet, blankLabels = false, withMarkers
     for (const m of g.marks) if (m.role === 'frame') put(m.row, m.col, markGlyph(m, gs));
     for (const [id, nets] of g.cells) {
         const [r, c] = cellRC(id);
-        put(r, c, cellGlyph(nets, gs));
+        const glyph = cellGlyph(nets, gs);
+        const kind = g.kinds?.get(id);
+        put(r, c, kind ? kindGlyph(glyph, kind, r, c, gs) : glyph);
     }
     for (const m of g.marks) {
         // a call crossing a frame border keeps its own glyph: the frame breaks, the call stays continuous

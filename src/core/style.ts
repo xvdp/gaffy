@@ -81,6 +81,8 @@ export interface GlyphSet {
     mask: (m: number) => string;
     cross: string;
     frame: { tl: string; tr: string; bl: string; br: string; h: string; v: string };
+    /** Straight segments of implicit calls (dotted) and of calls across languages (dash and dot, by cell parity). */
+    kinds: { implicit: { h: string; v: string }; bridge: { h: [string, string]; v: [string, string] } };
 }
 
 /** Frame glyphs per line style: dashed and dotted frames read apart from solid call lines. */
@@ -101,5 +103,8 @@ export function glyphSet(style: Style): GlyphSet {
         frame: ascii
             ? { tl: '+', tr: '+', bl: '+', br: '+', h: style.boxes.line === 'double' ? '=' : '-', v: style.boxes.line === 'double' ? 'H' : '|' }
             : FRAMES[style.boxes.line] ?? FRAMES.solid,
+        kinds: ascii
+            ? { implicit: { h: '.', v: ':' }, bridge: { h: ['-', '.'], v: ['|', '.'] } }
+            : { implicit: { h: '┈', v: '┊' }, bridge: { h: ['─', '·'], v: ['│', '·'] } },
     };
 }

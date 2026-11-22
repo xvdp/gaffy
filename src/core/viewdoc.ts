@@ -7,7 +7,7 @@
  * placement; `lock` holds absolute positions (column, row) of locked units, which the placement of
  * every unlocked unit avoids.
  */
-import { emptyGraph, NodeKey, Subgraph } from './model';
+import { ancestors, emptyGraph, NodeKey, Subgraph } from './model';
 import type { Curve } from './style';
 
 export type Direction = 'in' | 'out' | 'both';
@@ -25,6 +25,22 @@ export const boxUnit = (containerKey: string) => `box:${containerKey}`;
  * before the collapse (a class is a vertex of its own when expanded too, under its plain key).
  */
 export const collapsedUnit = (containerKey: string) => `collapsed:${containerKey}`;
+
+/**
+ * Drops the moves and locks of `container` and of everything inside it (its box, the boxes and functions in
+ * it, collapsed ones included). Offsets count from the computed place inside the box holding them; when that
+ * box dissolves or a new box forms (ungroup, group), the same offsets land at unrelated cells, so the content
+ * takes computed places in its new group instead. Moves outside the container stay.
+ */
+export function dropMovesWithin(doc: ViewDoc, container: NodeKey): void {
+    const inside = (k: NodeKey) => k === container || ancestors(doc.graph.nodes, k).includes(container);
+    for (const table of [doc.view.offset, doc.view.lock]) {
+        for (const u of Object.keys(table)) {
+            const key = u.startsWith('box:') ? u.slice(4) : u.startsWith('collapsed:') ? u.slice('collapsed:'.length) : u;
+            if (inside(key)) delete table[u];
+        }
+    }
+}
 
 export interface ViewSpec {
     seeds: NodeKey[];

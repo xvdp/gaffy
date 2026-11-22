@@ -2,7 +2,7 @@
   "name": "gaffy",
   "displayName": "gaffy",
   "description": "Persistent, manipulable call graphs on a character grid, rendered with D3",
-  "version": "0.9.20",
+  "version": "0.9.21",
   "publisher": "xvdp",
   "license": "MIT",
   "repository": {
@@ -146,7 +146,7 @@
       },
       {
         "command": "gaffy.export",
-        "title": "Export as UTF8 (.md & .txt)",
+        "title": "Save as Text (.txt, .md)",
         "category": "gaffy"
       },
       {
@@ -156,7 +156,12 @@
       },
       {
         "command": "gaffy.toggleBoxes",
-        "title": "Toggle Group Namespaces",
+        "title": "Group namespaces",
+        "category": "gaffy"
+      },
+      {
+        "command": "gaffy.toggleBoxes.checked",
+        "title": "✓ Group namespaces",
         "category": "gaffy"
       },
       {
@@ -166,12 +171,17 @@
       },
       {
         "command": "gaffy.rearrange",
-        "title": "Re-arrange Unlocked Nodes and Boxes",
+        "title": "Re-arrange",
         "category": "gaffy"
       },
       {
         "command": "gaffy.unlockAll",
-        "title": "Unlock All Positions",
+        "title": "Unlock all",
+        "category": "gaffy"
+      },
+      {
+        "command": "gaffy.expandAll",
+        "title": "Expand collapsed",
         "category": "gaffy"
       },
       {
@@ -224,20 +234,12 @@
         "title": "Hide Selection"
       },
       {
-        "command": "gaffy.sel.isolate",
-        "title": "Show Only Selection"
-      },
-      {
         "command": "gaffy.sel.rearrange",
-        "title": "Re-arrange Selection"
+        "title": "Re-arrange selected"
       },
       {
         "command": "gaffy.sel.clear",
         "title": "Clear Selection"
-      },
-      {
-        "command": "gaffy.node.hide",
-        "title": "Hide"
       },
       {
         "command": "gaffy.node.showHidden",
@@ -305,7 +307,7 @@
       },
       {
         "command": "gaffy.edge.callee",
-        "title": "Go to Called Symbol"s
+        "title": "Go to Called Symbol"
       },
       {
         "command": "gaffy.resetLayout",
@@ -371,17 +373,17 @@
       },
       {
         "command": "gaffy.view.save",
-        "title": "Save Graph",
+        "title": "Save (.gaffy)",
         "category": "gaffy"
       },
       {
         "command": "gaffy.tightBoxes",
-        "title": "Tight Boxes",
+        "title": "Tight groups",
         "category": "gaffy"
       },
       {
         "command": "gaffy.tightBoxes.checked",
-        "title": "✓ Tight Boxes",
+        "title": "✓ Tight groups",
         "category": "gaffy"
       },
       {
@@ -443,32 +445,92 @@
       "webview/context": [
         {
           "command": "gaffy.view.save",
-          "when": "webviewId == 'gaffy.view' && unsaved",
-          "group": "0_save@1"
+          "when": "webviewId == 'gaffy.view' && webviewSection == 'canvas' && !config.gaffy.saveViews",
+          "group": "1_file@1"
         },
         {
           "command": "gaffy.toggleSaveViews",
-          "when": "webviewId == 'gaffy.view' && !config.gaffy.saveViews",
-          "group": "0_save@2"
+          "when": "webviewId == 'gaffy.view' && webviewSection == 'canvas' && !config.gaffy.saveViews",
+          "group": "1_file@2"
         },
         {
           "command": "gaffy.toggleSaveViews.checked",
-          "when": "webviewId == 'gaffy.view' && config.gaffy.saveViews",
-          "group": "0_save@2"
+          "when": "webviewId == 'gaffy.view' && webviewSection == 'canvas' && config.gaffy.saveViews",
+          "group": "1_file@2"
+        },
+        {
+          "command": "gaffy.export",
+          "when": "webviewId == 'gaffy.view' && webviewSection == 'canvas'",
+          "group": "1_file@3"
+        },
+        {
+          "command": "gaffy.refresh",
+          "when": "webviewId == 'gaffy.view' && webviewSection == 'canvas'",
+          "group": "1_file@4"
+        },
+        {
+          "command": "gaffy.isolateSelection",
+          "when": "webviewId == 'gaffy.view' && webviewSection == 'canvas'",
+          "group": "2_selection@1"
+        },
+        {
+          "command": "gaffy.sel.clear",
+          "when": "webviewId == 'gaffy.view' && webviewSection == 'canvas'",
+          "group": "2_selection@2"
+        },
+        {
+          "command": "gaffy.toggleBoxes",
+          "when": "webviewId == 'gaffy.view' && webviewSection == 'canvas' && !boxes",
+          "group": "3_arrange@1"
+        },
+        {
+          "command": "gaffy.toggleBoxes.checked",
+          "when": "webviewId == 'gaffy.view' && webviewSection == 'canvas' && boxes",
+          "group": "3_arrange@1"
         },
         {
           "command": "gaffy.tightBoxes",
-          "when": "webviewId == 'gaffy.view' && webviewSection =~ /^(canvas|box)$/ && !tight",
-          "group": "9_view@11"
+          "when": "webviewId == 'gaffy.view' && webviewSection == 'canvas' && !tight",
+          "group": "3_arrange@2"
         },
         {
           "command": "gaffy.tightBoxes.checked",
-          "when": "webviewId == 'gaffy.view' && webviewSection =~ /^(canvas|box)$/ && tight",
-          "group": "9_view@11"
+          "when": "webviewId == 'gaffy.view' && webviewSection == 'canvas' && tight",
+          "group": "3_arrange@2"
+        },
+        {
+          "command": "gaffy.resetView",
+          "when": "webviewId == 'gaffy.view' && webviewSection == 'canvas'",
+          "group": "3_arrange@3"
+        },
+        {
+          "command": "gaffy.resetLayout",
+          "when": "webviewId == 'gaffy.view' && webviewSection == 'canvas'",
+          "group": "3_arrange@4"
+        },
+        {
+          "command": "gaffy.rearrange",
+          "when": "webviewId == 'gaffy.view' && webviewSection == 'canvas' && !selected",
+          "group": "3_arrange@5"
+        },
+        {
+          "command": "gaffy.sel.rearrange",
+          "when": "webviewId == 'gaffy.view' && webviewSection == 'canvas' && selected",
+          "group": "3_arrange@5"
+        },
+        {
+          "command": "gaffy.unlockAll",
+          "when": "webviewId == 'gaffy.view' && webviewSection == 'canvas'",
+          "group": "3_arrange@6"
+        },
+        {
+          "command": "gaffy.expandAll",
+          "when": "webviewId == 'gaffy.view' && webviewSection == 'canvas'",
+          "group": "3_arrange@7"
         },
         {
           "command": "gaffy.node.open",
-          "when": "webviewId == 'gaffy.view' && webviewSection =~ /^(node|collapsed)$/",
+          "when": "webviewId == 'gaffy.view' && webviewSection =~ /^(node|collapsed)$/ && !config.gaffy.openDefinitions",
           "group": "1_nav@1"
         },
         {
@@ -487,14 +549,49 @@
           "group": "1_nav@4"
         },
         {
+          "command": "gaffy.node.revealInExplorer",
+          "when": "webviewId == 'gaffy.view' && webviewSection =~ /^(node|collapsed|box)$/",
+          "group": "1_nav@5"
+        },
+        {
+          "command": "gaffy.node.copyPath",
+          "when": "webviewId == 'gaffy.view' && webviewSection =~ /^(node|collapsed|box)$/",
+          "group": "1_nav@6"
+        },
+        {
+          "command": "gaffy.node.copyQualname",
+          "when": "webviewId == 'gaffy.view' && webviewSection =~ /^(node|collapsed|box)$/",
+          "group": "1_nav@7"
+        },
+        {
+          "command": "gaffy.node.openCallers",
+          "when": "webviewId == 'gaffy.view' && webviewSection =~ /^(node|collapsed)$/ && oneLayer",
+          "group": "2_graph@1"
+        },
+        {
+          "command": "gaffy.node.openCalls",
+          "when": "webviewId == 'gaffy.view' && webviewSection =~ /^(node|collapsed)$/ && oneLayer",
+          "group": "2_graph@2"
+        },
+        {
+          "command": "gaffy.node.closeCallers",
+          "when": "webviewId == 'gaffy.view' && webviewSection =~ /^(node|collapsed)$/ && oneLayer",
+          "group": "2_graph@3"
+        },
+        {
+          "command": "gaffy.node.closeCalls",
+          "when": "webviewId == 'gaffy.view' && webviewSection =~ /^(node|collapsed)$/ && oneLayer",
+          "group": "2_graph@4"
+        },
+        {
           "command": "gaffy.node.makeSeed",
           "when": "webviewId == 'gaffy.view' && webviewSection =~ /^(node)$/",
-          "group": "2_graph@3"
+          "group": "2_graph@5"
         },
         {
           "command": "gaffy.node.removeSeed",
           "when": "webviewId == 'gaffy.view' && webviewSection =~ /^(node)$/",
-          "group": "2_graph@4"
+          "group": "2_graph@6"
         },
         {
           "command": "gaffy.sel.upstream",
@@ -517,29 +614,24 @@
           "group": "3_select@4"
         },
         {
-          "command": "gaffy.sel.hide",
+          "command": "gaffy.sel.clear",
           "when": "webviewId == 'gaffy.view' && webviewSection =~ /^(node|collapsed)$/",
           "group": "3_select@5"
         },
         {
-          "command": "gaffy.sel.isolate",
+          "command": "gaffy.isolateSelection",
           "when": "webviewId == 'gaffy.view' && webviewSection =~ /^(node|collapsed)$/",
-          "group": "3_select@6"
+          "group": "4_show@1"
         },
         {
-          "command": "gaffy.sel.clear",
-          "when": "webviewId == 'gaffy.view' && webviewSection =~ /^(node|collapsed|canvas)$/",
-          "group": "3_select@7"
-        },
-        {
-          "command": "gaffy.node.hide",
+          "command": "gaffy.sel.hide",
           "when": "webviewId == 'gaffy.view' && webviewSection =~ /^(node|collapsed)$/",
-          "group": "4_hide@1"
+          "group": "4_show@2"
         },
         {
           "command": "gaffy.node.showHidden",
           "when": "webviewId == 'gaffy.view' && webviewSection =~ /^(node|collapsed)$/",
-          "group": "4_hide@2"
+          "group": "4_show@3"
         },
         {
           "command": "gaffy.node.collapseClass",
@@ -560,6 +652,21 @@
           "command": "gaffy.node.expandContainer",
           "when": "webviewId == 'gaffy.view' && webviewSection =~ /^(collapsed)$/",
           "group": "5_collapse@4"
+        },
+        {
+          "command": "gaffy.node.groupModule",
+          "when": "webviewId == 'gaffy.view' && webviewSection =~ /^(node|collapsed)$/",
+          "group": "5_collapse@5"
+        },
+        {
+          "command": "gaffy.node.ungroup",
+          "when": "webviewId == 'gaffy.view' && webviewSection =~ /^(box)$/",
+          "group": "5_collapse@6"
+        },
+        {
+          "command": "gaffy.node.groupInside",
+          "when": "webviewId == 'gaffy.view' && webviewSection =~ /^(box)$/",
+          "group": "5_collapse@7"
         },
         {
           "command": "gaffy.sel.rearrange",
@@ -592,54 +699,9 @@
           "group": "6_place@5"
         },
         {
-          "command": "gaffy.node.revealInExplorer",
-          "when": "webviewId == 'gaffy.view' && webviewSection =~ /^(node|collapsed|box)$/",
-          "group": "7_file@1"
-        },
-        {
-          "command": "gaffy.node.copyPath",
-          "when": "webviewId == 'gaffy.view' && webviewSection =~ /^(node|collapsed|box)$/",
-          "group": "7_file@2"
-        },
-        {
-          "command": "gaffy.node.copyQualname",
-          "when": "webviewId == 'gaffy.view' && webviewSection =~ /^(node|collapsed|box)$/",
-          "group": "7_file@3"
-        },
-        {
-          "command": "gaffy.refresh",
-          "when": "webviewId == 'gaffy.view'",
-          "group": "9_view@1"
-        },
-        {
-          "command": "gaffy.toggleBoxes",
-          "when": "webviewId == 'gaffy.view'",
-          "group": "9_view@3"
-        },
-        {
-          "command": "gaffy.toggleEdges",
-          "when": "webviewId == 'gaffy.view'",
-          "group": "9_view@4"
-        },
-        {
-          "command": "gaffy.rearrange",
-          "when": "webviewId == 'gaffy.view'",
-          "group": "9_view@5"
-        },
-        {
-          "command": "gaffy.unlockAll",
-          "when": "webviewId == 'gaffy.view'",
-          "group": "9_view@6"
-        },
-        {
-          "command": "gaffy.unhideAll",
-          "when": "webviewId == 'gaffy.view'",
-          "group": "9_view@7"
-        },
-        {
-          "command": "gaffy.export",
-          "when": "webviewId == 'gaffy.view'",
-          "group": "9_view@8"
+          "command": "gaffy.edge.straighten",
+          "when": "webviewId == 'gaffy.view' && webviewSection == 'edge'",
+          "group": "1_call@0"
         },
         {
           "command": "gaffy.edge.subtree",
@@ -660,66 +722,6 @@
           "command": "gaffy.edge.callee",
           "when": "webviewId == 'gaffy.view' && webviewSection == 'edge'",
           "group": "2_go@2"
-        },
-        {
-          "command": "gaffy.showAll",
-          "when": "webviewId == 'gaffy.view'",
-          "group": "9_view@8"
-        },
-        {
-          "command": "gaffy.resetLayout",
-          "when": "webviewId == 'gaffy.view'",
-          "group": "9_view@9"
-        },
-        {
-          "command": "gaffy.node.groupModule",
-          "when": "webviewId == 'gaffy.view' && webviewSection =~ /^(node|collapsed)$/",
-          "group": "5_collapse@5"
-        },
-        {
-          "command": "gaffy.node.ungroup",
-          "when": "webviewId == 'gaffy.view' && webviewSection =~ /^(box)$/",
-          "group": "5_collapse@6"
-        },
-        {
-          "command": "gaffy.node.groupInside",
-          "when": "webviewId == 'gaffy.view' && webviewSection =~ /^(box)$/",
-          "group": "5_collapse@7"
-        },
-        {
-          "command": "gaffy.isolateSelection",
-          "when": "webviewId == 'gaffy.view'",
-          "group": "9_view@0"
-        },
-        {
-          "command": "gaffy.resetView",
-          "when": "webviewId == 'gaffy.view'",
-          "group": "9_view@10"
-        },
-        {
-          "command": "gaffy.node.openCallers",
-          "when": "webviewId == 'gaffy.view' && webviewSection =~ /^(node|collapsed)$/ && oneLayer",
-          "group": "2_graph@-4"
-        },
-        {
-          "command": "gaffy.node.openCalls",
-          "when": "webviewId == 'gaffy.view' && webviewSection =~ /^(node|collapsed)$/ && oneLayer",
-          "group": "2_graph@-3"
-        },
-        {
-          "command": "gaffy.node.closeCallers",
-          "when": "webviewId == 'gaffy.view' && webviewSection =~ /^(node|collapsed)$/ && oneLayer",
-          "group": "2_graph@-2"
-        },
-        {
-          "command": "gaffy.node.closeCalls",
-          "when": "webviewId == 'gaffy.view' && webviewSection =~ /^(node|collapsed)$/ && oneLayer",
-          "group": "2_graph@-1"
-        },
-        {
-          "command": "gaffy.edge.straighten",
-          "when": "webviewId == 'gaffy.view' && webviewSection == 'edge'",
-          "group": "1_call@0"
         }
       ],
       "commandPalette": [
@@ -776,15 +778,7 @@
           "when": "false"
         },
         {
-          "command": "gaffy.sel.isolate",
-          "when": "false"
-        },
-        {
           "command": "gaffy.sel.clear",
-          "when": "false"
-        },
-        {
-          "command": "gaffy.node.hide",
           "when": "false"
         },
         {
@@ -893,6 +887,10 @@
         },
         {
           "command": "gaffy.sel.rearrange",
+          "when": "false"
+        },
+        {
+          "command": "gaffy.toggleBoxes.checked",
           "when": "false"
         }
       ]

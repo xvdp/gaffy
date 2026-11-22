@@ -68,7 +68,8 @@ const simulate = () => {
   }
   if (params.get('key')) document.getElementById('graph').dispatchEvent(new KeyboardEvent('keydown', { key: params.get('key'), bubbles: true }));
   // steps=a|b|…, in order: marker=<name>:<up|down>, isolate=<caller>,<callee>, arrow=<name>, sel=<name>, key=<key>,
-  // dbl=<name> (double click a label), drag=<name>,<dx>,<dy> (pixels), dump=<name>,… (collapsed, their offsets and label cells; shown in #log)
+  // dbl=<name> (double click a label), drag=<name>,<dx>,<dy> (pixels), dump=<name>,… (collapsed, their offsets and label cells; shown in #log),
+  // opt=<label start> (click an Options entry)
   const dumps = [];
   for (const step of (params.get('steps') || '').split('|').filter(Boolean)) {
     const [kind, arg] = step.split('=');
@@ -94,7 +95,13 @@ const simulate = () => {
       const key = Object.keys(JSON.parse(text).graph.nodes).find((x) => x.endsWith('#' + name));
       window.dispatchEvent(new MessageEvent('message', { data: { type: 'cmd', cmd, key } }));
     } else if (kind === 'key') document.getElementById('graph').dispatchEvent(new KeyboardEvent('keydown', { key: arg, bubbles: true }));
-    else if (kind === 'dbl') {
+    else if (kind === 'opt') {
+      // Options > the entry whose label starts with the text
+      const open = document.querySelector('#toolbar .opts button');
+      if (!document.querySelector('#toolbar .panel')) fire(open);
+      const row = [...document.querySelectorAll('#toolbar .panel .item')].find((x) => x.textContent.replace(/^[✓●○]/, '').startsWith(decodeURIComponent(arg)));
+      if (row) fire(row); else log({ sim: 'no option ' + arg });
+    } else if (kind === 'dbl') {
       const g = labelOf(arg);
       if (g) fire(g, 'dblclick'); else log({ sim: 'no label ' + arg });
     } else if (kind === 'drag') {

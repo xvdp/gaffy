@@ -36,12 +36,12 @@ export interface Scene {
     hasMore: (k: NodeKey, side: 'up' | 'down') => boolean;   // neighbors on that side not on screen
     hiddenOn: (k: NodeKey, side: 'up' | 'down') => NodeKey[]; // hidden neighbors and ends of removed calls on that side
     hiddenPath: (k: NodeKey) => NodeKey[];                   // hidden functions on k's way from the seeds
-    decor: Map<NodeKey, Decor>;          // label parts around the name: disclosure markers, tag, hidden badge
+    decor: Map<NodeKey, Decor>;          // label parts around the name: disclosure marker, tag
     offsets: Record<string, Cell>;       // unit moves drawn: the view's, with moved units settled off content (settle.ts)
 }
 
-/** Label = pre + name + post + badge. */
-export interface Decor { pre: string; post: string; badge: string }
+/** Label = pre + name + post. */
+export interface Decor { pre: string; post: string }
 
 /** Marker row of vertex `k` (virtual vertex of the drawn graph). */
 const STUB = '\u22efmore:';
@@ -161,13 +161,13 @@ export function buildScene(doc: ViewDoc, style: Style, exclude: readonly RegExp[
     const decor = new Map<NodeKey, Decor>();
     for (const k of vg.nodes.keys()) {
         const tag = view.tags[k];
-        decor.set(k, { pre: marked(k, 'up') ? '>> ' : '', post: tag ? ` [${tag}]` : '', badge: '' });
+        decor.set(k, { pre: marked(k, 'up') ? '>> ' : '', post: tag ? ` [${tag}]` : '' });
     }
     const label = (k: NodeKey) => {
         if (isStub(k)) return '';
         const v = vg.nodes.get(k)!;
         const d = decor.get(k)!;
-        return visible(d.pre + nodeLabel(v.node ?? fallbackNode(k), labelOpts, boxes.get(k)?.ns ?? '', v.members, v.collapsed) + d.post + d.badge);
+        return visible(d.pre + nodeLabel(v.node ?? fallbackNode(k), labelOpts, boxes.get(k)?.ns ?? '', v.members, v.collapsed) + d.post);
     };
     const shortName = (k: NodeKey) => {
         if (isStub(k)) return '';
@@ -211,7 +211,10 @@ export function buildScene(doc: ViewDoc, style: Style, exclude: readonly RegExp[
         if (p) markers.push({ row: p.row, col: p.col - 1, text: '>', key: k, side: 'down' });
     }
     if (markers.length) placement.markers = markers;
+    // implicit calls and calls across languages keep their style on the grid (text: dotted, dash-dot)
+    const kindOf = new Map(graph.edges.filter((e) => e.via || e.implicit).map((e) => [`${e.from}\u0000${e.to}`, e.via ? 'bridge' as const : 'implicit' as const]));
     const grid = buildGrid(placement, drawn, {
+        kind: (a, b) => kindOf.get(`${a}\u0000${b}`),
         arrow: style.edges.arrow,
         first: view.straight,
         joint: (view.parentRule ?? style.grid.parentRule) === 'joint',

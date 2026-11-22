@@ -6,7 +6,7 @@ import { nodeLabel } from '../src/core/labels';
 import { GNode, plain, visible } from '../src/core/model';
 import { buildScene, Scene, unitAnchor, unitMembers } from '../src/core/scene';
 import { deepMerge, DEFAULT_STYLE, glyphSet, Style } from '../src/core/style';
-import { boxUnit, collapsedUnit, excludedBy, globToRegExp, parseDoc, serializeDoc, ViewDoc } from '../src/core/viewdoc';
+import { boxUnit, collapsedUnit, dropMovesWithin, excludedBy, globToRegExp, parseDoc, serializeDoc, ViewDoc } from '../src/core/viewdoc';
 import { frontierOf } from '../src/core/scene';
 import { fixtureDoc, k, KAZOO, MOO, STAR } from './fixtures';
 
@@ -287,7 +287,6 @@ describe('one layer at a time: open sides, direction, markers, removal', () => {
         const s2 = buildScene(d2, boxed());
         invariants(s2);
         expect(marked(s2).has('scoobie:down')).toBe(true);
-        expect(s2.decor.get(seed)!.badge).toBe('');                  // no count in this arrangement
         const s0 = buildScene(base(), boxed());
         expect(marked(s0).has('scoobie:down')).toBe(false);
     });
@@ -676,5 +675,41 @@ describe('moves stay local', () => {
         const sc = buildScene(doc, DEFAULT_STYLE, [], true);
         invariants(sc);
         expect(sc.placement.height).toBeLessThan(buildScene(unmoved, DEFAULT_STYLE, [], true).placement.height + 60);
+    });
+});
+
+describe('grouping changes drop the moves inside', () => {
+    // offsets count from the computed place inside their box: with the box dissolved they would land elsewhere
+    it('ungroup: moves and locks inside the container go, moves outside stay', () => {
+        const doc = fixtureDoc(KAZOO, { seeds: [k('kazoo.moomoo.boogaloos:scoobie')], direction: 'out' });
+        const box = 'dir:kazoo/noodles';
+        const inner = k('kazoo.noodles.wibbles:mister_magoos'), outer = k('kazoo.moomoo.boogaloos:scoobie');
+        doc.view.offset = { [boxUnit(box)]: [5, 9], [inner]: [3, -4], [outer]: [2, 0], [collapsedUnit('py:kazoo/noodles/wibbles.py')]: [1, 1] };
+        doc.view.lock = { [inner]: [40, 3] };
+        doc.view.ungroup = [box];
+        dropMovesWithin(doc, box);
+        expect(doc.view.offset).toEqual({ [outer]: [2, 0] });
+        expect(doc.view.lock).toEqual({});
+        invariants(buildScene(doc, boxed()));
+    });
+});
+
+describe('call kinds on the grid', () => {
+    // implicit calls dotted, calls across languages dash and dot: in the text export as in the vector styles
+    it('cells only implicit or only bridged calls pass take the kind glyphs; the picture is otherwise the same', () => {
+        const doc = fixtureDoc(STAR, { seeds: [k('foo.wobble:jiggly_boogaloos'), k('scripts/moo_trucks:moonwalk')], direction: 'out' });
+        const plain = toText(buildScene(doc, flat()).grid, glyphSet(flat()));
+        const marked = structuredClone(doc);
+        marked.graph.edges = marked.graph.edges.map((e, i) => (i === 0 ? { ...e, implicit: 'construction' as const } : i === 1 ? { ...e, via: 'pybind11: m.def' } : e));
+        const sc = buildScene(marked, flat());
+        invariants(sc);
+        const text = toText(sc.grid, glyphSet(flat()));
+        expect(new Set(sc.grid.kinds.values())).toEqual(new Set(['implicit', 'bridge']));
+        expect(/[┈┊]/.test(text) && text.includes('·')).toBe(true);
+        // the same cells, plain glyphs in place of the kind glyphs
+        expect(text.replace(/┈/g, '─').replace(/┊/g, '│').split('\n').map((l, r) => [...l].map((ch, c) => (ch === '·' ? plain.split('\n')[r][c] : ch)).join('')).join('\n')).toBe(plain);
+        // a kind cell carries calls of that kind only
+        const kindOf = (p: { from: string; to: string }) => marked.graph.edges.find((e) => e.from === p.from && e.to === p.to);
+        for (const [id] of sc.grid.kinds) for (const p of sc.grid.paths.filter((q) => q.cells.includes(id))) expect(kindOf(p)?.implicit || kindOf(p)?.via).toBeTruthy();
     });
 });

@@ -11,10 +11,10 @@ import { select } from 'd3-selection';
 import { curveBasis, line } from 'd3-shape';
 import { zoom, zoomIdentity } from 'd3-zoom';
 import { cellId, cellRC, charRows, EdgePath, Grid, LabelSpan } from '../core/grid';
-import { ancestors, isContainer, NodeKey, visible } from '../core/model';
+import { ancestors, GNode, isContainer, NodeKey, visible } from '../core/model';
 import { buildScene, isStub, Scene, siblingsOf, unitAnchor, unitMembers } from '../core/scene';
 import { Curve, E, glyphSet, N, S, Style, W } from '../core/style';
-import { collapsedUnit, Depth, excludedBy, globToRegExp, OpenSide, parseDoc, ROOTS, serializeDoc, ViewDoc } from '../core/viewdoc';
+import { collapsedUnit, Depth, dropMovesWithin, excludedBy, globToRegExp, isStandard, OpenSide, parseDoc, ROOTS, serializeDoc, ViewDoc } from '../core/viewdoc';
 import { opens, seedSide, within } from '../core/reveal';
 
 interface VsApi { postMessage(m: unknown): void; getState(): any; setState(s: unknown): void }
@@ -110,12 +110,13 @@ window.addEventListener('message', (ev) => {
     const m = ev.data;
     if (m.type === 'state') {
         busy = !!m.busy;
+        // a changed setting or gaffy.exclude redraws at once, with the same document
+        const was = JSON.stringify([settings, excludeGlobs]);
         excludeGlobs = m.exclude ?? excludeGlobs;
         excludeRx = excludeGlobs.map(globToRegExp);
-        const was = JSON.stringify(settings);
         settings = m.settings ?? settings;
         pageContext();
-        if (JSON.stringify(settings) !== was && doc) { render(); }
+        if (JSON.stringify([settings, excludeGlobs]) !== was && doc) { render(); }
         const st = JSON.stringify(m.style);
         if (m.text === text && st === styleText && doc) { status(); toolbar(); return; }
         text = m.text;
@@ -211,8 +212,24 @@ const Y = (y: number) => y * ch;
 const DIRS = [[-1, 0, N], [1, 0, S], [0, 1, E], [0, -1, W]] as const;   // dr, dc, bit
 const OPPOSITE: Record<number, number> = { [N]: S, [S]: N, [E]: W, [W]: E };
 
+/** Radius of a hop: a horizontal call line over a vertical one it crosses (orthogonal and rounded edges). */
+const hopRadius = () => Math.min(cw, ch) * 0.525;
+
+/** A crossing cell: some net runs N|S, another E|W, none turns or joins there. */
+function crossing(nets: Map<string, number>): boolean {
+    let hasV = false, hasH = false;
+    for (const om of nets.values()) {
+        if (om === (N | S)) hasV = true;
+        else if (om === (E | W)) hasH = true;
+        else return false;
+    }
+    return hasV && hasH;
+}
+
 /**
- * Orthogonal vector paths per net from the grid masks.
+ * Orthogonal vector paths per net from the grid masks, without the cells only implicit calls or only calls
+ * across languages pass (`Grid.kinds`): those calls are drawn whole (`curvePath`), since a dash pattern restarts
+ * on every subpath and per-cell pieces shorter than a dash would draw solid.
  * Crossing of two calls (one cell, one net running N|S, another E|W): the horizontal line hops over
  * the vertical one with a half circle. Junction (three or more directions within one net): each branch
  * bends into the root-side direction with a quarter curve, the flow direction (towards the callee for
@@ -226,7 +243,7 @@ function maskPaths(g: Grid): Map<string, string> {
         c.set(id, m);
     }
     const out = new Map<string, string>();
-    const hop = Math.min(cw, ch) * 0.35;
+    const hop = hopRadius();
     for (const [net, cells] of byNet) {
         // distance from the root along connected masks
         const dist = new Map<number, number>();
@@ -250,19 +267,12 @@ function maskPaths(g: Grid): Map<string, string> {
         }
         const segs: string[] = [];
         for (const [id, m] of cells) {
+            if (g.kinds.has(id)) continue;
             const [r, c] = cellRC(id);
             const x = (c + 0.5) * cw, y = (r + 0.5) * ch;
             const edge = (bit: number): [number, number] =>
                 bit === N ? [x, r * ch] : bit === S ? [x, (r + 1) * ch] : bit === E ? [(c + 1) * cw, y] : [c * cw, y];
-            // a crossing: some net runs N|S, another E|W, none turns or joins here
-            const others = g.cells.get(id)!;
-            let hasV = false, hasH = false, plain = true;
-            for (const om of others.values()) {
-                if (om === (N | S)) hasV = true;
-                else if (om === (E | W)) hasH = true;
-                else plain = false;
-            }
-            if (hasV && hasH && plain && m === (E | W)) {
+            if (m === (E | W) && crossing(g.cells.get(id)!)) {
                 segs.push(`M${c * cw},${y}H${x - hop}A${hop},${hop} 0 0 1 ${x + hop},${y}H${(c + 1) * cw}`);
                 continue;
             }
@@ -290,7 +300,7 @@ function maskPaths(g: Grid): Map<string, string> {
     return out;
 }
 
-/** One call as an SVG path: polyline with rounded corners, sigmoid S-curves, or a B-spline. */
+/** One call as an SVG path: polyline with rounded corners (square for orthogonal) and hops, sigmoid S-curves, or a B-spline. */
 function curvePath(p: EdgePath, curve: Curve): string {
     const pts = p.pts.map(([x, y]) => [X(x), Y(y)] as [number, number]);
     if (curve === 'spline') return line().curve(curveBasis)(pts) ?? '';
@@ -309,19 +319,38 @@ function curvePath(p: EdgePath, curve: Curve): string {
         const c2 = p.arrive === 'E' ? [b[0] - kx, b[1]] : [b[0] + kx, b[1]];
         return `M${x0},${y0}L${a[0]},${a[1]}C${c1[0]},${c1[1]} ${c2[0]},${c2[1]} ${b[0]},${b[1]}L${x1},${y1}`;
     }
-    // rounded corners
-    const r = Math.min(cw, ch) * 0.9;
+    // rounded corners (orthogonal: square); a horizontal run hops over the vertical lines it crosses (`crossing`)
+    const r = curve === 'orthogonal' ? 0 : Math.min(cw, ch) * 0.9;
+    const hop = hopRadius();
+    const g = scene?.grid;
+    const hops = !g ? [] : p.cells.filter((id) => g.cells.get(id)?.get(p.net) === (E | W) && crossing(g.cells.get(id)!))
+        .map((id) => { const [hr, hc] = cellRC(id); return [(hc + 0.5) * cw, (hr + 0.5) * ch]; });
     let d = `M${pts[0][0]},${pts[0][1]}`;
+    let cur = pts[0];
+    const to = (x: number, y: number) => {
+        const dir = Math.sign(x - cur[0]);
+        if (dir && Math.abs(y - cur[1]) < 1e-6) {
+            for (const [hx] of hops.filter(([hx, hy]) => Math.abs(hy - y) < 1e-6 && (hx - cur[0]) * dir > hop && (x - hx) * dir > hop)
+                .sort((a, b) => (a[0] - b[0]) * dir)) {
+                d += `L${hx - dir * hop},${y}A${hop},${hop} 0 0 ${dir > 0 ? 1 : 0} ${hx + dir * hop},${y}`;
+            }
+        }
+        d += `L${x},${y}`;
+        cur = [x, y];
+    };
     for (let i = 1; i < pts.length - 1; i++) {
         const [ax, ay] = pts[i - 1], [bx, by] = pts[i], [cx, cy] = pts[i + 1];
         const l1 = Math.hypot(bx - ax, by - ay), l2 = Math.hypot(cx - bx, cy - by);
         const k = Math.min(r, l1 / 2, l2 / 2);
         const p1 = [bx - ((bx - ax) / (l1 || 1)) * k, by - ((by - ay) / (l1 || 1)) * k];
         const p2 = [bx + ((cx - bx) / (l2 || 1)) * k, by + ((cy - by) / (l2 || 1)) * k];
-        d += `L${p1[0]},${p1[1]}Q${bx},${by} ${p2[0]},${p2[1]}`;
+        to(p1[0], p1[1]);
+        d += `Q${bx},${by} ${p2[0]},${p2[1]}`;
+        cur = [p2[0], p2[1]];
     }
     const last = pts[pts.length - 1];
-    return d + `L${last[0]},${last[1]}`;
+    to(last[0], last[1]);
+    return d;
 }
 
 function hue(key: string): number {
@@ -332,9 +361,12 @@ function hue(key: string): number {
 
 // ---- render -------------------------------------------------------------------------------------
 /** Menu context of the whole page: `unsaved` shows right click > Save, `tight` checks right click > Tight Boxes. */
+/** Context keys of the canvas menu (package.json `when`): checkmarks of the toggles, a selection for Re-arrange. */
 function pageContext() {
     const tight = doc?.view.tight ?? style?.boxes.tight ?? true;
-    document.body.setAttribute('data-vscode-context', JSON.stringify({ webviewSection: 'canvas', preventDefaultContextMenuItems: true, unsaved: settings.untitled, tight }));
+    const boxes = doc?.view.boxes ?? style?.boxes.enabled ?? true;
+    document.body.setAttribute('data-vscode-context', JSON.stringify({ webviewSection: 'canvas', preventDefaultContextMenuItems: true,
+        unsaved: settings.untitled, tight, boxes, selected: selected.size > 0 }));
 }
 
 function render() {
@@ -404,6 +436,8 @@ function render() {
             .text((d) => d.t);
     } else if (curve === 'orthogonal') {
         for (const [net, d] of maskPaths(g)) ge.append('path').attr('class', 'net').attr('data-net', net).attr('d', d);
+        // implicit calls and calls across languages: whole, dotted and dash-dot (their cells are not in the masks)
+        for (const p of g.paths) if (!p.fallback && (implicitOf(p) || viaOf(p))) ge.append('path').attr('class', edgeClass(p)).attr('d', curvePath(p, 'orthogonal'));
         for (const m of g.marks) arrowhead(ge, m.col + 0.5, m.row + 0.5, m.role === 'arrowE' ? 1 : m.role === 'arrowW' ? -1 : 0);
     } else {
         for (const p of g.paths) {
@@ -483,8 +517,8 @@ function render() {
         }));
     nodes.append('rect').attr('class', 'hit').attr('x', -2).attr('y', 0).attr('width', (d) => d.text.length * cw + 4).attr('height', ch).attr('rx', 2);
     nodes.append('text').attr('y', ch / 2).each(function (d) {
-        const dec = sc.decor.get(d.key) ?? { pre: '', post: '', badge: '' };
-        const base = d.text.slice(dec.pre.length, d.text.length - dec.post.length - dec.badge.length);
+        const dec = sc.decor.get(d.key) ?? { pre: '', post: '' };
+        const base = d.text.slice(dec.pre.length, d.text.length - dec.post.length);
         const t = select(this);
         if (dec.pre) {
             t.append('tspan').attr('class', markerLive(d.key, 'up') ? 'twisty' : 'twisty off').text(dec.pre)
@@ -493,8 +527,6 @@ function render() {
         }
         t.append('tspan').text(base);
         if (dec.post) t.append('tspan').text(dec.post);
-        if (dec.badge) t.append('tspan').attr('class', 'badge').text(dec.badge)
-            .on('click', (ev: MouseEvent) => { ev.stopPropagation(); api.postMessage({ type: 'hiddenNeighbors', key: d.key, keys: sc.hiddenOf.get(d.key) }); });
     });
     nodes.append('title').text((d) => tooltip(d));
     nodes
@@ -600,7 +632,7 @@ function afterRender() {
     commit((x) => { x.view.offset = settled; });
 }
 
-const VERTICAL = new Set('│├┤┌┐└┘┬┴┼|+`');
+const VERTICAL = new Set('│├┤┌┐└┘┬┴┼|+`┊:');
 
 /** Path data of one call in the current edge style. */
 function callD(p: EdgePath): string {
@@ -1084,9 +1116,10 @@ function runCmd(cmd: string, key?: NodeKey, unit?: string, to?: NodeKey) {
         }
         case 'callPath': if (need(call, NO_CALL)) isolate(new Set([...reachDrawn(call!.from, 'up'), ...reachDrawn(call!.to, 'down')])); return;
         case 'isolateSelection': {
-            if (!need(selCalls.size || selected.size, NO_SEL)) return;
+            // the selected calls, else the selected functions, else the function right clicked or focused
+            if (!need(selCalls.size || selected.size || k, NO_SEL)) return;
             if (selCalls.size) isolateCalls([...selCalls].map(unkey));
-            else if (selected.size) isolate(new Set(selected));
+            else isolate(new Set(selected.size ? selected : [k!]));
             return;
         }
         case 'resetView':
@@ -1171,11 +1204,6 @@ function runCmd(cmd: string, key?: NodeKey, unit?: string, to?: NodeKey) {
             hide(sel);
             return;
         }
-        case 'isolate': {
-            if (!need(selected.size || k, NO_SEL)) return;
-            isolate(selected.size ? new Set(selected) : new Set(k ? [k] : []));
-            return;
-        }
         case 'clearSelection': selected.clear(); selCalls.clear(); break;
         case 'showHidden': {
             const hid = k ? scene.hiddenOf.get(k) : undefined;
@@ -1203,14 +1231,9 @@ function runCmd(cmd: string, key?: NodeKey, unit?: string, to?: NodeKey) {
             commit((x) => { for (const s0 of keys) for (const u of [s0, collapsedUnit(s0)]) { delete x.view.offset[u]; delete x.view.lock[u]; } });
             return;
         }
-        case 'rearrange':
-            // selected nodes only, else every unlocked move
-            commit((x) => {
-                if (selected.size) for (const k of selected) { delete x.view.offset[k]; delete x.view.offset[collapsedUnit(k)]; }
-                else x.view.offset = {};
-            });
-            return;
+        case 'rearrange': commit((x) => { x.view.offset = {}; }); return;   // every unlocked move; a selection: 'rearrangeSelection'
         case 'unlockAll': commit((x) => { x.view.lock = {}; }); return;
+        case 'expandAll': if (need(doc.view.collapsed.length, `${cmd}: nothing is collapsed`)) commit((x) => { x.view.collapsed = []; }); return;
     }
     render();
 }
@@ -1311,7 +1334,7 @@ svg.on('keydown', (ev: KeyboardEvent) => {
         case 'Delete': case 'Backspace': runCmd('remove'); break;
         case 'h': runCmd('hideSelection'); break;
         case 'a': runCmd(selected.size ? 'rearrangeSelection' : 'rearrange'); break;
-        case 'i': runCmd('isolate'); break;
+        case 'i': runCmd('isolateSelection'); break;
         case 'Escape':
             // a selection first, then everything hidden or removed
             if (selected.size || selCalls.size) runCmd('clearSelection');
@@ -1334,17 +1357,33 @@ svg.on('keydown', (ev: KeyboardEvent) => {
 type Btn = { label: string; title: string; on?: boolean; act: () => void; disabled?: boolean; text?: boolean };
 type Section = { caption: string; items: Btn[]; radio?: boolean };
 
+/** Library roots of external paths (langs.ts `externalPath`): their folders are external code. */
+const LIB_ROOT = /^(site-packages|dist-packages|stdlib|python\d+(\.\d+)?|include|library|node_modules)$/;
+
+/**
+ * Folders of the functions in the view, one level below their common prefix, with the view's excluded and
+ * included folders. External folders only with external code included, standard library folders only with
+ * the standard library included (as drawn: scene.ts `excludedKeys`).
+ */
 function folders(): { path: string; label: string; excluded: boolean }[] {
     if (!doc) return [];
     const ex = excludedBy(doc.view, excludeRx);
-    const dirs = Object.values(doc.graph.nodes).filter((n) => n.path && !isContainer(n)).map((n) => n.path!.split('/').slice(0, -1));
+    const shown = (n: GNode) => !n.external || (settings.includeExternal && (settings.includeStandardLibrary || !isStandard(n.path)));
+    const all = Object.values(doc.graph.nodes).filter((n) => n.path && !isContainer(n));
+    const extTop = new Set(all.filter((n) => n.external).map((n) => n.path!.split('/')[0]));
+    const hiddenDir = (p: string) => {
+        const top = p.split('/')[0];
+        if (!extTop.has(top) && !LIB_ROOT.test(top)) return false;
+        return !settings.includeExternal || (!settings.includeStandardLibrary && isStandard(`${p}/x`));
+    };
+    const dirs = all.filter(shown).map((n) => n.path!.split('/').slice(0, -1));
     if (!dirs.length && !doc.view.exclude.length && !doc.view.include.length) return [];
     let prefix = dirs[0] ?? [];
     for (const d of dirs) { let i = 0; while (i < prefix.length && i < d.length && prefix[i] === d[i]) i++; prefix = prefix.slice(0, i); }
     const set = new Set<string>();
     for (const d of dirs) if (d.length > prefix.length) set.add([...prefix, d[prefix.length]].join('/'));
     for (const p of [...doc.view.exclude, ...doc.view.include]) set.add(p);
-    return [...set].sort().map((p) => ({ path: p, label: p.split('/').pop()!, excluded: ex(`${p}/x`) }));
+    return [...set].filter((p) => !hiddenDir(p)).sort().map((p) => ({ path: p, label: p.split('/').pop()!, excluded: ex(`${p}/x`) }));
 }
 
 /** Deepest caller (`up`) or callee (`down`) level on screen. */
@@ -1392,6 +1431,7 @@ function setDepth(side: 'up' | 'down', d: Depth | ((n: number) => number)) {
 
 function toolbar() {
     if (!doc || !style) return;
+    pageContext();
     const v = doc.view;
     const mode = v.edges ?? style.edges.mode;
     const curve = v.curve ?? style.edges.curve;
@@ -1437,8 +1477,10 @@ function toolbar() {
         { caption: 'Namespaces', items: [
             { label: 'Group namespaces', title: 'boxes per package and folder (b); right click a box or function to group or ungroup one', on: boxes,
                 act: () => commit((x) => { x.view.boxes = !boxes; }) },
+            { label: 'Tight groups', title: 'namespace frames hug their content: functions moved right or down pull the frame edges along', on: v.tight ?? style!.boxes.tight,
+                act: () => commit((x) => { x.view.tight = !(v.tight ?? style!.boxes.tight); }) },
             ...(v.group.length || v.ungroup.length ? [{ label: `Reset grouping (${v.group.length + v.ungroup.length})`, title: 'drop per-box group and ungroup choices',
-                act: () => commit((x) => { x.view.group = []; x.view.ungroup = []; }) }] : []),
+                act: () => commit((x) => { for (const c of [...x.view.group, ...x.view.ungroup]) dropMovesWithin(x, c); x.view.group = []; x.view.ungroup = []; }) }] : []),
         ] },
         { caption: 'Edges', radio: true, items: (['glyph', 'vector'] as const).map((m) => ({
             label: m === 'glyph' ? 'ASCII (UTF) Style' : 'D3 Vector Style', title: 'edge drawing (g)', on: mode === m, act: () => commit((x) => { x.view.edges = m; }),
@@ -1451,21 +1493,24 @@ function toolbar() {
             title: m === 'joint' ? 'no caller privileged: a caller right above joins the elbow (├───┴─>), several callers join one collector (┌──┘ └─>)'
                 : 'which caller a shared function hangs under', on: rule === m,
             act: () => commit((x) => { x.view.parentRule = m; }) })) },
+        // the same entries, names and order as the canvas context menu (package.json, group 3_arrange)
         { caption: 'Arrange', items: [
-            { label: 'Reset view', title: v.arrange === 'grow'
+            { label: 'Reset graph: seeds, depth, direction', title: v.arrange === 'grow'
                 ? 'back to the seeds and their first layer: close every side, drop hidden and removed, collapsed, moves, locks, grouping'
                 : 'back to the starting call depths: drop hidden, collapsed, moves, locks, grouping', act: () => runCmd('resetView') },
-            { label: 'Reset layout', title: 'drop every move, lock, sibling order and straightened call', act: () => runCmd('resetLayout') },
-            { label: 'Tight boxes', title: 'namespace frames hug their content: functions moved right or down pull the frame edges along', on: v.tight ?? style!.boxes.tight,
-                act: () => commit((x) => { x.view.tight = !(v.tight ?? style!.boxes.tight); }) },
+            { label: 'Reset Layout: moves, locks, order', title: 'drop every move, lock, sibling order and straightened call', act: () => runCmd('resetLayout') },
             { label: selected.size ? `Re-arrange selected (${selected.size})` : `Re-arrange (${Object.keys(v.offset).length})`,
                 title: 'the selected functions back to their computed place (moves and locks dropped), or every unlocked move (a)',
                 act: () => runCmd(selected.size ? 'rearrangeSelection' : 'rearrange') },
             { label: `Unlock all (${Object.keys(v.lock).length})`, title: 'unlock every locked function and box', act: () => runCmd('unlockAll') },
-            { label: `Expand collapsed (${v.collapsed.length})`, title: 'expand every collapsed container', act: () => commit((x) => { x.view.collapsed = []; }) },
-            { label: `Straightened calls (${(v.straight ?? []).length}): clear`, title: 'route every call in the usual order again', act: () => commit((x) => { x.view.straight = []; }) },
+            { label: `Expand collapsed (${v.collapsed.length})`, title: 'expand every collapsed container', act: () => runCmd('expandAll') },
         ] },
-        ...(fl.length ? [{ caption: 'Folders', items: fl.map((f) => ({
+        { caption: 'Folders', items: [
+            { label: 'Include external code', title: 'installed packages, system headers, build output (gaffy.includeExternal, workspace settings); turning it on asks the language server again',
+                on: settings.includeExternal, act: () => api.postMessage({ type: 'setting', key: 'includeExternal', value: !settings.includeExternal }) },
+            { label: 'Include standard library', title: 'gaffy.includeStandardLibrary: with external code, also the builtins and standard library of each language (Python builtins, Rust std, C++ std, TypeScript lib); drawn without the language server',
+                on: settings.includeStandardLibrary, act: () => api.postMessage({ type: 'setting', key: 'includeStandardLibrary', value: !settings.includeStandardLibrary }) },
+            ...fl.map((f) => ({
             label: f.label, title: `${f.path}: ${f.excluded ? 'excluded, click to include' : 'included, click to exclude'}`, on: !f.excluded,
             act: () => commit((x) => {
                 if (f.excluded) {
@@ -1475,23 +1520,20 @@ function toolbar() {
                     x.view.include = x.view.include.filter((p) => p !== f.path);
                     x.view.exclude.push(f.path);
                 }
-            }) })) } as Section] : []),
-        { caption: 'Settings', items: [
-            { label: 'Include external code', title: 'installed packages, system headers, build output (gaffy.includeExternal, workspace settings); turning it on asks the language server again',
-                on: settings.includeExternal, act: () => api.postMessage({ type: 'setting', key: 'includeExternal', value: !settings.includeExternal }) },
-            { label: 'Include standard library', title: 'gaffy.includeStandardLibrary: with external code, also the builtins and standard library of each language (Python builtins, Rust std, C++ std, TypeScript lib); drawn without the language server',
-                on: settings.includeStandardLibrary, act: () => api.postMessage({ type: 'setting', key: 'includeStandardLibrary', value: !settings.includeStandardLibrary }) },
-            { label: 'Autosave Graphs', title: 'gaffy.saveViews: new views are written to .gaffy/views/ and saved after every change; off: a new view opens unsaved, right click > Save keeps it',
-                on: settings.saveViews, act: () => api.postMessage({ type: 'setting', key: 'saveViews', value: !settings.saveViews }) },
-            { label: 'Settings ', title: 'Settings', act: () => api.postMessage({ type: 'openSettings' }) },
+            }) })),
         ] },
+        // the first four as the canvas context menu (package.json, group 1_file)
         { caption: 'File', items: [
+            ...(settings.saveViews ? [] : [{ label: 'Save (.gaffy)', title: 'save this graph (.gaffy/views/)', act: () => api.postMessage({ type: 'save' }) }]),
+            { label: 'Autosave Graphs', title: 'gaffy.saveViews: new graphs are written to .gaffy/views/ and saved after every change; off: a new graph opens unsaved, Save (.gaffy) keeps it',
+                on: settings.saveViews, act: () => api.postMessage({ type: 'setting', key: 'saveViews', value: !settings.saveViews }) },
+            { label: 'Save as Text (.txt, .md)', title: '.gaffy/<symbol>_<commit>.md and .txt, then _2, _3 (x)', act: () => api.postMessage({ type: 'export' }) },
             { label: 'Refresh Language Server', title: v.arrange === 'grow'
                 ? 'calls of the functions on screen from the language server; the others when a side opens onto them. Unanswered functions keep their calls (r)'
                 : 'calls of the functions on screen from the language server, then the levels within the call depths. Unanswered functions keep their calls (r)',
             act: () => api.postMessage({ type: 'refresh' }) },
-            { label: 'Save as Text (.txt, .md)', title: '.gaffy/<symbol>_<commit>.md and .txt, then _2, _3 (x)', act: () => api.postMessage({ type: 'export' }) },
             { label: 'Edit style.json', title: '.gaffy/style.json', act: () => api.postMessage({ type: 'editStyle' }) },
+            { label: 'Settings', title: 'VS Code Settings, filtered to gaffy', act: () => api.postMessage({ type: 'openSettings' }) },
         ] },
     ];
 
