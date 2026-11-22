@@ -213,11 +213,13 @@ export function registerCommands(ctx: vscode.ExtensionContext, editor: GaffyEdit
     });
     reg('gaffy.unhideAll', () => active().update((d) => { d.view.hidden = []; }));
     // namespace frames hug their content (view.tight)
-    reg('gaffy.tightBoxes', async () => {
+    const tightBoxes = async () => {
         const s = active();
         const st = await editor.styles.get(s.folder);
         await s.update((d) => { d.view.tight = !(d.view.tight ?? st.boxes.tight); });
-    });
+    };
+    reg('gaffy.tightBoxes', tightBoxes);
+    reg('gaffy.tightBoxes.checked', tightBoxes);
     reg('gaffy.toggleBoxes', async () => {
         const s = active();
         const st = await editor.styles.get(s.folder);
@@ -307,10 +309,13 @@ export function registerCommands(ctx: vscode.ExtensionContext, editor: GaffyEdit
         const s = active();
         if (!(await vscode.workspace.save(s.document.uri))) throw new Error(`${s.name} was not saved`);
     });
-    reg('gaffy.toggleSaveViews', async () => {
+    // two menu entries per toggle, `✓ …` when on: a webview menu shows no checkmark for a command's `toggled`
+    const toggleSaveViews = async () => {
         const target = vscode.workspace.workspaceFolders?.length ? vscode.ConfigurationTarget.Workspace : vscode.ConfigurationTarget.Global;
         await cfg().update('saveViews', !cfg().get<boolean>('saveViews'), target);
-    });
+    };
+    reg('gaffy.toggleSaveViews', toggleSaveViews);
+    reg('gaffy.toggleSaveViews.checked', toggleSaveViews);
 
     reg('gaffy.editStyle', async () => {
         const folder = editor.active?.folder ?? vscode.workspace.workspaceFolders?.[0]?.uri;
@@ -419,6 +424,8 @@ export function registerCommands(ctx: vscode.ExtensionContext, editor: GaffyEdit
             case 'expand': if (key) await s.expand(key, m.dir === 'in' ? 'in' : 'out'); break;
             case 'refresh': await s.refresh(undefined, 'revalidate'); break;
             case 'export': await exportView(s); break;
+            // a webview command lacked what it acts on (a selection, a call, a function): say what
+            case 'warn': void vscode.window.showWarningMessage(plain(`gaffy: ${String(m.text ?? '').slice(0, 300)}`)); break;
             case 'editStyle': await vscode.commands.executeCommand('gaffy.editStyle'); break;
             case 'openSettings': await vscode.commands.executeCommand('workbench.action.openSettings', `@ext:${ctx.extension.id}`); break;
             case 'setting': {

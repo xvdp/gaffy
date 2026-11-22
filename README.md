@@ -7,7 +7,7 @@ VS Code extension: persistent, manipulable call graphs laid out on a character g
 ```bash
 npm install
 npm run package                              # typecheck, tests, bundles, gaffy-<version>.vsix
-code --install-extension gaffy-0.9.3.vsix
+code --install-extension gaffy-0.9.16.vsix
 ```
 
 Development: open `gaffy/` in VS Code and press F5 (Extension Development Host). `npm run watch` rebuilds on change.
@@ -88,7 +88,7 @@ A new view asks the language server for one layer, shows it, then in the backgro
 - Direction: a seed opens both sides. A function shown as a call opens only its calls; a function shown as a caller opens only its callers. The other callers of a callee belong to a view seeded at that callee (editor right click > gaffy: Upstream callers).
 - Click an arrowhead (the arrowhead cell and the blank before the name; hovering highlights the calls it ends): closes the level it points into. Callers that the function's callers side shows: that side closes, the function keeps its place. A function that its caller's calls side shows: the caller's calls side closes, the caller keeps its place. A click on a line only selects (Shift adds); double click on a line isolates.
 - Double click a function: close both sides, or open every side that has more.
-- **Delete** (or Backspace) removes the selection: selected calls are cut (the branch below goes unless another call shows it), selected functions are hidden; click a box header to select its functions. The caller of a removed call, or the function that showed a removed function, keeps a `└─>>` or `>> ` marker; clicking it shows that side again, removed ones included. Every function with hidden or removed neighbors keeps that marker, in both layouts and on either side: where the marker does not open a side (full layout, or a side the direction rule does not open), clicking it brings back just those neighbors, with any hidden function on their way from the seeds; hidden ones beyond them keep their own marker. **Show all (n)** and Esc (with nothing selected) bring back everything removed.
+- **Delete** (or Backspace) removes the selection: selected calls are cut (the branch below goes unless another call shows it), selected functions are hidden; click a box header to select its functions. The caller of a removed call, or the function that showed a removed function, keeps a `└─>>` or `>> ` marker; clicking it shows that side again, removed ones included. Every function with hidden or removed neighbors keeps that marker, in both layouts and on either side: where the marker does not open a side (full layout, or a side the direction rule does not open), clicking it brings back just those neighbors, with any hidden function on their way from the seeds; hidden ones beyond them keep their own marker. **Show all (n)** and Esc (with nothing selected) bring back everything removed and expand every collapsed container.
 - Layout: the tree layout (caller above callee, `A └─> B`, ordered by namespace box, left to right, top to bottom, callers to calls) runs again after every change. The name of the function last opened, closed, or removed keeps its position on screen (a `>> ` that appears or goes does not move it); dragging releases it. Closed sides stay recorded, so reopening restores the layers below.
 - The picture grows around moves: a moved function or box keeps its move while sides open and data arrives. When the picture grows into it (its labels or frame would meet other content), it is drawn at the nearest clean spot (within 12 cells in any direction, else straight up to 80; [src/core/settle.ts](src/core/settle.ts)), and the view saves that position. Locked units stay where they are locked. Opening the callers of a moved function: the caller that becomes its tree parent takes the move, so it sits right above it (`prev()`, then `└─> fun()`).
 - A label end never both receives and sends a call: a function that sends calls from its end receives from the left; when its end has to receive, its calls leave from under or over its name, else dashed.
@@ -117,9 +117,9 @@ The editor entries were a `gaffy` submenu; the submenu stays defined in `package
 - `├─>`, `└─>`: tree edge from the caller's stem. `──┐ ──┤ <──┘`: lane inside a box. `──> f()`: routed call arriving from the left, crossing box borders. Calls into one function share one line (a merge); calls from one function can leave on one line (a fork); a call joins a merge only where that line carries no other call; unrelated calls never share a line.
 - Vector mode: where two calls cross, the horizontal one hops over the vertical one; where calls merge or fork, the branch curves in the direction of the call.
 - `↻`: direct recursion; `↻ f()`: call back to `f` higher in the same chain.
-- `[render.harmonics] (6)`: collapsed container with its member count.
+- `[render.harmonics] (6)`: collapsed container with its member count. Moving or locking it applies while it is collapsed only (unit `collapsed:<key>`); expanding it returns the layout it had before the collapse.
 
-Algorithms: [src/core/layout.ts](src/core/layout.ts) (rows and lanes in a block), [src/core/boxes.ts](src/core/boxes.ts), [src/core/place.ts](src/core/place.ts) (2D placement, moves, locks), [src/core/grid.ts](src/core/grid.ts) (routing); plan: [plan.md](plan.md).
+Algorithms: [src/core/layout.ts](src/core/layout.ts) (rows and lanes in a block), [src/core/boxes.ts](src/core/boxes.ts), [src/core/place.ts](src/core/place.ts) (2D placement, moves, locks), [src/core/grid.ts](src/core/grid.ts) (routing).
 
 ## Interaction
 
@@ -139,7 +139,7 @@ Algorithms: [src/core/layout.ts](src/core/layout.ts) (rows and lanes in a block)
 | double click an arrow | isolate: keep each selected call's caller and what lies below its callee, hide the rest |
 | Enter | isolate the selected calls (or the selected functions); with a single focused function: open it |
 | Esc | clear the selection; with nothing selected: show all again |
-| right click a function | go to definition, editor context menu, peek references, VS Code call hierarchy; open or close callers and calls (one layer at a time); make or remove a seed (it keeps its place; the language server is asked for the side it lacks); select upstream, downstream, through, paths between two; hide; show hidden neighbors; collapse class, module, package; group its module; lock or unlock; move among siblings; tag; reveal; copy path or name |
+| right click a function | go to definition, editor context menu, peek references, VS Code call hierarchy; open or close callers and calls (one layer at a time); make or remove a seed (it keeps its place; the language server is asked for the side it lacks); select upstream, downstream, through, paths between the selected (two or more); hide; show hidden neighbors; collapse class, module, package; group its module; lock or unlock; move among siblings; tag; reveal; copy path or name |
 | right click a box header | collapse, ungroup (dissolve the box), group the modules inside, lock or unlock, reveal, copy path |
 | right click an arrow | isolate this call, isolate the path through it, go to call site, go to callee |
 | ↑ ↓, Alt+↑ ↓ | move focus; move the focused function among its siblings |

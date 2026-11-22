@@ -133,7 +133,6 @@ text { dominant-baseline: central; white-space: pre; }
 .labels g.seed text { fill: var(--g-seed); font-weight: 600; }
 .labels g.sel .hit { fill: var(--g-selected); stroke: var(--g-selection); }
 .labels g.locked text { text-decoration: underline dotted; }
-.labels g.folded text { font-style: italic; }
 .labels .badge { fill: var(--g-seed); cursor: pointer; font-weight: 600; }
 .labels .twisty { fill: var(--g-twisty); cursor: pointer; font-weight: 600; }
 .markers text { fill: var(--g-twisty); cursor: pointer; font-weight: 600; }

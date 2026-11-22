@@ -67,7 +67,9 @@ const simulate = () => {
     else r.dispatchEvent(new MouseEvent('click', { bubbles: true, view: window }));
   }
   if (params.get('key')) document.getElementById('graph').dispatchEvent(new KeyboardEvent('keydown', { key: params.get('key'), bubbles: true }));
-  // steps=a|b|…, in order: marker=<name>:<up|down>, isolate=<caller>,<callee>, arrow=<name>, sel=<name>, key=<key>
+  // steps=a|b|…, in order: marker=<name>:<up|down>, isolate=<caller>,<callee>, arrow=<name>, sel=<name>, key=<key>,
+  // dbl=<name> (double click a label), drag=<name>,<dx>,<dy> (pixels), dump=<name>,… (collapsed, their offsets and label cells; shown in #log)
+  const dumps = [];
   for (const step of (params.get('steps') || '').split('|').filter(Boolean)) {
     const [kind, arg] = step.split('=');
     const fire = (el, type = 'click', extra = {}) => el.dispatchEvent(new MouseEvent(type, { bubbles: true, view: window, ...extra }));
@@ -92,7 +94,27 @@ const simulate = () => {
       const key = Object.keys(JSON.parse(text).graph.nodes).find((x) => x.endsWith('#' + name));
       window.dispatchEvent(new MessageEvent('message', { data: { type: 'cmd', cmd, key } }));
     } else if (kind === 'key') document.getElementById('graph').dispatchEvent(new KeyboardEvent('keydown', { key: arg, bubbles: true }));
+    else if (kind === 'dbl') {
+      const g = labelOf(arg);
+      if (g) fire(g, 'dblclick'); else log({ sim: 'no label ' + arg });
+    } else if (kind === 'drag') {
+      const [name, dx, dy] = arg.split(',');
+      const g = labelOf(name);
+      if (!g) { log({ sim: 'no label ' + name }); continue; }
+      const r = g.getBoundingClientRect();
+      const x = r.left + 5, y = r.top + r.height / 2;
+      fire(g, 'mousedown', { clientX: x, clientY: y, button: 0, cancelable: true });
+      for (let i = 1; i <= 10; i++) fire(window, 'mousemove', { clientX: x + (+dx * i) / 10, clientY: y + (+dy * i) / 10 });
+      fire(window, 'mouseup', { clientX: x + +dx, clientY: y + +dy });
+    } else if (kind === 'dump') {
+      const v = JSON.parse(text).view;
+      const cells = Object.fromEntries(arg.split(',').map((n) => [n, labelOf(n) ? [labelOf(n).__data__.row, labelOf(n).__data__.col] : null]));
+      const names = arg.split(',');
+      const offset = Object.fromEntries(Object.entries(v.offset).filter(([u]) => u.startsWith('collapsed:') || names.some((n) => u.endsWith('#' + n))).map(([u, o]) => [(u.startsWith('collapsed:') ? 'collapsed:' : '') + u.split('/').pop(), o]));
+      dumps.push({ collapsed: v.collapsed.map((c) => c.split('#').pop()), offset, cells });
+    }
   }
+  if (dumps.length) { const el = document.getElementById('log'); el.style.whiteSpace = 'pre'; el.textContent = dumps.map((d) => JSON.stringify(d)).join('\\n'); }
   if (params.get('callclick')) {
     // click a point on a call's path: callclick=<caller>,<callee>,<fraction of its length>
     const [a, b, f] = params.get('callclick').split(',');

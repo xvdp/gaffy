@@ -1,4 +1,4 @@
-// npm run heuristics: bundles scripts/heuristics.ts with the core and runs it (writes HEURISTICS.md, heuristics.gaffy)
+// npm run heuristics: bundles scripts/heuristics.ts with the core and runs it (writes .HEURISTICS.md, .heuristics.gaffy)
 import { execFileSync } from 'node:child_process';
 import { mkdirSync } from 'node:fs';
 import * as esbuild from 'esbuild';

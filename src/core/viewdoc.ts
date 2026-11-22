@@ -20,6 +20,11 @@ export type OpenSide = 'up' | 'down' | 'both' | 'none';
 
 export const ROOTS = '__roots__';
 export const boxUnit = (containerKey: string) => `box:${containerKey}`;
+/**
+ * Unit of a collapsed container's vertex: its moves and locks are its own, so expanding returns to the layout
+ * before the collapse (a class is a vertex of its own when expanded too, under its plain key).
+ */
+export const collapsedUnit = (containerKey: string) => `collapsed:${containerKey}`;
 
 export interface ViewSpec {
     seeds: NodeKey[];

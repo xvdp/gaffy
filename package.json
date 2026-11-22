@@ -2,9 +2,13 @@
   "name": "gaffy",
   "displayName": "gaffy",
   "description": "Persistent, manipulable call graphs on a character grid, rendered with D3",
-  "version": "0.9.16",
+  "version": "0.9.19",
   "publisher": "xvdp",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/xvdp/gaffy"
+  },
   "private": true,
   "engines": {
     "vscode": "^1.90.0"
@@ -132,12 +136,12 @@
       },
       {
         "command": "gaffy.refresh",
-        "title": "Refresh from Language Server",
+        "title": "Refresh Language Server",
         "category": "gaffy"
       },
       {
         "command": "gaffy.export",
-        "title": "Export View as Text (UTF-8)",
+        "title": "Export as UTF8 (.md & .txt)",
         "category": "gaffy"
       },
       {
@@ -196,19 +200,19 @@
       },
       {
         "command": "gaffy.sel.upstream",
-        "title": "Select All Callers (upstream)"
+        "title": "Select Upstream Callers"
       },
       {
         "command": "gaffy.sel.downstream",
-        "title": "Select All Callees (downstream)"
+        "title": "Select Called Downstream"
       },
       {
         "command": "gaffy.sel.through",
-        "title": "Select Callers and Callees (through)"
+        "title": "Select Entire Hierarchy"
       },
       {
         "command": "gaffy.sel.between",
-        "title": "Select Paths Between the 2 Selected"
+        "title": "Select All Between Selected Nodes (plural)"
       },
       {
         "command": "gaffy.sel.hide",
@@ -220,7 +224,7 @@
       },
       {
         "command": "gaffy.sel.rearrange",
-        "title": "Re-arrange Selection (back to the computed place)"
+        "title": "Re-arrange Selection"
       },
       {
         "command": "gaffy.sel.clear",
@@ -260,11 +264,11 @@
       },
       {
         "command": "gaffy.node.moveUp",
-        "title": "Move Up Among Siblings"
+        "title": "Move Up One"
       },
       {
         "command": "gaffy.node.moveDown",
-        "title": "Move Down Among Siblings"
+        "title": "Move Down One"
       },
       {
         "command": "gaffy.node.tag",
@@ -296,7 +300,7 @@
       },
       {
         "command": "gaffy.edge.callee",
-        "title": "Go to Callee"
+        "title": "Go to Called Symbol"
       },
       {
         "command": "gaffy.resetLayout",
@@ -315,15 +319,15 @@
       },
       {
         "command": "gaffy.node.groupModule",
-        "title": "Group Its Module"
+        "title": "Group Module"
       },
       {
         "command": "gaffy.node.ungroup",
-        "title": "Ungroup (dissolve this box)"
+        "title": "Ungroup Module"
       },
       {
         "command": "gaffy.node.groupInside",
-        "title": "Group Modules Inside"
+        "title": "Group Submodules"
       },
       {
         "command": "gaffy.resetView",
@@ -341,7 +345,7 @@
       },
       {
         "command": "gaffy.node.openCalls",
-        "title": "Open Calls (one layer)"
+        "title": "Open Called (one layer)"
       },
       {
         "command": "gaffy.node.closeCallers",
@@ -349,7 +353,7 @@
       },
       {
         "command": "gaffy.node.closeCalls",
-        "title": "Close Calls"
+        "title": "Close Called"
       },
       {
         "command": "gaffy.edge.straighten",
@@ -368,14 +372,22 @@
       {
         "command": "gaffy.tightBoxes",
         "title": "Tight Boxes",
-        "category": "gaffy",
-        "toggled": "tight"
+        "category": "gaffy"
+      },
+      {
+        "command": "gaffy.tightBoxes.checked",
+        "title": "✓ Tight Boxes",
+        "category": "gaffy"
       },
       {
         "command": "gaffy.toggleSaveViews",
         "title": "Save gaffy Views",
-        "category": "gaffy",
-        "toggled": "config.gaffy.saveViews"
+        "category": "gaffy"
+      },
+      {
+        "command": "gaffy.toggleSaveViews.checked",
+        "title": "✓ Save gaffy Views",
+        "category": "gaffy"
       }
     ],
     "menus": {
@@ -431,12 +443,22 @@
         },
         {
           "command": "gaffy.toggleSaveViews",
-          "when": "webviewId == 'gaffy.view'",
+          "when": "webviewId == 'gaffy.view' && !config.gaffy.saveViews",
+          "group": "0_save@2"
+        },
+        {
+          "command": "gaffy.toggleSaveViews.checked",
+          "when": "webviewId == 'gaffy.view' && config.gaffy.saveViews",
           "group": "0_save@2"
         },
         {
           "command": "gaffy.tightBoxes",
-          "when": "webviewId == 'gaffy.view' && webviewSection =~ /^(canvas|box)$/",
+          "when": "webviewId == 'gaffy.view' && webviewSection =~ /^(canvas|box)$/ && !tight",
+          "group": "9_view@11"
+        },
+        {
+          "command": "gaffy.tightBoxes.checked",
+          "when": "webviewId == 'gaffy.view' && webviewSection =~ /^(canvas|box)$/ && tight",
           "group": "9_view@11"
         },
         {
@@ -697,6 +719,14 @@
       ],
       "commandPalette": [
         {
+          "command": "gaffy.toggleSaveViews.checked",
+          "when": "false"
+        },
+        {
+          "command": "gaffy.tightBoxes.checked",
+          "when": "false"
+        },
+        {
           "command": "gaffy.node.open",
           "when": "false"
         },
@@ -878,7 +908,7 @@
     "watch": "node esbuild.mjs --watch",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "package": "npm run typecheck && npm test && npm run build && vsce package --no-dependencies --allow-missing-repository --no-rewrite-relative-links",
+    "package": "npm run typecheck && npm test && npm run build && vsce package --no-dependencies",
     "preview": "npm run build && node scripts/preview.mjs",
     "heuristics": "node scripts/heuristics.mjs"
   },
@@ -895,7 +925,7 @@
     "@types/d3-zoom": "3.0.9",
     "@types/node": "20.19.0",
     "@types/vscode": "1.90.0",
-    "@vscode/vsce": "3.9.2",
+    "@vscode/vsce": "4.1.1",
     "esbuild": "0.28.2",
     "typescript": "5.9.3",
     "vitest": "3.2.7"

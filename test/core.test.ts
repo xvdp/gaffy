@@ -6,7 +6,7 @@ import { nodeLabel } from '../src/core/labels';
 import { GNode, plain, visible } from '../src/core/model';
 import { buildScene, Scene, unitAnchor, unitMembers } from '../src/core/scene';
 import { deepMerge, DEFAULT_STYLE, glyphSet, Style } from '../src/core/style';
-import { boxUnit, excludedBy, globToRegExp, parseDoc, serializeDoc, ViewDoc } from '../src/core/viewdoc';
+import { boxUnit, collapsedUnit, excludedBy, globToRegExp, parseDoc, serializeDoc, ViewDoc } from '../src/core/viewdoc';
 import { frontierOf } from '../src/core/scene';
 import { fixtureDoc, k, KAZOO, MOO, STAR } from './fixtures';
 
@@ -525,6 +525,56 @@ describe('classes', () => {
         const sc = buildScene(d, flat());
         invariants(sc);
         expect(sc.grid.paths.some((p) => p.from === 'py:foo.py#Scoobie' && p.to === 'py:foo.py#Scoobie.__init__')).toBe(true);
+    });
+});
+
+describe('collapse around a seed', () => {
+    it('collapsing the class, module or folder of a seed keeps the collapsed container on screen as the seed', () => {
+        const N = (key: string, kind: GNode['kind'], parent: string | null): GNode => ({ key, kind, name: key.split(/[#./]/).pop()!, qual: key.split('#')[1] ?? '', module: 'foo', parent, path: 'foo/goo.py' });
+        const d = parseDoc(JSON.stringify({ gaffy: 1, name: 'c', view: { seeds: ['py:foo/goo.py#Shoo.__init__'], arrange: 'grow', direction: 'in' } }), 'c');
+        d.graph.nodes = Object.fromEntries([N('dir:foo', 'folder', null), N('py:foo/goo.py', 'module', 'dir:foo'), N('py:foo/goo.py#Shoo', 'class', 'py:foo/goo.py'),
+            N('py:foo/goo.py#Shoo.__init__', 'method', 'py:foo/goo.py#Shoo'), N('py:moo.py', 'module', null), N('py:moo.py#magoo', 'function', 'py:moo.py')].map((x) => [x.key, x]));
+        d.graph.edges = [{ from: 'py:moo.py#magoo', to: 'py:foo/goo.py#Shoo.__init__', line: 1 }];
+        for (const c of ['py:foo/goo.py#Shoo', 'py:foo/goo.py', 'dir:foo']) {
+            d.view.collapsed = [c];
+            const sc = buildScene(d, flat());
+            invariants(sc);
+            expect(sc.vg.nodes.has(c), c).toBe(true);
+            expect(sc.seeds.has(c), c).toBe(true);
+            expect(sc.vg.nodes.has('py:moo.py#magoo'), `${c}: the caller of the seed is shown`).toBe(true);
+        }
+        d.view.collapsed = [];
+        expect(buildScene(d, flat()).vg.nodes.has('py:foo/goo.py#Shoo.__init__')).toBe(true);
+    });
+
+    it('a collapsed container moves as collapsed:<key>; expanding returns to the layout before the collapse', () => {
+        const N = (key: string, kind: GNode['kind'], parent: string | null): GNode => ({ key, kind, name: key.split(/[#./]/).pop()!, qual: key.split('#')[1] ?? '', module: 'foo', parent, path: 'foo/goo.py' });
+        const d = parseDoc(JSON.stringify({ gaffy: 1, name: 'c', view: { seeds: ['py:moo.py#magoo'], arrange: 'grow', direction: 'out' } }), 'c');
+        d.graph.nodes = Object.fromEntries([N('py:foo/goo.py', 'module', null), N('py:foo/goo.py#Shoo', 'class', 'py:foo/goo.py'),
+            N('py:foo/goo.py#Shoo.__init__', 'method', 'py:foo/goo.py#Shoo'), N('py:foo/goo.py#Shoo.do', 'method', 'py:foo/goo.py#Shoo'),
+            N('py:moo.py', 'module', null), N('py:moo.py#magoo', 'function', 'py:moo.py')].map((x) => [x.key, x]));
+        d.graph.edges = [{ from: 'py:moo.py#magoo', to: 'py:foo/goo.py#Shoo.__init__', line: 1 }, { from: 'py:moo.py#magoo', to: 'py:foo/goo.py#Shoo.do', line: 2 }];
+        for (const style of [flat(), deepMerge(DEFAULT_STYLE, { grid: { parentRule: 'dfs' } })]) {
+            for (const c of ['py:foo/goo.py#Shoo', 'py:foo/goo.py']) {
+                d.view.collapsed = []; d.view.offset = {}; d.view.lock = {};
+                const before = buildScene(d, style).placement.pos;
+                d.view.collapsed = [c];
+                const still = buildScene(d, style).placement.pos.get(c)!;
+                d.view.offset = { [collapsedUnit(c)]: [6, 3] };
+                const sc = buildScene(d, style);
+                invariants(sc);
+                expect(unitMembers(sc, collapsedUnit(c))).toEqual([c]);
+                expect(unitAnchor(sc, collapsedUnit(c)), `${c}: placed as collapsed:<key> while collapsed`).toBeDefined();
+                expect(unitAnchor(sc, c), `${c}: not placed under its plain key while collapsed`).toBeUndefined();
+                expect(sc.placement.pos.get(c), `${c}: the move applies while collapsed`).not.toEqual(still);
+                d.view.collapsed = [];
+                const open = buildScene(d, style);
+                if (open.vg.nodes.has(c)) expect(unitAnchor(open, c)).toBeDefined();
+                expect(unitAnchor(open, collapsedUnit(c)), `${c}: collapsed:<key> is not placed while expanded`).toBeUndefined();
+                const after = open.placement.pos;
+                expect([...after].map(([k0, p]) => [k0, p.row, p.col]), `${c}: expanded as before`).toEqual([...before].map(([k0, p]) => [k0, p.row, p.col]));
+            }
+        }
     });
 });
 

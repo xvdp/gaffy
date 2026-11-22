@@ -27,7 +27,7 @@ import { BoxNode } from './boxes';
 import { layout, Layout, LayoutInput } from './layout';
 import { NodeKey } from './model';
 import { induced, VGraph } from './quotient';
-import { boxUnit, Cell } from './viewdoc';
+import { boxUnit, Cell, collapsedUnit } from './viewdoc';
 
 export interface Pos { row: number; col: number }
 
@@ -59,7 +59,7 @@ export interface Placement {
 }
 
 export interface PlaceInput {
-    vg: VGraph;                        // drawn graph (reversed under order `callees`)
+    vg: VGraph;                        // drawn graph (scene `drawn`)
     tree: BoxNode;
     base: Omit<LayoutInput, 'vg' | 'extIn' | 'extOut' | 'rootRank'>;
     offset: Record<string, Cell>;
@@ -76,6 +76,8 @@ const overlaps = (a: Rect, b: Rect) => a.c0 <= b.c1 && b.c0 <= a.c1 && a.r0 <= b
 const verticesOf = (b: BoxNode): NodeKey[] => [...b.members, ...b.children.flatMap(verticesOf)];
 
 export function place(inp: PlaceInput): Placement {
+    /** Unit a vertex's move and lock are stored under: its key, or `collapsed:<key>` for a collapsed container. */
+    const unitOf = (k: NodeKey) => (inp.vg.nodes.get(k)?.collapsed ? collapsedUnit(k) : k);
     const { vg } = inp;
     const P: Placement = {
         blocks: [], frames: [], blockOf: new Map(), pos: new Map(), end: new Map(), port: new Map(), text: new Map(),
@@ -147,8 +149,9 @@ export function place(inp: PlaceInput): Placement {
             const k = r.key;
             const p = L.parent.get(k);
             const inherited: Cell = p ? shift.get(p)! : [0, 0];
-            const lock = inp.lock[k];
-            const off = inp.offset[k];
+            const u = unitOf(k);
+            const lock = inp.lock[u];
+            const off = inp.offset[u];
             if (lock) {
                 const b = base(k);
                 shift.set(k, [lock[0] - b.col, lock[1] - b.row]);
@@ -176,7 +179,7 @@ export function place(inp: PlaceInput): Placement {
         const descendants = (k: NodeKey): NodeKey[] => [k, ...(L.children.get(k) ?? []).flatMap(descendants)];
         for (const r of L.rows) {
             const k = r.key;
-            if (r.kind !== 'node' || !inp.offset[k] || inp.lock[k]) continue;
+            if (r.kind !== 'node' || !inp.offset[unitOf(k)] || inp.lock[unitOf(k)]) continue;
             const mine = new Set(descendants(k));
             const others = [...keys].filter((x) => !mine.has(x));
             const clash = () => [...mine].some((m) => {

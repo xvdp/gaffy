@@ -61,10 +61,6 @@ export class CallCache {
         for (const uri of changed) this.invalidate(uri, false);
     }
 
-    get size(): number { return this.entries.in.size + this.entries.out.size; }
-
-    node(key: NodeKey): GNode | undefined { return this.nodes.get(key); }
-
     /** Cached answer for `key` in direction `dir`, with the records of every node it names and their containers. */
     get(key: NodeKey, dir: Dir): { edges: GEdge[]; nodes: Record<NodeKey, GNode>; clamped?: number } | undefined {
         const e = this.entries[dir].get(key);
@@ -97,8 +93,6 @@ export class CallCache {
         const e = n.uri ? extOf(n.uri) : undefined;
         if (e) this.exts.add(e);
     }
-
-    has(key: NodeKey, dir: Dir): boolean { return this.entries[dir].has(key); }
 
     /** Forget one answer (asked again on next use). */
     drop(key: NodeKey, dir: Dir): void {

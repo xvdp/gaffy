@@ -15,7 +15,7 @@ import { BoxNode, boxOf, boxTree, boxVertices } from './boxes';
 import { buildGrid, Grid } from './grid';
 import { nodeLabel } from './labels';
 import { Layout } from './layout';
-import { GNode, isContainer, NodeKey, Subgraph, visible } from './model';
+import { ancestors, GNode, isContainer, NodeKey, Subgraph, visible } from './model';
 import { Marker, place, Placement } from './place';
 import { settleMoved, Units } from './settle';
 import { induced, quotient, VEdge, VGraph } from './quotient';
@@ -26,7 +26,7 @@ import { Cell, excludedBy, isStandard, ViewDoc } from './viewdoc';
 export interface Scene {
     graph: Subgraph;
     vg: VGraph;                          // call direction, visible vertices
-    drawn: VGraph;                       // graph the layout ran on (reversed under order `callees`)
+    drawn: VGraph;                       // graph the layout ran on: the visible vertices with marker-row vertices
     tree: BoxNode;
     placement: Placement;
     grid: Grid;
@@ -47,7 +47,6 @@ export interface Decor { pre: string; post: string; badge: string }
 const STUB = '\u22efmore:';
 export const stubOf = (k: NodeKey) => `${STUB}${k}`;
 export const isStub = (k: NodeKey) => k.startsWith(STUB);
-export const stubOwner = (k: NodeKey) => k.slice(STUB.length);
 
 /** `vg` without the given calls. */
 function dropCalls(vg: VGraph, cut: ReadonlySet<string>): VGraph {
@@ -180,7 +179,7 @@ export function buildScene(doc: ViewDoc, style: Style, exclude: readonly RegExp[
         vg: drawn,
         tree,
         base: {
-            seeds: view.seeds,
+            seeds: seedsIn(vq, doc),
             sibling: view.sibling,
             indent: style.grid.indent,
             laneGap: style.grid.laneGap,
@@ -199,7 +198,7 @@ export function buildScene(doc: ViewDoc, style: Style, exclude: readonly RegExp[
     let offsets = view.offset;
     let placement: Placement = placeWith(offsets);
     for (let round = 0; round < 3; round++) {
-        const moves = settleMoved(placement, { ...doc, view: { ...view, offset: offsets } }, unitsOn(tree, placement));
+        const moves = settleMoved(placement, { ...doc, view: { ...view, offset: offsets } }, unitsOn(tree, placement, vg));
         if (!moves.length) break;
         offsets = { ...offsets };
         for (const [u, a, b] of moves) { const o = offsets[u] ?? [0, 0]; offsets[u] = [o[0] + a, o[1] + b]; }
@@ -218,7 +217,7 @@ export function buildScene(doc: ViewDoc, style: Style, exclude: readonly RegExp[
         joint: (view.parentRule ?? style.grid.parentRule) === 'joint',
         cost: { bend: style.route.bend, cross: style.route.cross, border: style.route.border, adjacent: style.route.adjacent },
     });
-    return { graph, vg, drawn, tree, placement, grid, seeds: new Set(view.seeds), hiddenOf, decor, rev, hasMore, hiddenOn, hiddenPath, offsets };
+    return { graph, vg, drawn, tree, placement, grid, seeds: new Set([...view.seeds, ...seedsIn(vq, doc)]), hiddenOf, decor, rev, hasMore, hiddenOn, hiddenPath, offsets };
 }
 
 function fallbackNode(key: NodeKey): GNode {
@@ -235,6 +234,7 @@ export function siblingsOf(sc: Scene, key: NodeKey): { slot: NodeKey | null; lis
 
 /** Vertices moved together with unit `unit`: a vertex and its tree descendants, or a box's content. */
 export function unitMembers(sc: Pick<Scene, 'tree' | 'placement'>, unit: string): NodeKey[] {
+    if (unit.startsWith('collapsed:')) return unitMembers(sc, unit.slice('collapsed:'.length));
     if (unit.startsWith('box:')) {
         const key = unit.slice(4);
         const find = (b: BoxNode): BoxNode | undefined => (b.key === key ? b : b.children.map(find).find(Boolean));
@@ -248,25 +248,45 @@ export function unitMembers(sc: Pick<Scene, 'tree' | 'placement'>, unit: string)
 }
 
 /** Units on a placement, for settle.ts. */
-export const unitsOn = (tree: BoxNode, placement: Placement): Units => ({
-    members: (u) => unitMembers({ tree, placement }, u), placed: (u) => !!unitAnchor({ placement }, u), stub: isStub,
+export const unitsOn = (tree: BoxNode, placement: Placement, vg: VGraph): Units => ({
+    members: (u) => unitMembers({ tree, placement }, u), placed: (u) => !!unitAnchor({ placement, vg }, u), stub: isStub,
 });
 
-/** Anchor cell of a unit: frame corner of a box, label start of a vertex. */
-export function unitAnchor(sc: Pick<Scene, 'placement'>, unit: string): [number, number] | undefined {
+/**
+ * Anchor cell of a unit: frame corner of a box, label start of a vertex. A container's vertex is placed as
+ * `collapsed:<key>` while collapsed and as `<key>` while expanded; the other of the two is not placed.
+ */
+export function unitAnchor(sc: Pick<Scene, 'placement' | 'vg'>, unit: string): [number, number] | undefined {
     if (unit.startsWith('box:')) {
         const f = sc.placement.frames.find((x) => x.unit === unit);
         return f ? [f.c0, f.r0] : undefined;
     }
-    const p = sc.placement.pos.get(unit);
+    const shut = unit.startsWith('collapsed:');
+    const key = shut ? unit.slice('collapsed:'.length) : unit;
+    if (!!sc.vg.nodes.get(key)?.collapsed !== shut) return undefined;
+    const p = sc.placement.pos.get(key);
     return p ? [p.col, p.row] : undefined;
 }
 
 /** Visible vertices of a view over its quotient: open sides without cut calls (grow), or the call depths (auto). */
+/**
+ * The vertices standing for the seeds in a quotient: a seed itself, or the collapsed container it lies in
+ * (otherwise collapsing a seed's class, module or folder would leave nothing to reveal from).
+ */
+export function seedsIn(vq: VGraph, doc: ViewDoc): NodeKey[] {
+    const out: NodeKey[] = [];
+    for (const s of doc.view.seeds) {
+        const r = vq.nodes.has(s) ? s : ancestors(doc.graph.nodes, s).find((a) => vq.nodes.get(a)?.collapsed);
+        if (r && !out.includes(r)) out.push(r);
+    }
+    return out;
+}
+
 function revealView(vq: VGraph, doc: ViewDoc): Reveal {
     const v = doc.view;
-    if (v.arrange !== 'grow') return revealDepth(vq, v.seeds, v.depthUp, v.depthDown, v.depthRule);
-    return reveal(vq, v.seeds, v.open ?? {}, v.direction, new Set((v.cut ?? []).map(([a, b]) => cutKey(a, b))));
+    const seeds = seedsIn(vq, doc);
+    if (v.arrange !== 'grow') return revealDepth(vq, seeds, v.depthUp, v.depthDown, v.depthRule);
+    return reveal(vq, seeds, v.open ?? {}, v.direction, new Set((v.cut ?? []).map(([a, b]) => cutKey(a, b))));
 }
 
 function revealOf(doc: ViewDoc, exclude: readonly RegExp[], external: boolean | Outside): Reveal {
