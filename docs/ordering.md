@@ -19,58 +19,59 @@ Canvas (mouse):
 
 | trigger | code | calls |
 |---|---|---|
-| double click a label (one layer at a time) | [main.ts:533](../src/webview/main.ts#L533) | `toggleSides`; on a collapsed container: expand (`collapsed` filter, `anchorAt`) |
-| drag a label | [main.ts:540](../src/webview/main.ts#L540) | `dragUnit` (unit: the vertex, `collapsed:<key>` for a collapsed one, or the selection) |
-| click `>> ` before a label | [main.ts:517](../src/webview/main.ts#L517) | `markerClick(key, 'up')` |
-| click `>` of a `└─>>` row | [main.ts:548](../src/webview/main.ts#L548) | `markerClick(key, side)` |
-| click the elbow of a `└─>>` row | [main.ts:463](../src/webview/main.ts#L463) | `markerClick(caller, 'down')` |
-| click an arrowhead | [main.ts:497](../src/webview/main.ts#L497) | `closingOf(…).run` → `setSide(…, false)`: closes the level it points into |
-| double click a call | [main.ts:476](../src/webview/main.ts#L476) | `isolateCalls` (the selection holding the call, else the calls through the cell) |
-| double click a box header | [main.ts:572](../src/webview/main.ts#L572) | collapse the container (`collapsed` push) |
-| drag a box header | [main.ts:577](../src/webview/main.ts#L577) | `dragUnit` (unit `box:<key>`) |
-| wheel, drag the background | [main.ts:59](../src/webview/main.ts#L59) | zoom and pan only: no view change |
+| double click a label (one layer at a time) | [main.ts:540](../src/webview/main.ts#L540) | `toggleSides`; on a collapsed container: expand (`collapsed` filter, `anchorAt`) |
+| drag a label | [main.ts:547](../src/webview/main.ts#L547) | `dragUnit` (unit: the vertex, `collapsed:<key>` for a collapsed one, or the selection) |
+| click `>> ` before a label | [main.ts:521](../src/webview/main.ts#L521) | `markerClick(key, 'up')` |
+| click `>` of a `└─>>` row | [main.ts:555](../src/webview/main.ts#L555) | `markerClick(key, side)` |
+| click the elbow of a `└─>>` row | [main.ts:467](../src/webview/main.ts#L467) | `markerClick(caller, 'down')` |
+| click an arrowhead | [main.ts:501](../src/webview/main.ts#L501) | `closingOf(…).run` → `setSide(…, false)`: closes the level it points into |
+| double click a call | [main.ts:480](../src/webview/main.ts#L480) | `isolateCalls` (the selection holding the call, else the calls through the cell) |
+| double click a box header | [main.ts:579](../src/webview/main.ts#L579) | collapse the container (`collapsed` push) |
+| drag a box header | [main.ts:584](../src/webview/main.ts#L584) | `dragUnit` (unit `box:<key>`) |
+| wheel, drag the background | [main.ts:60](../src/webview/main.ts#L60) | zoom and pan only: no view change |
 
 Keys (focused function `k`):
 
 | key | code | calls |
 |---|---|---|
-| Alt+↑, Alt+↓ | [main.ts:1302](../src/webview/main.ts#L1302) | `moveSibling(±1)` |
-| e, Space | [main.ts:1310](../src/webview/main.ts#L1310) | `setSide(k, side, true)` for each side with more |
-| ←, c | [main.ts:1311](../src/webview/main.ts#L1311) | `collapseInnermost` |
-| → | [main.ts:1312](../src/webview/main.ts#L1312) | expand the focused collapsed container |
-| Delete, Backspace | [main.ts:1313](../src/webview/main.ts#L1313) | `runCmd('remove')` |
-| h | [main.ts:1314](../src/webview/main.ts#L1314) | `runCmd('hideSelection')` |
-| a | [main.ts:1315](../src/webview/main.ts#L1315) | `runCmd('rearrangeSelection')` with a selection, else `runCmd('rearrange')` |
-| i | [main.ts:1316](../src/webview/main.ts#L1316) | `runCmd('isolateSelection')` |
-| Escape | [main.ts:1317](../src/webview/main.ts#L1317) | clear the selection, else `runCmd('showAll')` |
-| k | [main.ts:1322](../src/webview/main.ts#L1322) | `runCmd('lock' | 'unlock')` on the focused unit |
-| u | [main.ts:1323](../src/webview/main.ts#L1323) | `hidden = []` |
-| b | [main.ts:1325](../src/webview/main.ts#L1325) | `boxes` toggled |
-| r | [main.ts:1326](../src/webview/main.ts#L1326) | host `refresh`: new data from the language server |
+| Alt+↑, Alt+↓ | [main.ts:1426](../src/webview/main.ts#L1426) | `moveSibling(±1)` |
+| e, Space | [main.ts:1434](../src/webview/main.ts#L1434) | `setSide(k, side, true)` for each side with more |
+| ←, c | [main.ts:1435](../src/webview/main.ts#L1435) | `collapseInnermost` |
+| → | [main.ts:1436](../src/webview/main.ts#L1436) | expand the focused collapsed container |
+| Delete, Backspace | [main.ts:1437](../src/webview/main.ts#L1437) | `runCmd('remove')` |
+| h | [main.ts:1438](../src/webview/main.ts#L1438) | `runCmd('hideSelection')` |
+| a | [main.ts:1439](../src/webview/main.ts#L1439) | `runCmd('rearrangeSelection')` with a selection, else `runCmd('rearrange')` |
+| i | [main.ts:1440](../src/webview/main.ts#L1440) | `runCmd('isolateSelection')` |
+| Escape | [main.ts:1441](../src/webview/main.ts#L1441) | clear the selection, else `runCmd('showAll')` |
+| k | [main.ts:1446](../src/webview/main.ts#L1446) | `runCmd('lock' | 'unlock')` on the focused unit |
+| u | [main.ts:1447](../src/webview/main.ts#L1447) | `hidden = []` |
+| b | [main.ts:1449](../src/webview/main.ts#L1449) | `boxes` toggled |
+| r | [main.ts:1450](../src/webview/main.ts#L1450) | host `refresh`: new data from the language server |
 
 Toolbar and Options:
 
 | entry | code | calls |
 |---|---|---|
-| call depth `all` `+` `−` (full layout) | [main.ts:1426](../src/webview/main.ts#L1426) | `setDepth(side, …)` |
-| **Show all (n)** | [main.ts:1435](../src/webview/main.ts#L1435) | `runCmd('showAll')` |
-| **Expand mode >>**, **Expand mode -+** | [main.ts:1445](../src/webview/main.ts#L1445) | `setArrange('auto' | 'grow')`: switches to the mode it names |
-| **Isolate** | [main.ts:1436](../src/webview/main.ts#L1436) | `runCmd('isolateSelection')` |
-| Options > Call Expansion: Individual On Graph, Global Toolbar | [main.ts:1451](../src/webview/main.ts#L1451) | `setArrange('grow' | 'auto')` |
-| Options > Call depth by: shortest, longest path | [main.ts:1457](../src/webview/main.ts#L1457) | `depthRule` |
-| Options > Namespaces > Group namespaces | [main.ts:1461](../src/webview/main.ts#L1461) | `boxes` |
-| Options > Namespaces > Tight groups | [main.ts:1463](../src/webview/main.ts#L1463) | `tight` |
-| Options > Namespaces > Reset grouping | [main.ts:1465](../src/webview/main.ts#L1465) | `group`, `ungroup` = [], `dropMovesWithin` for each |
-| Options > Tree parent: first caller found, nearest caller above, left merge | [main.ts:1475](../src/webview/main.ts#L1475) | `parentRule` |
-| Options > Arrange > Reset graph: seeds, depth, direction | [main.ts:1481](../src/webview/main.ts#L1481) | `runCmd('resetView')` |
-| Options > Arrange > Reset Layout: moves, locks, order | [main.ts:1484](../src/webview/main.ts#L1484) | `runCmd('resetLayout')` |
-| Options > Arrange > Re-arrange | [main.ts:1485](../src/webview/main.ts#L1485) | `runCmd('rearrangeSelection' | 'rearrange')` |
-| Options > Arrange > Unlock all | [main.ts:1488](../src/webview/main.ts#L1488) | `runCmd('unlockAll')` |
-| Options > Arrange > Expand collapsed | [main.ts:1489](../src/webview/main.ts#L1489) | `runCmd('expandAll')` |
-| Options > Folders > Include external code, Include standard library | [main.ts:1492](../src/webview/main.ts#L1492) | host setting; the webview redraws; their folders leave the list when off |
-| Options > Folders > a folder | [main.ts:1497](../src/webview/main.ts#L1497) | `exclude`, `include` |
-| Options > File > Save (.gaffy), Autosave Graphs, Save as Text, Refresh Language Server | [main.ts:1510](../src/webview/main.ts#L1510) | host: save, setting `gaffy.saveViews`, export, `refresh` (new data) |
-| Options > File > Freeze at commit | [main.ts:1513](../src/webview/main.ts#L1513) | host `freeze`: `frozen` = commit and time (no language-server updates), or removed |
+| call depth `all` `+` `−` (full layout) | [main.ts:1550](../src/webview/main.ts#L1550) | `setDepth(side, …)` |
+| **Show all (n)** | [main.ts:1559](../src/webview/main.ts#L1559) | `runCmd('showAll')` |
+| **Expand mode >>**, **Expand mode -+** | [main.ts:1569](../src/webview/main.ts#L1569) | `setArrange('auto' | 'grow')`: switches to the mode it names |
+| **Isolate** | [main.ts:1560](../src/webview/main.ts#L1560) | `runCmd('isolateSelection')` |
+| Options > Call Expansion: Individual On Graph, Global Toolbar | [main.ts:1575](../src/webview/main.ts#L1575) | `setArrange('grow' | 'auto')` |
+| Options > Seeds > Only paths between seeds | [main.ts:1581](../src/webview/main.ts#L1581) | `between`: drawn functions filtered to seed-to-seed call paths (`onPaths`) |
+| Options > Call depth by: shortest, longest path | [main.ts:1585](../src/webview/main.ts#L1585) | `depthRule` |
+| Options > Namespaces > Group namespaces | [main.ts:1589](../src/webview/main.ts#L1589) | `boxes` |
+| Options > Namespaces > Tight groups | [main.ts:1591](../src/webview/main.ts#L1591) | `tight` |
+| Options > Namespaces > Reset grouping | [main.ts:1593](../src/webview/main.ts#L1593) | `group`, `ungroup` = [], `dropMovesWithin` for each |
+| Options > Tree parent: first caller found, nearest caller above, left merge | [main.ts:1603](../src/webview/main.ts#L1603) | `parentRule` |
+| Options > Arrange > Reset graph: seeds, depth, direction | [main.ts:1609](../src/webview/main.ts#L1609) | `runCmd('resetView')` |
+| Options > Arrange > Reset Layout: moves, locks, order | [main.ts:1612](../src/webview/main.ts#L1612) | `runCmd('resetLayout')` |
+| Options > Arrange > Re-arrange | [main.ts:1613](../src/webview/main.ts#L1613) | `runCmd('rearrangeSelection' | 'rearrange')` |
+| Options > Arrange > Unlock all | [main.ts:1616](../src/webview/main.ts#L1616) | `runCmd('unlockAll')` |
+| Options > Arrange > Expand collapsed | [main.ts:1617](../src/webview/main.ts#L1617) | `runCmd('expandAll')` |
+| Options > Folders > Include external code, Include standard library | [main.ts:1620](../src/webview/main.ts#L1620) | host setting; the webview redraws; their folders leave the list when off |
+| Options > Folders > a folder | [main.ts:1625](../src/webview/main.ts#L1625) | `exclude`, `include` |
+| Options > File > Save (.gaffy), Autosave Graphs, Save as Text, Refresh Language Server | [main.ts:1638](../src/webview/main.ts#L1638) | host: save, setting `gaffy.saveViews`, export, `refresh` (new data) |
+| Options > File > Freeze at commit | [main.ts:1641](../src/webview/main.ts#L1641) | host `freeze`: `frozen` = commit and time (no language-server updates), or removed |
 
 Context menu (`webview/context` entry, host registration; *forwarded* entries post `cmd` to the webview):
 
@@ -105,33 +106,33 @@ Outside the view:
 
 | function | code | view fields written | what it does |
 |---|---|---|---|
-| `commit` | [main.ts:148](../src/webview/main.ts#L148) | any | clones the view, applies the change, redraws, posts the text to the host (an undo step) |
-| `toggleSides` | [main.ts:693](../src/webview/main.ts#L693) | `open` | closes both sides, or opens every side with more |
-| `setSide` | [main.ts:703](../src/webview/main.ts#L703) | `open`; `hidden`, `cut` (restore) | opens or closes one side; asks the host for data the side lacks; starts the offset handover (h34) |
-| `markerClick` | [main.ts:736](../src/webview/main.ts#L736) | via `setSide`, `restoreHidden` | opens the side, else brings hidden neighbors back |
-| `restoreHidden` | [main.ts:746](../src/webview/main.ts#L746) | `hidden`, `cut` | shows the hidden neighbors of one side and the hidden functions on their way from the seeds |
-| `closingOf` | [main.ts:772](../src/webview/main.ts#L772) | via `setSide` | chooses the side an arrowhead closes |
-| `isolateCalls`, `isolate`, `hide` | [main.ts:807](../src/webview/main.ts#L807) | `hidden` | keeps the given functions (and their path from the seeds); hides the rest, seeds excepted |
-| `dragUnit` | [main.ts:911](../src/webview/main.ts#L911) | `offset` or `lock` | drop: cell delta, `settleDrop`, `moveUnit` per unit; anchor on a function that did not move |
-| `topUnits` | [main.ts:902](../src/webview/main.ts#L902) | - | units a multi-selection drag moves: each selected function with its tree, once |
-| `settleDrop` | [main.ts:1012](../src/webview/main.ts#L1012) | - | drop repulsion: tries cells along the drag, then sideways, ≤ 12 cells or 1.5 s |
-| `moveUnit` | [main.ts:964](../src/webview/main.ts#L964) | `offset[unit]` or `lock[unit]` | adds the move to the lock when locked, else to the offset |
-| `lockUnit`, `unlockUnit` | [main.ts:1035](../src/webview/main.ts#L1035) | `lock`, `offset` | lock: the anchor cell becomes absolute; unlock: the offset from the computed place |
-| `moveSibling` | [main.ts:1278](../src/webview/main.ts#L1278) | `sibling` | swaps the focused function with its neighbor under one tree parent |
-| `collapseInnermost` | [main.ts:1290](../src/webview/main.ts#L1290) | `collapsed` | collapses the innermost container not collapsed yet |
-| `setArrange`, `setDepth` | [main.ts:1379](../src/webview/main.ts#L1379) | `arrange`, `open`, `depthUp`, `depthDown` | switches one layer at a time ⇄ full, keeping what is on screen; call depths per side |
-| `runCmd` | [main.ts:1080](../src/webview/main.ts#L1080) | per case | command dispatch: the cases below |
-| `runCmd: 'remove'` | [main.ts:1140](../src/webview/main.ts#L1140) | `cut` or `hidden` | cuts selected calls (one layer at a time), else hides the selection |
-| `runCmd: 'showAll'` | [main.ts:1127](../src/webview/main.ts#L1127) | `hidden`, `cut`, `collapsed` | shows everything hidden, removed or collapsed |
-| `runCmd: 'resetView'` | [main.ts:1105](../src/webview/main.ts#L1105) | most fields | back to the seeds: no hidden, collapsed, moves, locks, grouping |
-| `runCmd: 'resetLayout'` | [main.ts:1126](../src/webview/main.ts#L1126) | `offset`, `lock`, `sibling`, `straight` | every computed place again |
-| `runCmd: 'rearrangeSelection'`, `'rearrange'` | [main.ts:1204](../src/webview/main.ts#L1204) | `offset`, `lock` | the selected units (or all unlocked) back to their computed place |
-| `runCmd: 'makeSeed'`, `'removeSeed'` | [main.ts:1193](../src/webview/main.ts#L1193) | `seeds` | adds or drops a seed; the host asks for the new seed's sides |
-| `runCmd: 'expandAll'` | [main.ts:1215](../src/webview/main.ts#L1215) | `collapsed` | expands every collapsed container |
+| `commit` | [main.ts:152](../src/webview/main.ts#L152) | any | clones the view, applies the change, redraws, posts the text to the host (an undo step) |
+| `toggleSides` | [main.ts:700](../src/webview/main.ts#L700) | `open` | closes both sides, or opens every side with more |
+| `setSide` | [main.ts:710](../src/webview/main.ts#L710) | `open`; `hidden`, `cut` (restore) | opens or closes one side; asks the host for data the side lacks; starts the offset handover (h34) |
+| `markerClick` | [main.ts:743](../src/webview/main.ts#L743) | via `setSide`, `restoreHidden` | opens the side, else brings hidden neighbors back |
+| `restoreHidden` | [main.ts:753](../src/webview/main.ts#L753) | `hidden`, `cut` | shows the hidden neighbors of one side and the hidden functions on their way from the seeds |
+| `closingOf` | [main.ts:779](../src/webview/main.ts#L779) | via `setSide` | chooses the side an arrowhead closes |
+| `isolateCalls`, `isolate`, `hide` | [main.ts:814](../src/webview/main.ts#L814) | `hidden` | keeps the given functions (and their path from the seeds); hides the rest, seeds excepted |
+| `dragUnit` | [main.ts:1035](../src/webview/main.ts#L1035) | `offset` or `lock` | drop: cell delta, `settleDrop`, `moveUnit` per unit; anchor on a function that did not move |
+| `topUnits` | [main.ts:1026](../src/webview/main.ts#L1026) | - | units a multi-selection drag moves: each selected function with its tree, once |
+| `settleDrop` | [main.ts:1136](../src/webview/main.ts#L1136) | - | drop repulsion: tries cells along the drag, then sideways, ≤ 12 cells or 1.5 s |
+| `moveUnit` | [main.ts:1088](../src/webview/main.ts#L1088) | `offset[unit]` or `lock[unit]` | adds the move to the lock when locked, else to the offset |
+| `lockUnit`, `unlockUnit` | [main.ts:1159](../src/webview/main.ts#L1159) | `lock`, `offset` | lock: the anchor cell becomes absolute; unlock: the offset from the computed place |
+| `moveSibling` | [main.ts:1402](../src/webview/main.ts#L1402) | `sibling` | swaps the focused function with its neighbor under one tree parent |
+| `collapseInnermost` | [main.ts:1414](../src/webview/main.ts#L1414) | `collapsed` | collapses the innermost container not collapsed yet |
+| `setArrange`, `setDepth` | [main.ts:1503](../src/webview/main.ts#L1503) | `arrange`, `open`, `depthUp`, `depthDown` | switches one layer at a time ⇄ full, keeping what is on screen; call depths per side |
+| `runCmd` | [main.ts:1204](../src/webview/main.ts#L1204) | per case | command dispatch: the cases below |
+| `runCmd: 'remove'` | [main.ts:1264](../src/webview/main.ts#L1264) | `cut` or `hidden` | cuts selected calls (one layer at a time), else hides the selection |
+| `runCmd: 'showAll'` | [main.ts:1251](../src/webview/main.ts#L1251) | `hidden`, `cut`, `collapsed` | shows everything hidden, removed or collapsed |
+| `runCmd: 'resetView'` | [main.ts:1229](../src/webview/main.ts#L1229) | most fields | back to the seeds: no hidden, collapsed, moves, locks, grouping |
+| `runCmd: 'resetLayout'` | [main.ts:1250](../src/webview/main.ts#L1250) | `offset`, `lock`, `sibling`, `straight` | every computed place again |
+| `runCmd: 'rearrangeSelection'`, `'rearrange'` | [main.ts:1328](../src/webview/main.ts#L1328) | `offset`, `lock` | the selected units (or all unlocked) back to their computed place |
+| `runCmd: 'makeSeed'`, `'removeSeed'` | [main.ts:1317](../src/webview/main.ts#L1317) | `seeds` | adds or drops a seed; the host asks for the new seed's sides |
+| `runCmd: 'expandAll'` | [main.ts:1339](../src/webview/main.ts#L1339) | `collapsed` | expands every collapsed container |
 | `dropMovesWithin` | [viewdoc.ts:31](../src/core/viewdoc.ts#L31) | `offset`, `lock` | drops the moves and locks inside a container whose grouping changes (group, ungroup, reset grouping) |
-| `afterRender`: adopt | [main.ts:611](../src/webview/main.ts#L611) | `offset` | offset handover: the new tree parent of a moved function takes its offset (h34) |
-| `afterRender`: settle | [main.ts:622](../src/webview/main.ts#L622) | `offset` | saves the offsets settle drew with, ≤ 3 saves in a row (h35) |
-| `anchorAt`, `render` | [main.ts:688](../src/webview/main.ts#L688) | - | no view change: pans so the function acted on keeps its screen spot (h30, h31) |
+| `afterRender`: adopt | [main.ts:618](../src/webview/main.ts#L618) | `offset` | offset handover: the new tree parent of a moved function takes its offset (h34) |
+| `afterRender`: settle | [main.ts:629](../src/webview/main.ts#L629) | `offset` | saves the offsets settle drew with, ≤ 3 saves in a row (h35) |
+| `anchorAt`, `render` | [main.ts:695](../src/webview/main.ts#L695) | - | no view change: pans so the function acted on keeps its screen spot (h30, h31) |
 | host `Session.update`, `write` | [editor.ts:39](../src/host/editor.ts#L39) | any | replaces the document text (host commands, language server data) |
 | host `collapse`, `expandContainer`, `move`, group commands | [commands.ts:381](../src/host/commands.ts#L381) | `collapsed`, `sibling`, `group`, `ungroup` | context menu changes made on the host |
 | host `Session.revalidate`, `expand`, `ask` | [editor.ts:356](../src/host/editor.ts#L356) | `graph`, `explored` | new calls from the language server: new functions appear where their sides are open |
@@ -144,15 +145,15 @@ In pipeline order; positions depend on the view document only.
 |---|---|---|---|
 | `buildScene` | [scene.ts:103](../src/core/scene.ts#L103) | the pipeline below, run on every redraw |  |
 | `excludedKeys`, `quotient` | [scene.ts:92](../src/core/scene.ts#L92) | drops excluded and hidden functions; a collapsed container stands for its members |  |
-| `revealView` → `reveal` / `revealDepth` | [scene.ts:281](../src/core/scene.ts#L281) | what is on screen: open sides (one layer at a time) or call depths (full) | [h01](heuristics.md#h01_first_revealer), [h02](heuristics.md#h02_call_depth_by_path) |
-| `seedsIn` | [scene.ts:271](../src/core/scene.ts#L271) | the vertex standing for each seed (itself or its collapsed container) |  |
+| `revealView` → `reveal` / `revealDepth` | [scene.ts:303](../src/core/scene.ts#L303) | what is on screen: open sides (one layer at a time) or call depths (full) | [h01](heuristics.md#h01_first_revealer), [h02](heuristics.md#h02_call_depth_by_path) |
+| `seedsIn` | [scene.ts:272](../src/core/scene.ts#L272) | the vertex standing for each seed (itself or its collapsed container) |  |
 | `boxTree` | [boxes.ts:45](../src/core/boxes.ts#L45) | namespace boxes and their order | [h03](heuristics.md#h03_box_order) |
 | `sortKeyOf` | [scene.ts:76](../src/core/scene.ts#L76) | tie order: path, definition line, key | [h04](heuristics.md#h04_sort_key) |
 | `layout` | [layout.ts:78](../src/core/layout.ts#L78) | rows and lanes in one block: root order, child order, tree parent, ports, lanes | [h06](heuristics.md#h06_root_order)–[h12](heuristics.md#h12_lane_packing) |
-| `place` → `placeBox` | [place.ts:220](../src/core/place.ts#L220) | items of a box (its block, then child boxes): order, column, row; unmoved boxes descend below earlier siblings | [h16](heuristics.md#h16_item_order)–[h20](heuristics.md#h20_unmoved_box_descent) |
-| `placeBlock` | [place.ts:91](../src/core/place.ts#L91) | one block: caller alignment, monotone rows, descent, offsets and locks per vertex | [h13](heuristics.md#h13_caller_alignment)–[h15](heuristics.md#h15_block_descent), [h21](heuristics.md#h21_moved_function_descent) |
-| frames | [place.ts:312](../src/core/place.ts#L312) | frame extents (tight or keeping the computed corner) | [h22](heuristics.md#h22_frame_extent) |
-| `settleMoved` | [settle.ts:43](../src/core/settle.ts#L43) | moved units on other content go to the nearest clear offset, least displacement first, ≤ 3 rounds | [h23](heuristics.md#h23_settle) |
+| `place` → `placeBox` | [place.ts:221](../src/core/place.ts#L221) | items of a box (its block, then child boxes): order, column, row; unmoved boxes descend below earlier siblings | [h16](heuristics.md#h16_item_order)–[h20](heuristics.md#h20_unmoved_box_descent) |
+| `placeBlock` | [place.ts:92](../src/core/place.ts#L92) | one block: caller alignment, monotone rows, descent, offsets and locks per vertex | [h13](heuristics.md#h13_caller_alignment)–[h15](heuristics.md#h15_block_descent), [h21](heuristics.md#h21_moved_function_descent) |
+| frames | [place.ts:316](../src/core/place.ts#L316) | frame extents (tight or keeping the computed corner) | [h22](heuristics.md#h22_frame_extent) |
+| `settleMoved` | [settle.ts:46](../src/core/settle.ts#L46) | moved units on other content go to the nearest clear offset, least displacement first, ≤ 3 rounds | [h23](heuristics.md#h23_settle) |
 | `buildGrid` | [grid.ts:107](../src/core/grid.ts#L107) | draws the calls (section 4) | [h24](heuristics.md#h24_tree_lines_first)–[h29](heuristics.md#h29_route_cost) |
 
 ## 4. Drawing one call
@@ -193,51 +194,52 @@ Nets: `t:<parent>` holds a tree stem and its elbows, `l:<target>` every call int
 Three mechanisms move the rest of the picture after a drop, in this order: placement (positions from the stored moves), settle (moved units that collide go to the nearest clear place) and the pan (the still function keeps its spot on screen). Content never moved is not relocated to make room, except that an unmoved group slides below an earlier sibling that is locked or stretched by moves inside it.
 
 <pre>
-drop: pointer delta in whole cells; zero cells: nothing   <a href="../src/webview/main.ts#L947">main.ts:947</a>
+drop: pointer delta in whole cells; zero cells: nothing   <a href="../src/webview/main.ts#L1071">main.ts:1071</a>
 ├── 1. units: a group is its box (selection ignored); a function is itself with its tree below, or every selected
-│      function with its tree, once each, when one of several selected is dragged   <a href="../src/webview/main.ts#L922">main.ts:922</a>
+│      function with its tree, once each, when one of several selected is dragged   <a href="../src/webview/main.ts#L1046">main.ts:1046</a>
 ├── 2. drop spot: as dropped when no call loses its route and the dropped labels collide with nothing; else the
-│      nearest such spot up to 12 cells along the drag or sideways (1.5 s); else as dropped   <a href="../src/webview/main.ts#L1012">main.ts:1012</a>
-├── 3. stored: a locked unit moves its lock, any other its offset   <a href="../src/webview/main.ts#L964">main.ts:964</a>
+│      nearest such spot up to 12 cells along the drag or sideways (1.5 s); else as dropped   <a href="../src/webview/main.ts#L1136">main.ts:1136</a>
+├── 3. stored: a locked unit moves its lock, any other its offset   <a href="../src/webview/main.ts#L1088">main.ts:1088</a>
 ├── 4. placement: what was not moved keeps its computed place
-│   ├── a moved function lands at its computed place + offset, with its tree   <a href="../src/core/place.ts#L152">place.ts:152</a>
-│   │   └── labels within 2 cells of another label of its group on the row ─────► slides down until clear   <a href="../src/core/place.ts#L177">place.ts:177</a>
-│   ├── a moved group lands at the row it would take unmoved + offset; a locked one at its cell   <a href="../src/core/place.ts#L286">place.ts:286</a>
-│   ├── a sibling placed later (order: locked first, then calling order)   <a href="../src/core/place.ts#L250">place.ts:250</a>
-│   │   ├── after a group moved by an offset: counts it at its unmoved place ───► stays   <a href="../src/core/place.ts#L275">place.ts:275</a>
-│   │   └── after a locked group, or one stretched by moves inside it ─────────► slides below it   <a href="../src/core/place.ts#L300">place.ts:300</a>
+│   ├── a moved function lands at its computed place + offset, with its tree   <a href="../src/core/place.ts#L153">place.ts:153</a>
+│   │   └── labels within 2 cells of another label of its group on the row ─────► slides down until clear   <a href="../src/core/place.ts#L178">place.ts:178</a>
+│   ├── a moved group: placed as unmoved, then translated whole by its offset; a locked one onto its cell   <a href="../src/core/place.ts#L287">place.ts:287</a>
+│   ├── a sibling placed later (order: locked first, then calling order)   <a href="../src/core/place.ts#L251">place.ts:251</a>
+│   │   ├── after a group moved by an offset: counts it at its unmoved place ───► stays   <a href="../src/core/place.ts#L276">place.ts:276</a>
+│   │   └── after a locked group, or one stretched by moves inside it ─────────► slides below it   <a href="../src/core/place.ts#L304">place.ts:304</a>
 │   ├── frames grow to hold moved content (Tight groups: fit it on all sides) ────► later siblings of the
-│   │   enclosing group may slide below it   <a href="../src/core/place.ts#L312">place.ts:312</a>
-│   └── content above row 0 or left of column 0 ──────────────────────────────► whole picture shifts back   <a href="../src/core/place.ts#L339">place.ts:339</a>
-├── 5. settle, up to 3 rounds in every redraw: moved, unlocked units that collide move to the nearest clear
-│      offset, the least displacement (distance × labels) first; unmoved and locked units never move here   <a href="../src/core/settle.ts#L43">settle.ts:43</a>
-└── 6. the view saves the settled offsets (at most 3 saves in a row) and pans so the still function keeps its spot   <a href="../src/webview/main.ts#L602">main.ts:602</a>
+│   │   enclosing group may slide below it   <a href="../src/core/place.ts#L316">place.ts:316</a>
+│   └── content above row 0 or left of column 0 ──────────────────────────────► whole picture shifts back   <a href="../src/core/place.ts#L359">place.ts:359</a>
+├── 5. settle, up to 3 rounds in every redraw: moved, unlocked units that collide (on content, or a frame
+│      touching another frame with no free row or column between) move to the nearest clear offset, the least
+│      displacement (distance × labels) first; unmoved and locked units never move here   <a href="../src/core/settle.ts#L46">settle.ts:46</a>
+└── 6. the view saves the settled offsets (at most 3 saves in a row) and pans so the still function keeps its spot   <a href="../src/webview/main.ts#L609">main.ts:609</a>
 </pre>
 
 | condition | code | effect |
 |---|---|---|
-| which units move | [main.ts:922](../src/webview/main.ts#L922) | a box header moves `box:<key>`; a label its unit (`vertexUnit`, `collapsed:<key>` for a collapsed container), or `topUnits` of the selection |
-| units of a selection | [main.ts:902](../src/webview/main.ts#L902) | each selected function with its tree, skipping one inside another selected function's tree |
-| still function | [main.ts:953](../src/webview/main.ts#L953) | the first seed, else any function, outside what moves; none: the drop is a pan of everything |
-| drop accepted | [main.ts:1025](../src/webview/main.ts#L1025) | a probe redraw: no more unroutable calls, `collisions` of the dropped labels and frames zero; each probe settles (step 5), so the first spot usually passes |
-| drop search | [main.ts:1027](../src/webview/main.ts#L1027) | k cells further along the drag, then sideways either way, then back; k ≤ 12 |
-| lock or offset | [main.ts:964](../src/webview/main.ts#L964) | `lock[unit]` when locked, else `offset[unit]` += (Δcolumn, Δrow) |
-| function offset | [place.ts:152](../src/core/place.ts#L152) | the shift of a function: its lock, else its parent's shift + its offset; the tree below inherits it |
-| moved function descent | [place.ts:177](../src/core/place.ts#L177) | labels on one row closer than 2 cells to another label of the group: down one row, at most 500 |
-| sibling order | [place.ts:250](../src/core/place.ts#L250) | locked items first, then the topological order of calls between items; "earlier" in the rows below |
-| stacking | [place.ts:271](../src/core/place.ts#L271) | rows and columns of later siblings from earlier siblings' unmoved extents |
-| what later items avoid | [place.ts:275](../src/core/place.ts#L275) | an earlier box moved by an offset at its unmoved place; a locked box, or one stretched by moves inside it, where drawn |
-| unmoved block descent | [place.ts:131](../src/core/place.ts#L131) | the functions of a group slide below what they avoid |
-| moved group | [place.ts:286](../src/core/place.ts#L286) | the row it would take unmoved + offset |
-| unmoved group descent | [place.ts:300](../src/core/place.ts#L300) | trial placement, then below the overlapped earlier sibling, by the distance from its top |
-| frame extent | [place.ts:312](../src/core/place.ts#L312) | Tight groups: the content's bounding box; otherwise the computed corner, growing to hold content moved up or left |
-| picture origin | [place.ts:339](../src/core/place.ts#L339) | everything shifts so nothing lies above row 0 or left of column 0; the pan cancels it on screen |
-| settle rounds | [scene.ts:196](../src/core/scene.ts#L196) | at most 3 rounds of settle per redraw |
-| settle candidates | [settle.ts:47](../src/core/settle.ts#L47) | units with an offset, unlocked, on screen |
-| collision | [settle.ts:54](../src/core/settle.ts#L54) | a label on another frame's border; closer than 4 cells to a label of its row; another label inside its frame; its frame partly over another |
-| clear offset | [settle.ts:70](../src/core/settle.ts#L70) | rings of up to 12 cells (vertical first), then straight lines up to 80; never off the canvas |
-| who moves first | [settle.ts:91](../src/core/settle.ts#L91) | distance × labels moved: a small unit yields to a large one |
-| save and pan | [main.ts:602](../src/webview/main.ts#L602) | the settled offsets become the view's offsets (at most 3 saves in a row); render pans to the still function |
+| which units move | [main.ts:1046](../src/webview/main.ts#L1046) | a box header moves `box:<key>`; a label its unit (`vertexUnit`, `collapsed:<key>` for a collapsed container), or `topUnits` of the selection |
+| units of a selection | [main.ts:1026](../src/webview/main.ts#L1026) | each selected function with its tree, skipping one inside another selected function's tree |
+| still function | [main.ts:1077](../src/webview/main.ts#L1077) | the first seed, else any function, outside what moves; none: the drop is a pan of everything |
+| drop accepted | [main.ts:1149](../src/webview/main.ts#L1149) | a probe redraw: no more unroutable calls, `collisions` of the dropped labels and frames zero; each probe settles (step 5), so the first spot usually passes |
+| drop search | [main.ts:1151](../src/webview/main.ts#L1151) | k cells further along the drag, then sideways either way, then back; k ≤ 12 |
+| lock or offset | [main.ts:1088](../src/webview/main.ts#L1088) | `lock[unit]` when locked, else `offset[unit]` += (Δcolumn, Δrow) |
+| function offset | [place.ts:153](../src/core/place.ts#L153) | the shift of a function: its lock, else its parent's shift + its offset; the tree below inherits it |
+| moved function descent | [place.ts:178](../src/core/place.ts#L178) | labels on one row closer than 2 cells to another label of the group: down one row, at most 500 |
+| sibling order | [place.ts:251](../src/core/place.ts#L251) | locked items first, then the topological order of calls between items; "earlier" in the rows below |
+| stacking | [place.ts:272](../src/core/place.ts#L272) | rows and columns of later siblings from earlier siblings' unmoved extents |
+| what later items avoid | [place.ts:276](../src/core/place.ts#L276) | an earlier box moved by an offset at its unmoved place; a locked box, or one stretched by moves inside it, where drawn |
+| unmoved block descent | [place.ts:132](../src/core/place.ts#L132) | the functions of a group slide below what they avoid |
+| moved group | [place.ts:287](../src/core/place.ts#L287) | placed at the row it would take unmoved, then translated whole (labels, lanes, inner frames) by the offset |
+| unmoved group descent | [place.ts:304](../src/core/place.ts#L304) | trial placement, then below the overlapped earlier sibling, by the distance from its top |
+| frame extent | [place.ts:316](../src/core/place.ts#L316) | Tight groups: the content's bounding box; otherwise the computed corner, growing to hold content moved up or left |
+| picture origin | [place.ts:359](../src/core/place.ts#L359) | everything shifts so nothing lies above row 0 or left of column 0; the pan cancels it on screen |
+| settle rounds | [scene.ts:197](../src/core/scene.ts#L197) | at most 3 rounds of settle per redraw |
+| settle candidates | [settle.ts:50](../src/core/settle.ts#L50) | units with an offset, unlocked, on screen |
+| collision | [settle.ts:57](../src/core/settle.ts#L57) | a label on another frame's border; closer than 4 cells to a label of its row; another label inside its frame; its frame partly over another |
+| clear offset | [settle.ts:73](../src/core/settle.ts#L73) | rings of up to 12 cells (vertical first), then straight lines up to 80; never off the canvas |
+| who moves first | [settle.ts:94](../src/core/settle.ts#L94) | distance × labels moved: a small unit yields to a large one |
+| save and pan | [main.ts:609](../src/webview/main.ts#L609) | the settled offsets become the view's offsets (at most 3 saves in a row); render pans to the still function |
 
 Consequences:
 - A group dropped onto unmoved content: the content stays; when the dropped group collides, settle moves it, or another moved unit when that displaces fewer labels.

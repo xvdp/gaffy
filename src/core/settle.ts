@@ -10,7 +10,8 @@
  * - label or its two lead cells on another frame's border;
  * - label within 4 cells (`name() ─> next()`) of another label on its row;
  * - another label on or inside its frame;
- * - its frame partly overlapping another (nesting allowed).
+ * - its frame partly overlapping another, or touching it without a free row or column between (no corridor for
+ *   calls; nesting allowed).
  * Search: Manhattan rings d ≤ `RANGE` (12), vertical first; then straight lines, vertical then horizontal, to
  * `FAR` (80): overlapping labels are worse than long moves. Never above row 0 or left of column 0 (layout returns
  * such content: no effect). No clean offset: unit stays.
@@ -37,6 +38,8 @@ const onBorder = (s: Span, f: Box) => {
     if ((s.row === f.r0 || s.row === f.r1) && lo <= f.c1 && s.c1 >= f.c0) return true;
     return s.row > f.r0 && s.row < f.r1 && ((lo <= f.c0 && s.c1 >= f.c0) || (lo <= f.c1 && s.c1 >= f.c1));
 };
+/** Frame grown by one cell: a routing corridor around it. */
+const pad = (b: Box): Box => ({ ...b, r0: b.r0 - 1, c0: b.c0 - 1, r1: b.r1 + 1, c1: b.c1 + 1 });
 const within = (s: Span, f: Box) => s.row >= f.r0 && s.row <= f.r1 && s.c1 >= f.c0 && s.c0 - 2 <= f.c1;
 
 /** Offset changes `[unit, dc, dr]` clearing colliding moved units; empty if none collide. */
@@ -63,7 +66,7 @@ export function settleMoved(P: Placement, doc: ViewDoc, units: Units): [string, 
         for (const b0 of x.own) {
             const b = { ...b0, r0: b0.r0 + d, r1: b0.r1 + d, c0: b0.c0 + a, c1: b0.c1 + a };
             if (others.some((o) => within(o, b))) n++;
-            if (fixed.some((f) => meets(b, f) && !inside(b, f) && !inside(f, b))) n++;
+            if (fixed.some((f) => meets(pad(b), f) && !inside(b, f) && !inside(f, b))) n++;
         }
         return n;
     };

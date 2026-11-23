@@ -11,7 +11,8 @@
  *    items down.
  * 4. Block rows: roots ordered by (earliest, latest) outside caller row, each at its earliest caller row still
  *    free (level calls); row(i) = max(row(i-1) + 1, pref(i)) (greedy, monotone).
- * 5. Moves: box unit: `offset` from computed place, or `lock` place; vertex unit: shifts its tree descendants,
+ * 5. Moves: box unit: rigid translation from its unmoved place by `offset`, or onto its `lock` cell (frame
+ *    corner); content keeps its rows relative to the frame; vertex unit: shifts its tree descendants,
  *    descending (unlocked) until labels clear. Later items place from unmoved positions (`moved`: shift per
  *    vertex; `base`: unmoved rectangle per item).
  * 6. Frames: from the box's computed corner, grown over content moved up or left. `tight`: frame hugs its
@@ -280,13 +281,16 @@ export function place(inp: PlaceInput): Placement {
                 const unit = boxUnit(it.box.key);
                 const lock = inp.lock[unit];
                 const off = inp.offset[unit];
-                if (lock) r = placeBox(it.box, lock[0], lock[1], []);
-                else if (off) {
-                    // offset from the unmoved (trial) row
+                if (lock || off) {
+                    // rigid move: placed at its unmoved (trial) row, then labels, lanes and frames translate by
+                    // the offset, or onto the lock cell (frame corner)
                     const home = Math.max(cr, top - 1);
-                    r = placeBox(it.box, col + off[0], home + off[1], []);
-                    for (const v of inside) addMove(v, off[0], off[1]);
-                    r = { ...r, base: shifted(r.base, -off[0], -off[1]) };
+                    const b0 = P.blocks.length, f0 = P.frames.length;
+                    const u = placeBox(it.box, col, home, []);
+                    const [dc, dr] = lock ? [lock[0] - u.c0, lock[1] - u.r0] : off!;
+                    translate(b0, f0, inside, dc, dr);
+                    if (!lock) for (const v of inside) addMove(v, dc, dr);
+                    r = { ...shifted(u, dc, dr), base: lock ? shifted(u.base, dc, dr) : u.base };
                 } else {
                     // trial placement; on overlap descend by max(1, hit.r1 + 1 − r.r0)
                     // (r.r0 < rr when inner content moved up)
@@ -320,6 +324,22 @@ export function place(inp: PlaceInput): Placement {
         return { ...rect, base: unmoved };
     };
 
+    /** Translates vertices `keys`, and the blocks and frames placed from indices `b0`, `f0`, by (dc, dr). */
+    const translate = (b0: number, f0: number, keys: Iterable<NodeKey>, dc: number, dr: number) => {
+        if (!dc && !dr) return;
+        for (const k of keys) {
+            const p = P.pos.get(k);
+            if (!p) continue;
+            // new objects: trial snapshots share the Pos objects
+            P.pos.set(k, { row: p.row + dr, col: p.col + dc });
+            P.end.set(k, P.end.get(k)! + dc);
+            const q = P.port.get(k);
+            if (q) P.port.set(k, { row: q.row + dr, col: q.col + dc });
+        }
+        for (const f of P.frames.slice(f0)) { f.c0 += dc; f.c1 += dc; f.r0 += dr; f.r1 += dr; }
+        for (const b of P.blocks.slice(b0)) { b.col0 += dc; b.rowMap = b.rowMap.map((r) => r + dr); }
+    };
+
     // trial-placement snapshots include `moved`: else retries re-add inner moves,
     // drifting `baseRow` by retries × offset
     const snapshotP = () => ({
@@ -339,14 +359,7 @@ export function place(inp: PlaceInput): Placement {
     let minC = 0, minR = 0;
     for (const p of P.pos.values()) { minC = Math.min(minC, p.col); minR = Math.min(minR, p.row); }
     for (const f of P.frames) { minC = Math.min(minC, f.c0); minR = Math.min(minR, f.r0); }
-    if (minC < 0 || minR < 0) {
-        const dc = -minC, dr = -minR;
-        for (const p of P.pos.values()) { p.col += dc; p.row += dr; }
-        for (const [k, e] of P.end) P.end.set(k, e + dc);
-        for (const p of P.port.values()) { p.col += dc; p.row += dr; }
-        for (const f of P.frames) { f.c0 += dc; f.c1 += dc; f.r0 += dr; f.r1 += dr; }
-        for (const b of P.blocks) { b.col0 += dc; b.rowMap = b.rowMap.map((r) => r + dr); }
-    }
+    translate(0, 0, [...P.pos.keys()], -minC, -minR);
     let W = Math.max(0, all.c1 + 1), H = Math.max(0, all.r1 + 1);
     for (const [k, p] of P.pos) { W = Math.max(W, P.end.get(k)! + 1); H = Math.max(H, p.row + 1); }
     for (const f of P.frames) { W = Math.max(W, f.c1 + 1); H = Math.max(H, f.r1 + 1); }

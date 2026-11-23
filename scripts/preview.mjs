@@ -31,6 +31,7 @@ DATA.style = JSON.parse(JSON.stringify(DATA.style));
 const params = new URLSearchParams(location.search);
 const which = params.get('doc') || 'moo';
 let state = {};
+window.gaffyPreview = true;   // webview: hover card without delay
 const initial = JSON.parse(DATA.docs[which]);
 for (const p of ['edges', 'parentRule', 'curve']) if (params.get(p)) initial.view[p] = params.get(p);
 if (params.get('boxes')) initial.view.boxes = params.get('boxes') === 'on';
@@ -69,7 +70,7 @@ const simulate = () => {
   if (params.get('key')) document.getElementById('graph').dispatchEvent(new KeyboardEvent('keydown', { key: params.get('key'), bubbles: true }));
   // steps=a|b|…, in order: marker=<name>:<up|down>, isolate=<caller>,<callee>, arrow=<name>, sel=<name>, key=<key>,
   // dbl=<name> (double click a label), drag=<name>,<dx>,<dy> (pixels), dump=<name>,… (collapsed, their offsets and label cells; shown in #log),
-  // opt=<label start> (click an Options entry)
+  // opt=<label start> (click an Options entry), hover=<name> (hover card)
   const dumps = [];
   for (const step of (params.get('steps') || '').split('|').filter(Boolean)) {
     const [kind, arg] = step.split('=');
@@ -95,7 +96,15 @@ const simulate = () => {
       const key = Object.keys(JSON.parse(text).graph.nodes).find((x) => x.endsWith('#' + name));
       window.dispatchEvent(new MessageEvent('message', { data: { type: 'cmd', cmd, key } }));
     } else if (kind === 'key') document.getElementById('graph').dispatchEvent(new KeyboardEvent('keydown', { key: arg, bubbles: true }));
-    else if (kind === 'opt') {
+    else if (kind === 'hover') {
+      // hover card of a label (the mock answers with a sample signature)
+      // hover=<name>[,<pixels from the label start>]
+      const [name, dx] = arg.split(',');
+      const g = labelOf(name);
+      const r = g?.getBoundingClientRect();
+      if (g) g.dispatchEvent(new MouseEvent('mouseenter', { bubbles: false, view: window, clientX: r.left + (+dx || 10), clientY: r.top + 8 }));
+      else log({ sim: 'no label ' + name });
+    } else if (kind === 'opt') {
       // Options > the entry whose label starts with the text
       const open = document.querySelector('#toolbar .opts button');
       if (!document.querySelector('#toolbar .panel')) fire(open);
@@ -165,6 +174,11 @@ window.acquireVsCodeApi = () => ({
   postMessage(m) {
     log(m);
     if (m.type === 'ready') queueMicrotask(() => { deliver(); simulate(); });
+    if (m.type === 'hover') {
+      const name = m.key.split('#').pop().split('.').pop().replace(/\\(.*$/, '');
+      window.dispatchEvent(new MessageEvent('message', { data: { type: 'hoverText', key: m.key, lang: 'python',
+        code: '(method) def ' + name + '(\\n    self: Self@GaussianModel,\\n    pcd: BasicPointCloud,\\n    spatial_lr_scale: float = 1.0,\\n    *args: Any\\n) -> tuple[Tensor, dict[str, int]]' } }));
+    }
     if (m.type === 'edit') { if (m.cause) traced.push(JSON.stringify({ cause: m.cause, moved: m.moved?.length ?? 0 })); text = m.text; deliver(); }
   },
   getState() { return state; },

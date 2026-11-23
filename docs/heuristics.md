@@ -18,23 +18,23 @@ Reading the graph: a function calls the functions and rules below it in code ord
 <pre>
 ╭┄ src ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄╮
 ┆  ╭┄ webview/main ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄╮     ╭┄ core ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄╮ ┆
-┆  ┆  <a href="../src/webview/main.ts#L367"><b>render()</b></a> ──────────────────────────────┬────────&gt; <a href="../src/core/scene.ts#L103">scene.buildScene()</a>                                      ┆ ┆
-┆  ┆  ├─&gt; <a href="#h37_hops">h37_hops()</a>                         │ ┆     ┆  ├─&gt; <a href="../src/core/scene.ts#L281">scene.revealView()</a>                                  ┆ ┆
-┆  ┆  └─&gt; <a href="../src/webview/main.ts#L602">afterRender()</a> ─────────────────┐   │ ┆     ┆  │   ├─&gt; <a href="../src/core/reveal.ts#L74">reveal.revealDepth()</a>                            ┆ ┆
+┆  ┆  <a href="../src/webview/main.ts#L371"><b>render()</b></a> ──────────────────────────────┬────────&gt; <a href="../src/core/scene.ts#L103">scene.buildScene()</a>                                      ┆ ┆
+┆  ┆  ├─&gt; <a href="#h37_hops">h37_hops()</a>                         │ ┆     ┆  ├─&gt; <a href="../src/core/scene.ts#L303">scene.revealView()</a>                                  ┆ ┆
+┆  ┆  └─&gt; <a href="../src/webview/main.ts#L609">afterRender()</a> ─────────────────┐   │ ┆     ┆  │   ├─&gt; <a href="../src/core/reveal.ts#L74">reveal.revealDepth()</a>                            ┆ ┆
 ┆  ┆      └─&gt; <a href="#h35_save_what_is_drawn">h35_save_what_is_drawn()</a>   │   │ ┆     ┆  │   │   └─&gt; <a href="#h02_call_depth_by_path">reveal.h02_call_depth_by_path()</a>             ┆ ┆
-┆  ┆  <a href="../src/webview/main.ts#L703"><b>setSide()</b></a> ─────────────────────────┼─┐ │ ┆     ┆  │   └─&gt; <a href="../src/core/reveal.ts#L40">reveal.reveal()</a>                                 ┆ ┆
+┆  ┆  <a href="../src/webview/main.ts#L710"><b>setSide()</b></a> ─────────────────────────┼─┐ │ ┆     ┆  │   └─&gt; <a href="../src/core/reveal.ts#L40">reveal.reveal()</a>                                 ┆ ┆
 ┆  ┆  ┌──────────────────────────────────┘ │ │ ┆     ┆  │       └─&gt; <a href="#h01_first_revealer">reveal.h01_first_revealer()</a>                 ┆ ┆
 ┆  ┆  └─&gt; <a href="#h34_offset_handover">h34_offset_handover()</a>            │ │ ┆     ┆  ├─&gt; <a href="../src/core/boxes.ts#L45">boxes.boxTree()</a>                                     ┆ ┆
-┆  ┆  <a href="../src/webview/main.ts#L911"><b>dragUnit()</b></a> ─────────────────────┬────┤ │ ┆     ┆  │   └─&gt; <a href="#h03_box_order">boxes.h03_box_order()</a>                           ┆ ┆
-┆  ┆  ├─&gt; <a href="../src/webview/main.ts#L902">topUnits()</a>                  │    │ │ ┆     ┆  ├─&gt; <a href="../src/core/place.ts#L72">place.place()</a>                                       ┆ ┆
-┆  ┆  │   └─&gt; <a href="#h32_multi_unit_drag">h32_multi_unit_drag()</a>   │    │ │ ┆     ┆  │   └─&gt; <a href="../src/core/place.ts#L220">place.placeBox() ↻</a>                              ┆ ┆
-┆  ┆  └─&gt; <a href="../src/webview/main.ts#L1012">settleDrop()</a>                │    │ │ ┆     ┆  │       ├─&gt; <a href="#h16_item_order">place.h16_item_order()</a>                      ┆ ┆
+┆  ┆  <a href="../src/webview/main.ts#L1035"><b>dragUnit()</b></a> ─────────────────────┬────┤ │ ┆     ┆  │   └─&gt; <a href="#h03_box_order">boxes.h03_box_order()</a>                           ┆ ┆
+┆  ┆  ├─&gt; <a href="../src/webview/main.ts#L1026">topUnits()</a>                  │    │ │ ┆     ┆  ├─&gt; <a href="../src/core/place.ts#L73">place.place()</a>                                       ┆ ┆
+┆  ┆  │   └─&gt; <a href="#h32_multi_unit_drag">h32_multi_unit_drag()</a>   │    │ │ ┆     ┆  │   └─&gt; <a href="../src/core/place.ts#L221">place.placeBox() ↻</a>                              ┆ ┆
+┆  ┆  └─&gt; <a href="../src/webview/main.ts#L1136">settleDrop()</a>                │    │ │ ┆     ┆  │       ├─&gt; <a href="#h16_item_order">place.h16_item_order()</a>                      ┆ ┆
 ┆  ┆      └─&gt; <a href="#h33_drop_repulsion">h33_drop_repulsion()</a>    │    │ │ ┆     ┆  │       ├─&gt; <a href="#h17_item_column">place.h17_item_column()</a>                     ┆ ┆
-┆  ┆  <a href="../src/webview/main.ts#L1080"><b>runCmd()</b></a> ───────────────────────┼────┤ │ ┆     ┆  │       ├─&gt; <a href="#h18_item_row">place.h18_item_row()</a>                        ┆ ┆
-┆  ┆      ┌───────────────────────────┘    │ │ ┆     ┆  │       ├─&gt; <a href="../src/core/place.ts#L91">place.placeBlock()</a>                          ┆ ┆
+┆  ┆  <a href="../src/webview/main.ts#L1204"><b>runCmd()</b></a> ───────────────────────┼────┤ │ ┆     ┆  │       ├─&gt; <a href="#h18_item_row">place.h18_item_row()</a>                        ┆ ┆
+┆  ┆      ┌───────────────────────────┘    │ │ ┆     ┆  │       ├─&gt; <a href="../src/core/place.ts#L92">place.placeBlock()</a>                          ┆ ┆
 ┆  ┆      └─&gt; <a href="#h31_still_anchor">h31_still_anchor()</a>           │ │ ┆     ┆  │       │   ├─&gt; <a href="#h13_caller_alignment">place.h13_caller_alignment()</a>            ┆ ┆
 ┆  ┆  ┌────────────────────────────────────┘ │ ┆     ┆  │       │   ├─&gt; <a href="../src/core/layout.ts#L78">layout.layout()</a>                         ┆ ┆
-┆  ┆  └─&gt; <a href="../src/webview/main.ts#L688">anchorAt()</a> ────────────────────────┤ ┆     ┆  │       │   │   ├─&gt; <a href="#h06_root_order">layout.h06_root_order()</a>             ┆ ┆
+┆  ┆  └─&gt; <a href="../src/webview/main.ts#L695">anchorAt()</a> ────────────────────────┤ ┆     ┆  │       │   │   ├─&gt; <a href="#h06_root_order">layout.h06_root_order()</a>             ┆ ┆
 ┆  ┆      ┌──────────────────────────────────┘ ┆     ┆  │       │   │   ├─&gt; <a href="#h07_child_order">layout.h07_child_order()</a>            ┆ ┆
 ┆  ┆      └─&gt; <a href="#h30_action_anchor">h30_action_anchor()</a>              ┆     ┆  │       │   │   ├─&gt; <a href="#h08_row_order">layout.h08_row_order()</a>              ┆ ┆
 ┆  ╰┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄╯     ┆  │       │   │   ├─&gt; <a href="#tree_parent_rule">layout.tree_parent_rule()</a>           ┆ ┆
@@ -52,7 +52,7 @@ Reading the graph: a function calls the functions and rules below it in code ord
 ┆                                                    ┆  ├─&gt; <a href="#h05_marker_row_first">scene.h05_marker_row_first()</a>                        ┆ ┆
 ┆                                                    ┆  ├─&gt; <a href="../src/core/scene.ts#L76">scene.sortKeyOf()</a>                                   ┆ ┆
 ┆                                                    ┆  │   └─&gt; <a href="#h04_sort_key">scene.h04_sort_key()</a>                            ┆ ┆
-┆                                                    ┆  ├─&gt; <a href="../src/core/settle.ts#L43">settle.settleMoved()</a>                                ┆ ┆
+┆                                                    ┆  ├─&gt; <a href="../src/core/settle.ts#L46">settle.settleMoved()</a>                                ┆ ┆
 ┆                                                    ┆  │   └─&gt; <a href="#h23_settle">settle.h23_settle()</a>                             ┆ ┆
 ┆                                                    ┆  └─&gt; <a href="../src/core/grid.ts#L107">grid.buildGrid()</a>                                    ┆ ┆
 ┆                                                    ┆      ├─&gt; <a href="#h24_tree_lines_first">grid.h24_tree_lines_first()</a>                     ┆ ┆
@@ -100,7 +100,7 @@ Code: [scene.ts:77](../src/core/scene.ts#L77), in `sortKeyOf`.
 
 **Marker row first.** A `└─>>` marker has the empty sort key: it is always a function's first child row.
 
-Code: [scene.ts:183](../src/core/scene.ts#L183), in `buildScene`.
+Code: [scene.ts:184](../src/core/scene.ts#L184), in `buildScene`.
 
 ### h06_root_order
 
@@ -156,73 +156,73 @@ Code: [layout.ts:255](../src/core/layout.ts#L255), in `layout`.
 
 **Caller alignment.** Each top-level function of a block takes the earliest outside-caller row still free, so its incoming call can run level.
 
-Code: [place.ts:107](../src/core/place.ts#L107), in `placeBlock`.
+Code: [place.ts:108](../src/core/place.ts#L108), in `placeBlock`.
 
 ### h14_monotone_rows
 
 **Monotone rows.** A row's position is the larger of "row above + 1" and its preferred row (h13_caller_alignment); an approach row stays directly above its function.
 
-Code: [place.ts:113](../src/core/place.ts#L113), in `placeBlock`.
+Code: [place.ts:114](../src/core/place.ts#L114), in `placeBlock`.
 
 ### h15_block_descent
 
 **Block descent.** A block that would overlap something already placed moves down until clear.
 
-Code: [place.ts:131](../src/core/place.ts#L131), in `placeBlock`.
+Code: [place.ts:132](../src/core/place.ts#L132), in `placeBlock`.
 
 ### h21_moved_function_descent
 
 **Moved function descent.** A moved, unlocked function with its tree moves down until its labels clear the other labels of its own block. A collapsed container moves and locks as `collapsed:<key>`, apart from its expanded vertex, so expanding it returns to the layout before the collapse.
 
-Code: [place.ts:177](../src/core/place.ts#L177), in `placeBlock`.
+Code: [place.ts:178](../src/core/place.ts#L178), in `placeBlock`.
 
 ### h16_item_order
 
 **Item order.** Within a box: locked items first, then callers' items before callees' items (ties by h03_box_order).
 
-Code: [place.ts:250](../src/core/place.ts#L250), in `placeBox`.
+Code: [place.ts:251](../src/core/place.ts#L251), in `placeBox`.
 
 ### h17_item_column
 
 **Item column.** An item goes right of the rightmost earlier item that calls into it, plus a channel of `route.channel` columns + 1 per incoming call; otherwise at the box's left edge.
 
-Code: [place.ts:268](../src/core/place.ts#L268), in `placeBox`.
+Code: [place.ts:269](../src/core/place.ts#L269), in `placeBox`.
 
 ### h18_item_row
 
 **Item row.** An item starts at its first placed caller's row, else below the unlocked items already placed.
 
-Code: [place.ts:272](../src/core/place.ts#L272), in `placeBox`.
+Code: [place.ts:273](../src/core/place.ts#L273), in `placeBox`.
 
 ### item_state
 
 **Decision: locked, moved or unmoved item.** A box item is placed by its lock, by its offset, or by trial placement.
 
-Code: [place.ts:281](../src/core/place.ts#L281), in `placeBox`.
+Code: [place.ts:282](../src/core/place.ts#L282), in `placeBox`.
 
 ### h19_lock_and_box_offset
 
-**Lock and box offset.** A locked box sits at its fixed cell; a moved box is displaced from the row it would take unmoved.
+**Lock and box offset.** A moved box is placed as if unmoved (at its trial row), then translated whole by its offset: labels, lanes and inner frames keep their places relative to its frame. A locked box translates the same way, onto its fixed cell (frame corner).
 
-Code: [place.ts:283](../src/core/place.ts#L283), in `placeBox`.
+Code: [place.ts:290](../src/core/place.ts#L290), in `placeBox`.
 
 ### h20_unmoved_box_descent
 
 **Unmoved box descent.** An unmoved box that overlaps an earlier item moves down until clear, by the distance from its top to below that item. An earlier box moved by an offset counts at its unmoved place, so a move never pushes unmoved boxes down. Moved boxes are exempt; h23_settle handles them.
 
-Code: [place.ts:294](../src/core/place.ts#L294), in `placeBox`.
+Code: [place.ts:298](../src/core/place.ts#L298), in `placeBox`.
 
 ### h22_frame_extent
 
 **Frame extent.** Tight groups (style `boxes.tight`, the default): a frame is its content's bounding box plus margin. Otherwise the frame keeps the box's unmoved corner and only grows. Ungrouping or grouping a container drops the moves inside it (`dropMovesWithin`): offsets count from the box that held them.
 
-Code: [place.ts:312](../src/core/place.ts#L312), in `placeBox`.
+Code: [place.ts:316](../src/core/place.ts#L316), in `placeBox`.
 
 ### h23_settle
 
-**Settle.** Every redraw, moved units whose labels or frames lie on other content move to the nearest clear offset, up to 3 rounds (the loop in buildScene). The move that displaces least goes first (distance × labels moved: a small unit yields to a large one); ties: boxes before functions, then the smaller unit. Search: 12 cells around (vertical first), then straight lines up to 80, never off the top or left edge. Locked units never move. Lines are not considered.
+**Settle.** Every redraw, moved units whose labels or frames lie on other content, or whose frame touches another frame without a free row or column between (no corridor for calls), move to the nearest clear offset, up to 3 rounds (the loop in buildScene). The move that displaces least goes first (distance × labels moved: a small unit yields to a large one); ties: boxes before functions, then the smaller unit. Search: 12 cells around (vertical first), then straight lines up to 80, never off the top or left edge. Locked units never move. Lines are not considered.
 
-Code: [settle.ts:92](../src/core/settle.ts#L92), in `settleMoved`.
+Code: [settle.ts:95](../src/core/settle.ts#L95), in `settleMoved`.
 
 ## Routing
 
@@ -274,40 +274,40 @@ Code: [grid.ts:606](../src/core/grid.ts#L606), in `buildGrid`.
 
 **Hops.** Where a horizontal call line crosses a vertical one (one cell, neither turning), the horizontal line hops over it with a half circle of 0.525 cell, in orthogonal and rounded edges; text shows the crossing glyph.
 
-Code: [main.ts:432](../src/webview/main.ts#L432), in `render`.
+Code: [main.ts:436](../src/webview/main.ts#L436), in `render`.
 
 ### h30_action_anchor
 
 **Action anchor.** The function you last opened, closed or removed keeps its spot on screen: the view pans to compensate.
 
-Code: [main.ts:383](../src/webview/main.ts#L383), in `render`; [main.ts:689](../src/webview/main.ts#L689), in `anchorAt`.
+Code: [main.ts:387](../src/webview/main.ts#L387), in `render`; [main.ts:696](../src/webview/main.ts#L696), in `anchorAt`.
 
 ### h31_still_anchor
 
 **Still anchor.** After a drag or Re-arrange Selection, the view stays fixed on a seed or another function that did not move.
 
-Code: [main.ts:953](../src/webview/main.ts#L953), in `dragUnit`; [main.ts:1208](../src/webview/main.ts#L1208), in `runCmd`.
+Code: [main.ts:1077](../src/webview/main.ts#L1077), in `dragUnit`; [main.ts:1332](../src/webview/main.ts#L1332), in `runCmd`.
 
 ### h32_multi_unit_drag
 
 **Multi-unit drag.** Dragging a selected function moves each selected function with the functions below it, each once; one inside another selected function's tree moves with that function.
 
-Code: [main.ts:904](../src/webview/main.ts#L904), in `topUnits`.
+Code: [main.ts:1028](../src/webview/main.ts#L1028), in `topUnits`.
 
 ### h33_drop_repulsion
 
 **Drop repulsion.** A drop on content, or one that leaves a call unroutable, moves on in the drag direction, then sideways, up to 12 cells or 1.5 s. Since h23_settle runs in buildScene, every trial spot looks clear and this rule changes nothing.
 
-Code: [main.ts:1025](../src/webview/main.ts#L1025), in `settleDrop`.
+Code: [main.ts:1149](../src/webview/main.ts#L1149), in `settleDrop`.
 
 ### h34_offset_handover
 
 **Offset handover.** Opening the callers of a moved function: when a caller revealed by that opening becomes its tree parent and has no offset or lock, the caller takes the function's offset and the function loses it. The offset now moves both, so the caller sits right above the function where you put it.
 
-Code: [main.ts:612](../src/webview/main.ts#L612), in `afterRender`; [main.ts:708](../src/webview/main.ts#L708), in `setSide`.
+Code: [main.ts:619](../src/webview/main.ts#L619), in `afterRender`; [main.ts:715](../src/webview/main.ts#L715), in `setSide`.
 
 ### h35_save_what_is_drawn
 
 **Save what is drawn.** The view saves the offsets h23_settle drew with, at most 3 saves in a row; any other change resets the count.
 
-Code: [main.ts:619](../src/webview/main.ts#L619), in `afterRender`.
+Code: [main.ts:626](../src/webview/main.ts#L626), in `afterRender`.

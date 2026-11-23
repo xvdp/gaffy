@@ -1,13 +1,54 @@
 # gaffy
+*VS Code extension* that generates persistent, editable call graphs, leveraging D3 and can be exported to ASCII (UTF) style.
 
-VS Code extension: persistent, manipulable call graphs on a character grid, drawn with D3. View: a `.gaffy` file in `<workspace>/.gaffy/views/`, opened as a tab. Call data: the language server's call hierarchy (LSP[^lsp]); for shader languages without one, calls found in the text ([Languages](#languages)).
+This sketch uses the character grid logic of ASCII, the clean looks of D3, to extend VS Code call graphs.
+
+Supports Python, TypeScript, JavaScript, Rust, C++, CUDA, Objective-C, Go, Java, C#, Kotlin, Swift, Dart, relying on their language servers, partial support for Slang. Some cross language support across pybind11, nanobind, wasm-bindgen. More info in [docs/development.md](docs/development.md).
+
+
+Graphs are .json (.gaffy) files saved as  `<vscode-root>/.gaffy/<symbol>_<commit>.gaffy`
+
+## Install from vscode marketplace
+Stupid MS locked my account so not yet published. I suppose if i were an agent i would have the patience to go thru with their byzantine mating rituals to unlock an account.
+
 
 ## Install from Source
 
 ```bash
 npm install
-npm run package                              # typecheck, tests, bundles, gaffy-<version>.vsix
-npm run install:local                        # code --install-extension gaffy-<version>.vsix
+npm run package         # typecheck, tests, bundles, gaffy-<version>.vsix
+npm run install:local   # also:  code --install-extension gaffy-<version>.vsix
+```
+### Test installed .vsix extension
+`Ctrl+Shift+P > **Developer: Reload Window**`
+
+### Access points:
+Function context and file explorer file content.
+
+`gaffy> Call hierarchy (up)` is similar to VS Code `Show Call Hierarchy` with several differences beyond the gaffy view:
+* partial cross language support [`src/host/bridges.ts`](src/host/bridges.ts) 
+* call hierarchy can be exapanded to called functions as well.
+
+<p align="center">
+  <img src="images/gaffy_func_ctxt.png" alt="Editor right click on a function: gaffy> Call Hierarchy (up)" width="48%" align="middle">
+  &nbsp;<b> --> </b>&nbsp;
+  <img src="images/gaffy_cross_lang.png" alt="The gaffy view it opens: Python callers reaching the CUDA function coord2Morton" width="48%" align="middle">
+</p>
+
+
+```
+╭┄ scene ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄╮
+┆  >> __init__.Scene()                                    ┆
+┆  └┈> __init__.Scene.__init__()                          ┆
+┆      └─> gaussian_model.GaussianModel.create_from_pcd() ·┐
+┆  >> gaussian_model.GaussianModel.reinitial_pts() ─┐     ┆│
+╰┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄·┄┄┄┄┄╯·
+                                    ┌─·─·─·─·─·─·─·─┴─·─·─·┘
+                                    ·╭┄ submodules/simple-knn ┄╮
+                                    └─> spatial.distCUDA2()    ┆
+                                     ┆  └─> simple_knn.knn()   ┆
+                                     ┆      └─>>               ┆
+                                     ╰┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄╯
 ```
 
 
@@ -16,87 +57,13 @@ npm run install:local                        # code --install-extension gaffy-<v
 
 Development: `gaffy/` in VS Code, F5 (Extension Development Host); `npm run watch` rebuilds on change.
 
-## Scripts
-
-| command | effect |
-|---|---|
-| `npm install` | dependencies, after cloning or a `package.json` change |
-| `npm run typecheck` | `tsc --noEmit` over `src/` and `test/` |
-| `npm test` | vitest: core, routing invariants, golden text pictures in `test/golden/` |
-| `UPDATE_GOLDEN=1 npm test` | goldens rewritten after an intended layout change |
-| `npm run build` | esbuild bundles: `dist/extension.js` (host), `dist/webview.js` (webview) |
-| `npm run watch` | build on every save |
-| `npm run package` | typecheck, test, build, `vsce package` → `gaffy-<version>.vsix` |
-| `npm run install:local` | `code --install-extension gaffy-<version>.vsix`, version from `package.json` |
-| `npm run preview` | `dist/preview.html`: the webview in a browser with fixture views; `GAFFY_PREVIEW_FILE=<view.gaffy> npm run preview` for any view |
-| `npm run heuristics` | `docs/heuristics.md`, `docs/heuristics.gaffy`, `docs/ordering.md` regenerated from the code |
-| `npm run docs:check` | `npm run heuristics`, then a failure when `docs/` differs from the commit |
-| `node tools/gaffy-trace.mjs <trace.jsonl>` | view change log (setting `gaffy.trace`) as a list |
-
-Release and publishing commands (`npm version`, `vsce publish`, `ovsx publish`): [docs/development.md](docs/development.md).
-
-## Documentation
+## Docs
 
 - [docs/development.md](docs/development.md): tooling, release, publishing, project parts, security measures.
 - [docs/heuristics.md](docs/heuristics.md): layout rules with code links, as a pipeline graph; [docs/heuristics.gaffy](docs/heuristics.gaffy): the same graph as a gaffy view.
 - [docs/ordering.md](docs/ordering.md): functions that change what a view shows and where (triggers, interpreters, layout), drawing of one call, what a drag moves.
 
-## Test installed .vsix extension
-`Ctrl+Shift+P > **Developer: Reload Window**`
 
-## Languages
-
-| Language | Server (VS Code extension) | Call hierarchy | gaffy |
-|---|---|---|---|
-| Python | Pylance | yes | language server |
-| TypeScript, JavaScript | built in | yes (TypeScript 5.9 LanguageService, measured) | language server; constructors named by class; object-literal methods qualified by their variable (`obj.run`) |
-| Rust | rust-analyzer (`rust-lang.rust-analyzer`); none under an inactive `#[cfg]` (module behind a disabled Cargo feature): set `"rust-analyzer.cargo.features"` | yes (not measured here) | language server; `impl Foo` → `Foo`, `impl Display for Foo` → `Foo[Display]`: `fmt` of two trait impls stays distinct |
-| C, C++, CUDA, Objective-C | Microsoft C/C++ (registers a provider) or clangd | yes | language server; `ns::Foo::bar` → `ns` › `Foo` › `bar`; template arguments dropped; operators kept whole |
-| Go, Java, C#, Kotlin, Swift, Dart | gopls, each language's server | per server (not measured here) | language server; Go `(*T).M` → `T` › `M` |
-| GLSL | WebGL GLSL Editor (registers a provider) | yes | language server; without it: text |
-| Slang | Slang (slangd 1.8): definitions and document symbols, no references (measured) | no | text: call sites by go to definition; callers by a scan of workspace Slang files |
-| HLSL, WGSL, Metal | per extension | usually no | text: document symbols, else a C-like outline; go to definition when offered, else by name |
-
-Text calls ([src/core/textcalls.ts](src/core/textcalls.ts)): comments, strings, preprocessor lines masked; functions and containers (`struct`, `class`, `namespace`, `interface`, `extension`, `cbuffer`) from document symbols, else brace matching; call site: name + `(` (optional `<…>`), control keywords excluded; constructor of a project type counted when a function of that name exists; calls through function pointers or macros missed. Name rules per language: [src/core/langs.ts](src/core/langs.ts). External code (installed packages, `target/`, `_deps/`, `/usr/include`): hidden unless `gaffy.includeExternal`.
-
-### Across languages
-
-Binding declarations link calls no language server sees across (Python ↔ C++/CUDA, Python ↔ Slang, TypeScript ↔ Rust): [src/core/bindings.ts](src/core/bindings.ts), [src/host/bridges.ts](src/host/bridges.ts); setting `gaffy.bridges`. Tooltip: the binding (`via pybind11: ext.cpp:16`).
-
-| Layer | Declarations read | Python call that links |
-|---|---|---|
-| pybind11, nanobind | `PYBIND11_MODULE(mod, m)` / `NB_MODULE(mod, m)`: `m.def("fn", &cpp_fn)`, `py::overload_cast<…>(&fn)`, `m.def_submodule("sub")`, `py::class_<T>(m, "T").def("meth", &T::meth)`, `def_static` | `mod.fn(…)`, `fn(…)` after `from mod import fn`, `mod.T.meth(…)`, through the file's imports |
-| torch extensions | `PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)`; module name from `load(name=…, sources=[…])` or `CUDAExtension("pkg._C", […])` in setup.py | `_C.fn(…)` after `from . import _C` |
-| torch operators | `TORCH_LIBRARY(ns, m)`, `TORCH_LIBRARY_IMPL(ns, CUDA, m)`: `m.impl("op", &op_cuda)` | `torch.ops.ns.op(…)` |
-| slangpy, slangtorch | `spy.Module.load_from_file(device, "x.slang")`, `device.load_module("x")`, `slangtorch.loadModule("x.slang")` in the Python file | `….fn(…)` for `fn` defined in x.slang; a function calling `getattr(h, …)` on a name that held the module (`module`, `self.module`) links to each x.slang function named in a string literal of the file (marked "by name, getattr") |
-| wasm-bindgen (Rust ↔ TypeScript, JavaScript) | `#[wasm_bindgen]` on `pub fn` (`js_name`) and on `impl T` (`#[wasm_bindgen(constructor)]`, methods, statics, `js_class`); `getter`/`setter` methods: property reads, not calls; crate: nearest `Cargo.toml` `[package]` | `f(…)` after `import { f } from '…/pkg'` (crate's wasm-pack folder, `pkg/<crate>.js`, or package name = crate name), `ns.f(…)` after `import * as ns`, `new T(…)`, `T.s(…)`, dynamic `import(…)`, `require(…)`; generated glue `pkg/*.js` is external code, so each call shows once, caller → Rust function |
-
-C++/CUDA end: go to definition at the binding's target (C/C++ extension or clangd), else a workspace symbol of that name; CUDA host functions in `.cu` files alike; kernel launches `k<<<grid, block>>>(…)`: text calls. torch.autograd: `X.apply(…)` on a `torch.autograd.Function` subclass → `X.forward` (dispatched at run time; the language server stops at `Function.apply`). Not linked: calls on instances (`obj.meth(…)`, type unknown in the text), lambdas in bindings, constructors (`py::init`), registrations built in loops. A binding match replaces the language server's edge from that call site, which matches by name while the compiled module is unresolved (`_C.rasterize_gaussians(…)` taken for the Python wrapper `rasterize_gaussians`; measured with Pyright).
-
-Search scope for bindings and callers: the file's project (nearest folder with `setup.py`, `pyproject.toml`, `setup.cfg`, `CMakeLists.txt`, `Cargo.toml` or `package.json`), then the workspace.
-
-Requirement: both sides in the workspace. An installed package's `site-packages` holds the Python wrapper and the compiled module, no C++/CUDA source: add the source repository as a second workspace folder (File > Add Folder to Workspace), resolved by Pylance through `pip install -e <repo>` or `"python.analysis.extraPaths": ["<repo>"]` (Pyright resolves extra paths before `site-packages`). Otherwise the call ends at the installed copy: external code, shown only with `gaffy.includeExternal` (VS Code setting, not style.json).
-
-Direction: binding calls are outgoing calls; a function shown as a caller opens only its callers. Path `forward → _C.rasterize_gaussians → RasterizeGaussiansCUDA`: the calls of `forward` (a seed, or a view from gaffy> Call Hierarchy (dn)).
-
-### Implicit calls (classes)
-
-Runtime method calls without a call expression naming the method, absent from language-server answers; added by [src/host/implicit.ts](src/host/implicit.ts), with a tooltip:
-
-- Construction: a class calls `__new__`, `__init__` (nearest base class defining one) and `__post_init__` (Python), or `constructor` (TypeScript, JavaScript): `Foo(…)` → `caller → Foo → Foo.__init__`; callers of `Foo.__init__` start with `Foo`.
-- Instance call (Python): `obj(…)` calls `type(obj).__call__`, or `forward` for a torch `nn.Module` (no `__call__` below `Module`). Type of `obj`: the language server's type definition at the call site (`criterion(x, y)`, `self.net(x)`); call sites with an answer skipped.
-
-Not followed (a call trace would see them): backprop, hooks, `with` blocks, iteration, operators, properties, decorators.
-
-## Create a view
-
-Editor right click on a function name, section of Find All References (group `0_navigation`, after Show Type Hierarchy):
-
-| entry | seeds | first side opened |
-|---|---|---|
-| gaffy> Call Hierarchy (up) | the function | its callers |
-| gaffy> Call Hierarchy (dn) | the function | its calls |
-| gaffy> Add to Call Graph | appended to the open view | as the view's direction |
 
 `style.json` `view.traverse: "both"`: new views start with callers and calls. Explorer right click on a file > **gaffy** > Call Hierarchies (all, up): each function of the file with one caller level, full layout. `gaffy: Check Language Servers`: workspace languages, extension providing each call hierarchy, missing installs; a notification once per version when a required extension is missing (Install, Show Report, Don't Show Again).
 
@@ -163,6 +130,7 @@ Algorithms: [src/core/layout.ts](src/core/layout.ts) (rows and lanes in a block)
 | double click a collapsed container; a box header | expand it; collapse the box |
 | drag a function | move with its tree children, or all selected; calls re-route; its namespace box grows around it |
 | drag a box header | move the box and its content |
+| hover a function name | card (not over the `>> ` of callers off screen, which keeps its own title): the language server's signature (as VS Code's hover, return types included where the server infers them), one parameter per line, VS Code hover colors; then qualified name, `path:line`, levels |
 | hover an arrow | highlight every call through the cell, end to end |
 | click an arrow | select every call through the cell (whole fork or merge); Shift toggles |
 | double click an arrow | isolate: selected calls' callers and everything below their callees |
@@ -179,7 +147,7 @@ Algorithms: [src/core/layout.ts](src/core/layout.ts) (rows and lanes in a block)
 
 Toolbar: **Isolate** (nothing hidden) or **Show all (n)** (something hidden), call depths (full), **zoom fit**, **Expand mode >>** / **Expand mode -+** (switch to that call expansion), **☰ Options** (pulldown, checkmarks):
 
-- Call Expansion: Individual On Graph (one layer at a time), Global Toolbar (full); Call depth by (full): shortest or longest call path
+- Call Expansion: Individual On Graph (one layer at a time), Global Toolbar (full); Seeds: ✓ Only paths between seeds (`view.between`); Call depth by (full): shortest or longest call path
 - Namespaces: ✓ Group namespaces, ✓ Tight groups (default on, style `boxes.tight`: frames fit their content on all sides), reset per-box grouping (moves inside changed boxes dropped)
 - Edges: glyphs (UTF box drawing) or vector; vector curve: orthogonal, rounded, sigmoid, spline. Cross-language calls dash-dot, implicit calls dotted, every style and the text export (`┈ ┊`, `─·─·`)
 - Tree parent: first caller found (dfs), nearest caller above, left merge (joint: a caller right above joins the elbow `├───┴─>`; several callers in a box join one collector from the left, `┌──┘` then `└─>`; calls between boxes arrive from the left where cells are free)
@@ -209,7 +177,7 @@ p.write_text(json.dumps(view))
 subprocess.run(["code", str(p)])
 ```
 
-`depthUp`: caller levels, `depthDown`: callee levels (`"all"`: every level); `"arrange": "grow"` instead starts one layer at a time. The resolved view replaces the names with gaffy keys and stores the graph.
+`depthUp`: caller levels, `depthDown`: callee levels (`"all"`: every level); `"arrange": "grow"` instead starts one layer at a time. `"between": true`: only the functions on call paths from one seed to another are drawn (connectivity of the seeds; `depthUp`, `depthDown` set how far paths are searched; with both 0, the seeds and the calls among them). The resolved view replaces the names with gaffy keys and stores the graph.
 
 ## Building, progress, cache
 
@@ -300,7 +268,7 @@ New UI color: a rule in `media/webview.css` reading `var(--g-<key>)`; the key wi
 
 ## Tests and preview
 
-Commands: [Scripts](#scripts). Preview page parameters: `dist/preview.html?doc=sh|exp4|star|grow|two[&edges=vector&curve=sigmoid&fill=hue&boxes=off&parentRule=joint]`.
+Commands: [docs/development.md](docs/development.md#scripts). Preview page parameters: `dist/preview.html?doc=sh|exp4|star|grow|two[&edges=vector&curve=sigmoid&fill=hue&boxes=off&parentRule=joint]`.
 
 Preview: the webview bundle in a browser, mocked VS Code API, fixture views (`sh`, `exp4`, `star`, `grow`, `two`) over made-up packages; `GAFFY_PREVIEW_FILE=<view.gaffy>` previews any view.
 

@@ -61,6 +61,7 @@ const T_BAR: Row[] = [
     ['**Expand mode >>**, **Expand mode -+**', at(MAIN, "label: 'Expand mode -+'"), "`setArrange('auto' | 'grow')`: switches to the mode it names"],
     ['**Isolate**', at(MAIN, "{ label: 'Isolate', title:"), "`runCmd('isolateSelection')`"],
     ['Options > Call Expansion: Individual On Graph, Global Toolbar', at(MAIN, "label: 'Individual On Graph: >>'"), "`setArrange('grow' | 'auto')`"],
+    ['Options > Seeds > Only paths between seeds', at(MAIN, "label: 'Only paths between seeds'"), '`between`: drawn functions filtered to seed-to-seed call paths (`onPaths`)'],
     ['Options > Call depth by: shortest, longest path', at(MAIN, "label: r === 'shortest' ? 'Shortest call path'"), '`depthRule`'],
     ['Options > Namespaces > Group namespaces', at(MAIN, "label: 'Group namespaces'"), '`boxes`'],
     ['Options > Namespaces > Tight groups', at(MAIN, "{ label: 'Tight groups', title:"), '`tight`'],
@@ -193,15 +194,16 @@ drop: pointer delta in whole cells; zero cells: nothing   ${href(MAIN, 'const dc
 ├── 4. placement: what was not moved keeps its computed place
 │   ├── a moved function lands at its computed place + offset, with its tree   ${href(PL, '} else if (off) shift.set(k,')}
 │   │   └── labels within 2 cells of another label of its group on the row ─────► slides down until clear   ${href(PL, 'const mine = new Set(descendants(k));')}
-│   ├── a moved group lands at the row it would take unmoved + offset; a locked one at its cell   ${href(PL, 'const home = Math.max(cr, top - 1);')}
+│   ├── a moved group: placed as unmoved, then translated whole by its offset; a locked one onto its cell   ${href(PL, 'const home = Math.max(cr, top - 1);')}
 │   ├── a sibling placed later (order: locked first, then calling order)   ${href(PL, 'const order = [...topo.filter(')}
 │   │   ├── after a group moved by an offset: counts it at its unmoved place ───► stays   ${href(PL, 'const avoid = [...placed.map(')}
 │   │   └── after a locked group, or one stretched by moves inside it ─────────► slides below it   ${href(PL, 'rr += Math.max(1, hit.r1 + 1 - r.r0);')}
 │   ├── frames grow to hold moved content (Tight groups: fit it on all sides) ────► later siblings of the
 │   │   enclosing group may slide below it   ${href(PL, 'const frame = (x: Rect): Rect =>')}
 │   └── content above row 0 or left of column 0 ──────────────────────────────► whole picture shifts back   ${href(PL, 'let minC = 0, minR = 0;')}
-├── 5. settle, up to 3 rounds in every redraw: moved, unlocked units that collide move to the nearest clear
-│      offset, the least displacement (distance × labels) first; unmoved and locked units never move here   ${href(ST, 'export function settleMoved(')}
+├── 5. settle, up to 3 rounds in every redraw: moved, unlocked units that collide (on content, or a frame
+│      touching another frame with no free row or column between) move to the nearest clear offset, the least
+│      displacement (distance × labels) first; unmoved and locked units never move here   ${href(ST, 'export function settleMoved(')}
 └── 6. the view saves the settled offsets (at most 3 saves in a row) and pans so the still function keeps its spot   ${href(MAIN, 'function afterRender() {')}
 </pre>`;
 const DRAG: Row[] = [
@@ -217,7 +219,7 @@ const DRAG: Row[] = [
     ['stacking', at(PL, 'const below = stack.length ?'), 'rows and columns of later siblings from earlier siblings\' unmoved extents'],
     ['what later items avoid', at(PL, 'const avoid = [...placed.map('), 'an earlier box moved by an offset at its unmoved place; a locked box, or one stretched by moves inside it, where drawn'],
     ['unmoved block descent', at(PL, 'const hit = avoid.find((a) => overlaps(a, rectOf(rowMap)));'), 'the functions of a group slide below what they avoid'],
-    ['moved group', at(PL, 'const home = Math.max(cr, top - 1);'), 'the row it would take unmoved + offset'],
+    ['moved group', at(PL, 'const home = Math.max(cr, top - 1);'), 'placed at the row it would take unmoved, then translated whole (labels, lanes, inner frames) by the offset'],
     ['unmoved group descent', at(PL, 'rr += Math.max(1, hit.r1 + 1 - r.r0);'), 'trial placement, then below the overlapped earlier sibling, by the distance from its top'],
     ['frame extent', at(PL, 'const frame = (x: Rect): Rect =>'), 'Tight groups: the content\'s bounding box; otherwise the computed corner, growing to hold content moved up or left'],
     ['picture origin', at(PL, 'let minC = 0, minR = 0;'), 'everything shifts so nothing lies above row 0 or left of column 0; the pan cancels it on screen'],

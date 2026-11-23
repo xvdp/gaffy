@@ -10,11 +10,11 @@
  */
 import * as path from 'node:path';
 import * as vscode from 'vscode';
-import { EXTERNAL, externalPath, extsOf, LANG, langOf, segments, TEXT_LANGS } from '../core/langs';
+import { EXTERNAL, externalPath, extsOf, LANG, langOf, OVERLOADS, paramTypes, segments, TEXT_LANGS } from '../core/langs';
 import { bodyHash, GEdge, GNode, Kind, NodeKey } from '../core/model';
 import { pyCallSites } from '../core/bindings';
 import { callSites, mask, outline, TextSym } from '../core/textcalls';
-import { Bridges } from './bridges';
+import { Bridges, Unresolved } from './bridges';
 import { Implicit } from './implicit';
 import { readable } from './scope';
 import { SeedSpec } from './seedspec';
@@ -78,6 +78,30 @@ function chainAt(syms: readonly Sym[], pos: vscode.Position): Sym[] {
         level = s.children;
     }
     return chain.filter((s, i) => i === chain.length - 1 || SCOPE.has(s.kind));
+}
+
+/**
+ * Whether the last symbol of `chain` shares its name with another symbol of its scope (an overload). Names compare
+ * by `segments`: the C/C++ extension names symbols with their parameter lists (`f(int a)`, `f(float3 b)`).
+ */
+function overloaded(chain: readonly Sym[], top: readonly Sym[]): boolean {
+    const me = chain[chain.length - 1];
+    const base = (x: Sym) => segments(x.name).join('.');
+    const scope = chain.length > 1 ? chain[chain.length - 2].children ?? [] : top;
+    return scope.some((s) => s !== me && base(s) === base(me));
+}
+
+/** Every symbol whose segment chain spells `parts` (overloads); `findQual` returns the first. */
+function findQuals(syms: readonly Sym[], parts: string[], out: Sym[] = []): Sym[] {
+    for (const s of syms) {
+        const seg = segments(s.name);
+        if (seg.every((x, i) => parts[i] === x)) {
+            if (seg.length === parts.length) out.push(s);
+            else findQuals(s.children ?? [], parts.slice(seg.length), out);
+        }
+        if (!SCOPE.has(s.kind)) findQuals(s.children ?? [], parts, out);
+    }
+    return out;
 }
 
 /** Symbol whose segment chain spells `parts`; searches through non-scope symbols (absent from quals). */
@@ -411,17 +435,24 @@ export class LspProvider {
             kind = kindOf(item.kind);
         }
 
-        const key = `${fileKey}#${qual}`;
+        let key = `${fileKey}#${qual}`;
         let hash: string | undefined;
+        let types: string | undefined;
         try {
             if (readable(item.uri)) {
                 const doc = await vscode.workspace.openTextDocument(item.uri);
                 hash = bodyHash(doc.getText(await this.bodyOf(item)));
+                // overloads (same name, one scope): parameter types in the key, `f(int,float3*)`
+                if (OVERLOADS.has(lang) && chain.length && overloaded(chain, await this.symbolsOf(item.uri))) {
+                    types = paramTypes(doc.getText(new vscode.Range(item.selectionRange.start, doc.positionAt(doc.offsetAt(item.selectionRange.start) + 4000))));
+                    if (types !== undefined) key = `${fileKey}#${qual}(${types})`;
+                }
             }
         } catch { /* unreadable: no MOD tracking */ }
-        acc[key] = { key, kind, name: qual.split('.').pop() || item.name, qual, module, parent, uri: item.uri.toString(),
+        const name = qual.split('.').pop() || item.name;
+        acc[key] = { key, kind, name, qual, module, parent, uri: item.uri.toString(),
             path: rel, line: item.selectionRange.start.line, character: item.selectionRange.start.character,
-            hash, detail: item.detail, external };
+            hash, detail: item.detail || (types !== undefined ? `${name}(${types})` : undefined), external };
         this.items.set(key, item);
         return key;
     }
@@ -456,7 +487,20 @@ export class LspProvider {
         if (!node?.uri || node.qual === '<module>') return undefined;
         const uri = vscode.Uri.parse(node.uri);
         let pos: vscode.Position | undefined;
-        const sym = node.qual ? findQual(await this.symbolsOf(uri), node.qual.split('.')) : undefined;
+        const syms = await this.symbolsOf(uri);
+        let sym = node.qual ? findQual(syms, node.qual.split('.')) : undefined;
+        // an overload key `qual(types)`: the same-named symbol whose parameter types match
+        const want = key.endsWith(')') && node.qual ? key.slice(key.indexOf('#') + 1 + node.qual.length) : undefined;
+        if (want?.startsWith('(')) {
+            const all = findQuals(syms, node.qual.split('.'));
+            if (all.length > 1) {
+                try {
+                    const doc = await vscode.workspace.openTextDocument(uri);
+                    const at = (x: Sym) => doc.getText(new vscode.Range(x.selectionRange.start, doc.positionAt(doc.offsetAt(x.selectionRange.start) + 4000)));
+                    sym = all.find((x) => `(${paramTypes(at(x))})` === want) ?? sym;
+                } catch { /* unreadable: first overload */ }
+            }
+        }
         if (sym) pos = sym.selectionRange.start;
         else if (node.line !== undefined) pos = new vscode.Position(node.line, node.character ?? 0);
         if (!pos) return undefined;
@@ -491,7 +535,9 @@ export class LspProvider {
         }
         if (!own) return undefined;
         // plus cross-language calls (bridges.ts) and implicit calls
-        const cross = await this.bridges.outgoing(key, it, acc).catch(() => []);
+        // a binding target not resolved yet (C/C++ server loading): no answer, retried rather than cached incomplete
+        const cross = await this.bridges.outgoing(key, it, acc).catch((e) => (e instanceof Unresolved ? undefined : []));
+        if (!cross) return undefined;
         const implicit = await this.implicit.outgoing(key, it, acc, answered).catch(() => []);
         return own.concat(cross, implicit);
     }
@@ -526,7 +572,9 @@ export class LspProvider {
         const own = this.textItems.has(it) ? await this.textIncoming(key, it, acc).catch(() => undefined) : await this.lspIncoming(key, it, acc, token);
         // plus cross-language callers and implicit callers (constructing class)
         if (!own) return undefined;
-        return own.concat(await this.bridges.incoming(key, it, acc).catch(() => []), await this.implicit.incoming(key, it, acc).catch(() => []));
+        const cross = await this.bridges.incoming(key, it, acc).catch((e) => (e instanceof Unresolved ? undefined : []));
+        if (!cross) return undefined;
+        return own.concat(cross, await this.implicit.incoming(key, it, acc).catch(() => []));
     }
 
     /** Incoming calls from the language server; schemes, `MAX_CALLS`, concurrency and `token` as for `lspOutgoing`. */

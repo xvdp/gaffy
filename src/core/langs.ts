@@ -29,6 +29,61 @@ export const LANG: Record<string, string> = {
 
 export const TEXT_LANGS = new Set(['glsl', 'hlsl', 'slang', 'wgsl', 'metal']);
 
+/**
+ * Languages with function overloading: overloads in one scope key apart by parameter types (lsp.ts `describe`).
+ * Python `@overload` stubs and TypeScript overload signatures describe one implementation: not listed.
+ */
+export const OVERLOADS = new Set(['cpp', 'cuda', 'objcpp', 'java', 'kt', 'cs', 'swift', 'dart', 'scala', 'glsl', 'hlsl', 'slang', 'metal']);
+
+/** Comma-separated parts of a parameter list at depth 0 of (), <>, [], {}. */
+export function splitTop(list: string): string[] {
+    const out: string[] = [];
+    let depth = 0, start = 0;
+    for (let i = 0; i < list.length; i++) {
+        const c = list[i];
+        if ('(<[{'.includes(c)) depth++;
+        else if (')>]}'.includes(c)) depth = Math.max(0, depth - 1);
+        else if (c === ',' && depth === 0) { out.push(list.slice(start, i)); start = i + 1; }
+    }
+    out.push(list.slice(start));
+    return out;
+}
+
+/** Type of one parameter: default value dropped; `name: Type` → Type; C-like `Type name[…]` → `Type[…]`. */
+function paramType(p: string): string {
+    let s = p.replace(/\s+/g, ' ').trim();
+    const eq = s.search(/(?<![=!<>])=(?!=)/);
+    if (eq >= 0) s = s.slice(0, eq).trim();
+    const colon = /(^|[^:]):(?!:)/.exec(s);
+    if (colon) s = s.slice(colon.index + colon[0].length).trim();
+    else {
+        const m = /^(.*?[\w>\])])\s*([*&\s]*?)\s*\b[A-Za-z_]\w*\s*((?:\[[^\]]*\]\s*)*)$/.exec(s);
+        if (m) s = `${m[1]}${m[2]}${m[3]}`;
+    }
+    return s.replace(/\s*([*&\[\],<>])\s*/g, '$1').trim();
+}
+
+/**
+ * Parameter types of the definition whose name `text` starts with: the list between the first `(` and its match,
+ * parameters split at top-level commas, each reduced by `paramType`. `f(int a, const T* b = 0, int c[3])` →
+ * `int,const T*,int[3]`; `fun f(a: Int, b: String = "")` → `Int,String`; `f()`, `f(void)` → ``. Undefined without
+ * a closed parameter list within 4000 characters.
+ */
+export function paramTypes(text: string): string | undefined {
+    const open = text.indexOf('(');
+    if (open < 0 || open > 4000) return undefined;
+    let depth = 0;
+    for (let i = open; i < Math.min(text.length, open + 4000); i++) {
+        if (text[i] === '(') depth++;
+        else if (text[i] === ')' && --depth === 0) {
+            const inner = text.slice(open + 1, i).trim();
+            if (!inner || inner === 'void') return '';
+            return splitTop(inner).map(paramType).join(',');
+        }
+    }
+    return undefined;
+}
+
 /** VS Code extension per language for document symbols and call hierarchy (messages). */
 export const SERVERS: Record<string, string> = {
     py: 'Python with Pylance (ms-python.python)',

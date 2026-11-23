@@ -675,6 +675,38 @@ describe('moves leave the rest in place', () => {
     });
 });
 
+describe('moved boxes move whole', () => {
+    // aloo calls zoinks and wibble: two callee boxes stacked right of it, zoinks above wibble
+    const E: [string, string][] = [['aloo.patata:scoobie', 'zoinks.jinkies:shoo'], ['aloo.patata:scoobie', 'wibble.wobble:magoo'], ['zoinks.jinkies:shoo', 'zoinks.jinkies:doo']];
+    const unit = boxUnit('dir:zoinks');
+    const view = (offset: Record<string, [number, number]>) => fixtureDoc(E, { seeds: [k('aloo.patata:scoobie')], direction: 'out', offset });
+    // position relative to the caller, which does not move
+    const rel = (sc: Scene, x: string) => {
+        const p = sc.placement.pos.get(k(x))!, o = sc.placement.pos.get(k('aloo.patata:scoobie'))!;
+        return [p.col - o.col, p.row - o.row];
+    };
+
+    it('a box moved above its caller row moves by the offset; the box stacked below it stays', () => {
+        const s0 = buildScene(view({}), boxed());
+        const s1 = buildScene(view({ [unit]: [0, -3] }), boxed());
+        invariants(s1);
+        for (const x of ['zoinks.jinkies:shoo', 'zoinks.jinkies:doo']) expect(rel(s1, x)).toEqual([rel(s0, x)[0], rel(s0, x)[1] - 3]);
+        expect(rel(s1, 'wibble.wobble:magoo')).toEqual(rel(s0, 'wibble.wobble:magoo'));
+    });
+
+    it('a moved box touching another frame settles one cell away: a corridor for calls', () => {
+        const s0 = buildScene(view({}), boxed());
+        const f = (sc: Scene, u: string) => sc.placement.frames.find((x) => x.unit === u)!;
+        const a = f(s0, boxUnit('dir:aloo')), z = f(s0, unit);
+        // zoinks under aloo, its top row on the row below aloo's bottom border
+        const off: [number, number] = [1 - z.c0, a.r1 + 1 - z.r0];
+        const sc = buildScene(view({ [unit]: off }), boxed());
+        invariants(sc);
+        expect(sc.offsets[unit]).toEqual([off[0], off[1] + 1]);
+        expect(f(sc, unit).r0 - f(sc, boxUnit('dir:aloo')).r1).toBe(2);
+    });
+});
+
 describe('what the language server is asked', () => {
     it('seeds both directions; a function shown as a call only its calls; as a caller only its callers', () => {
         const seed = k('kazoo.noodles.jumbles:to_wacky');
@@ -776,5 +808,24 @@ describe('view files are data', () => {
         const sc = buildScene(doc, flat());
         expect(performance.now() - t0).toBeLessThan(3000);
         expect(sc.placement.height).toBeGreaterThan(2000);
+    });
+});
+
+describe('only paths between seeds', () => {
+    // a → b → c with seeds a and c; d (called by a) and e (calling c) lie on no seed-to-seed path
+    const edges: [string, string][] = [['m:a', 'm:b'], ['m:b', 'm:c'], ['m:a', 'm:d'], ['m:e', 'm:c']];
+    const doc = (between: boolean) => fixtureDoc(edges, { seeds: [k('m:a'), k('m:c')], direction: 'both', arrange: 'auto', depthUp: 'all', depthDown: 'all', ...(between ? { between } : {}) });
+    const names = (sc: Scene) => [...sc.vg.nodes.keys()].filter((x) => !x.startsWith('⋯')).map((x) => x.split('#').pop()).sort();
+
+    it('between draws the seeds and the functions on call paths from one to another', () => {
+        expect(names(buildScene(doc(false), flat()))).toEqual(['a', 'b', 'c', 'd', 'e']);
+        const sc = buildScene(doc(true), flat());
+        invariants(sc);
+        expect(names(sc)).toEqual(['a', 'b', 'c']);
+    });
+
+    it('parseDoc keeps between: true only', () => {
+        expect(parseDoc(JSON.stringify({ gaffy: 1, view: { between: true } })).view.between).toBe(true);
+        expect(parseDoc(JSON.stringify({ gaffy: 1, view: { between: 1 } })).view.between).toBeUndefined();
     });
 });

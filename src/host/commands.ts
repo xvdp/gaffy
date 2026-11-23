@@ -455,6 +455,19 @@ export function registerCommands(ctx: vscode.ExtensionContext, editor: GaffyEdit
             case 'refresh': await s.refresh(undefined, 'revalidate'); break;
             case 'export': await exportView(s); break;
             case 'save': await vscode.commands.executeCommand('gaffy.view.save'); break;
+            case 'hover': {
+                // the language server's hover at a definition (signature, inferred return type): first code block
+                const n = key ? nodeOf(s.doc(), key) : undefined;
+                const uri = await nodeUri(n, s);
+                if (!n || !uri || !readable(uri) || n.line === undefined) break;
+                const hovers = await vscode.commands.executeCommand<vscode.Hover[]>('vscode.executeHoverProvider', uri,
+                    new vscode.Position(n.line, n.character ?? 0)).then((h) => h ?? [], () => [] as vscode.Hover[]);
+                const texts = hovers.flatMap((h) => h.contents).map((c) => (typeof c === 'string' ? c : 'value' in c ? c.value : ''));
+                const fence = texts.map((t) => /```(\w*)\n([\s\S]*?)```/.exec(t)).find(Boolean);
+                const code = (fence ? fence[2] : texts.join('\n').replace(/[`*_#>]/g, '')).trim().slice(0, 2000);
+                void s.panel.webview.postMessage({ type: 'hoverText', key, code, lang: fence?.[1] ?? '' });
+                break;
+            }
             case 'freeze': await freeze(s, m.on === true); break;
             // webview command missing its operand (selection, call, function): warning
             case 'warn': void vscode.window.showWarningMessage(plain(`gaffy: ${String(m.text ?? '').slice(0, 300)}`)); break;

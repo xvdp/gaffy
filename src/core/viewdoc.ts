@@ -64,6 +64,7 @@ export interface ViewSpec {
     static?: boolean;                        // fixed graph (hand-written or generated): no language-server requests
     frozen?: { commit?: string; at: string }; // graph frozen at a commit (short hash) and time: no language-server requests
     save?: boolean;                          // file saved after every change, whatever gaffy.autoSave says (script views)
+    between?: boolean;                       // drawn: only functions on call paths between seeds (scene.ts `onPaths`)
     tags: Record<NodeKey, string>;
     straight?: string[];                     // calls routed first (caller\u0000callee)
     cut?: [NodeKey, NodeKey][];              // grow: removed calls [caller, callee], neither drawn nor followed
@@ -161,6 +162,7 @@ export function parseDoc(text: string, fallbackName = 'view'): ViewDoc {
     if (typeof v.tight === 'boolean') view.tight = v.tight;
     if (v.static === true) view.static = true;
     if (v.save === true) view.save = true;
+    if (v.between === true) view.between = true;
     const fz = v.frozen as { commit?: unknown; at?: unknown } | undefined;
     if (fz && typeof fz === 'object' && typeof fz.at === 'string') {
         view.frozen = { at: fz.at.slice(0, 40), ...(typeof fz.commit === 'string' && /^[0-9a-f]{4,40}$/.test(fz.commit) ? { commit: fz.commit } : {}) };

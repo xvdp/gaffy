@@ -26,6 +26,12 @@ const MANIFESTS = ['setup.py', 'pyproject.toml', 'setup.cfg', 'CMakeLists.txt', 
 const NATIVE = new Set(['c', 'cpp', 'cuda']);
 const JS = new Set(['ts', 'js']);
 type Located = Binding & { uri: vscode.Uri; module: string };
+
+/** Failed lookups of a binding target reported as unresolved: about the retry window of build.ts (2 … 60 s). */
+const MISSES = 6;
+
+/** A binding target did not resolve yet (C/C++ server loading): the whole answer is no answer, retried later. */
+export class Unresolved extends Error {}
 interface Crate { name: string; dir: string }                                  // Cargo package name, folder of its Cargo.toml
 type Exported = WasmExport & { uri: vscode.Uri; crate: Crate };
 interface PyFile { uri: vscode.Uri; text: string }
@@ -37,6 +43,8 @@ export class Bridges {
     private python = new Map<string, Promise<PyFile[]>>();
     private projects = new Map<string, Promise<string>>();
     private targets = new Map<string, Promise<vscode.CallHierarchyItem | undefined>>();
+    // failed target lookups per binding: retried, and reported as unresolved (`Unresolved`) for the first MISSES
+    private misses = new Map<string, number>();
     private wasm?: Promise<Exported[]>;
     private js?: Promise<PyFile[]>;
 
@@ -169,7 +177,10 @@ export class Bridges {
         return undefined;
     }
 
-    /** Bound C++/CUDA function: go to definition at the target, else workspace symbol by name. */
+    /**
+     * Bound C++/CUDA function: go to definition at the target, else workspace symbol by name. A failure (C/C++ server
+     * still indexing, or none) is not kept: the next ask looks again.
+     */
     private target(b: Located): Promise<vscode.CallHierarchyItem | undefined> {
         const id = `${b.uri.toString()}#${b.targetAt}`;
         let t = this.targets.get(id);
@@ -191,11 +202,18 @@ export class Bridges {
                         if (items.length) return pick(items);
                     }
                 } catch { /* no C++ server */ }
+                this.targets.delete(id);
+                this.misses.set(id, (this.misses.get(id) ?? 0) + 1);
                 return undefined;
             })();
             this.targets.set(id, t);
         }
         return t;
+    }
+
+    /** Whether a failed lookup of `b` still counts as unresolved (retry) rather than as no link (MISSES reached). */
+    private pending(b: Located): boolean {
+        return (this.misses.get(`${b.uri.toString()}#${b.targetAt}`) ?? 0) <= MISSES;
     }
 
     /** Loaded .slang `file`: relative to the loader, else by name (include paths). */
@@ -331,11 +349,14 @@ export class Bridges {
                 if (to) edges.push({ from: key, to, line: doc.positionAt(c.at).line, via: `${l.via}: ${l.file}${c.dynamic ? ' (by name, getattr)' : ''}` });
             }
         }
+        let unresolved = false;
         for (const { at, b } of await this.bound(it.uri, text, from, upto)) {
             const t = await this.target(b);
+            if (!t && this.pending(b)) unresolved = true;
             const to = t && (await this.p.describe(t, acc));
             if (to) edges.push({ from: key, to, line: doc.positionAt(at).line, via: `${b.via}: ${vscode.workspace.asRelativePath(b.uri)}:${lineOf(await this.read(b.uri), b.at) + 1}` });
         }
+        if (unresolved) throw new Unresolved();
         return edges;
     }
 
@@ -408,10 +429,13 @@ export class Bridges {
         // bindings whose target is this function
         const mine: Located[] = [];
         if (!files.length) return edges;
+        let unresolved = false;
         for (const b of (await this.bindingsFor(it.uri)).filter((x) => x.target.split('::').pop() === name)) {
             const t = await this.target(b);
+            if (!t && this.pending(b)) unresolved = true;
             if (t && t.uri.toString() === it.uri.toString() && t.range.contains(it.selectionRange.start)) mine.push(b);
         }
+        if (unresolved && !mine.length) throw new Unresolved();
         for (const f of files) {
             const imports = pyImports(f.text);
             for (const e of extModules(f.text)) if (e.local) imports.set(e.local, e.name);

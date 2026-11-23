@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { posix } from 'node:path';
-import { EXTERNAL, externalPath, langOf, segments } from '../src/core/langs';
+import { EXTERNAL, externalPath, langOf, paramTypes, segments } from '../src/core/langs';
 import { isStandard } from '../src/core/viewdoc';
 import { callSites, functionAt, mask, outline, qualOf } from '../src/core/textcalls';
 
@@ -136,5 +136,18 @@ describe('hostile input', () => {
         outline(junk);
         callSites(junk, 0, junk.length);
         expect(performance.now() - t0).toBeLessThan(2000);
+    });
+});
+
+describe('parameter types of overloads', () => {
+    it('C-like, pointers, arrays, defaults, templates, name: Type, empty lists', () => {
+        expect(paramTypes('coord2Morton(float3 coord, float3 minn, float3 maxx)\n{')).toBe('float3,float3,float3');
+        expect(paramTypes('coord2Morton(int P, const float3* points, float3 minn, float3 maxx, uint32_t* codes)')).toBe('int,const float3*,float3,float3,uint32_t*');
+        expect(paramTypes('f(const float3 *points, int c[3], T&& x)')).toBe('const float3*,int[3],T&&');
+        expect(paramTypes('f(std::map<int, std::vector<float>> m = {}, int n = a == b)')).toBe('std::map<int,std::vector<float>>,int');
+        expect(paramTypes('f(a: Int, b: String = "x")')).toBe('Int,String');
+        expect(paramTypes('f()')).toBe('');
+        expect(paramTypes('f(void)')).toBe('');
+        expect(paramTypes('f(int a')).toBeUndefined();
     });
 });

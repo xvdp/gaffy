@@ -110,14 +110,15 @@ export function buildScene(doc: ViewDoc, style: Style, exclude: readonly PathTes
     const grows = view.arrange === 'grow';
     const cut = new Set(grows ? (view.cut ?? []).map(([a, b]) => cutKey(a, b)) : []);
     const rev = revealView(vq, doc);
-    const keep = rev.visible;
+    // `between`: drawn are the revealed functions on seed-to-seed call paths; fetching and markers use all revealed
+    const keep = view.between ? onPaths(vq, rev.visible, seedsIn(vq, doc)) : rev.visible;
     let vg = keep.size < vq.nodes.size ? induced(vq, keep) : vq;
     if (cut.size) vg = dropCalls(vg, cut);
     // marker: allowed side with an off-screen neighbor (closed, beyond depth, hidden, cut)
     const full = hidden.size ? quotient(graph, collapsed, out, view.seeds) : vq;
     const hasMore = (k: NodeKey, side: 'up' | 'down') => opens(rev.allowed.get(k), side) &&
         (side === 'down' ? full.out.get(k) ?? [] : full.inc.get(k) ?? [])
-            .some((e) => !keep.has(side === 'down' ? e.to : e.from) || cut.has(cutKey(e.from, e.to)));
+            .some((e) => !rev.visible.has(side === 'down' ? e.to : e.from) || cut.has(cutKey(e.from, e.to)));
     // hidden neighbors and cut calls, both sides, any allowed side; marker restores them with hidden functions
     // on their path from seeds (`hiddenPath`: reveal hiding nothing)
     const hiddenOn = (k: NodeKey, side: 'up' | 'down'): NodeKey[] => {
@@ -278,6 +279,27 @@ export function seedsIn(vq: VGraph, doc: ViewDoc): NodeKey[] {
 }
 
 /** Visible vertices over the quotient: open sides minus cut calls (grow), or call depths (auto). */
+/**
+ * Vertices on call paths between seeds within `shown`: reached from a seed along calls and reaching a seed along
+ * calls (forward and backward search, O(V + E)), plus the seeds. A path of length L between two seeds lies within
+ * the reveal when the callee depth covers it from one end or the caller depth from the other.
+ */
+export function onPaths(vg: VGraph, shown: ReadonlySet<NodeKey>, seeds: readonly NodeKey[]): Set<NodeKey> {
+    const start = seeds.filter((s) => shown.has(s));
+    const walk = (next: (k: NodeKey) => NodeKey[]) => {
+        const seen = new Set(start);
+        const stack = [...start];
+        while (stack.length) {
+            for (const n of next(stack.pop()!)) if (shown.has(n) && !seen.has(n)) { seen.add(n); stack.push(n); }
+        }
+        return seen;
+    };
+    const from = walk((k) => (vg.out.get(k) ?? []).map((e) => e.to));
+    const to = walk((k) => (vg.inc.get(k) ?? []).map((e) => e.from));
+    const seedSet = new Set(start);
+    return new Set([...shown].filter((k) => seedSet.has(k) || (from.has(k) && to.has(k))));
+}
+
 function revealView(vq: VGraph, doc: ViewDoc): Reveal {
     const v = doc.view;
     const seeds = seedsIn(vq, doc);

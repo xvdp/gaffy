@@ -14,6 +14,7 @@ import { cellId, cellRC, charRows, EdgePath, Grid, LabelSpan } from '../core/gri
 import { ancestors, GNode, isContainer, NodeKey, visible } from '../core/model';
 import { buildScene, isStub, Scene, siblingsOf, unitAnchor, unitMembers } from '../core/scene';
 import { Curve, E, glyphSet, N, S, Style, W } from '../core/style';
+import { splitTop } from '../core/langs';
 import { collapsedUnit, Depth, dropMovesWithin, excludedBy, globMatcher, isStandard, OpenSide, parseDoc, PathTest, ROOTS, serializeDoc, ViewDoc } from '../core/viewdoc';
 import { opens, seedSide, within } from '../core/reveal';
 
@@ -135,6 +136,9 @@ window.addEventListener('message', (ev) => {
         status();
     } else if (m.type === 'progress') {
         banner(m.text);
+    } else if (m.type === 'hoverText') {
+        if (typeof m.key === 'string') hoverText.set(m.key, typeof m.code === 'string' && m.code ? String(m.code).slice(0, 2000) : null);
+        if (card && card.key === m.key) cardRender();
     } else if (m.type === 'note') {
         note = m.text ?? '';
         status();
@@ -520,7 +524,10 @@ function render() {
         t.append('tspan').text(base);
         if (dec.post) t.append('tspan').text(dec.post);
     });
-    nodes.append('title').text((d) => tooltip(d));
+    // hover card in place of a native title: language-server signature, parameters stacked, then tooltip lines
+    nodes
+        .on('mouseenter.card mousemove.card', (ev: MouseEvent, d) => (onName(ev, d) ? cardShow(ev, d) : cardHide()))
+        .on('mouseleave.card', () => cardHide());
     nodes
         .on('click', (ev: MouseEvent, d) => {
             ev.stopPropagation();
@@ -760,9 +767,9 @@ function restoreHidden(k: NodeKey, side: 'up' | 'down') {
 function markerTitle(k: NodeKey, side: 'up' | 'down'): string {
     const who = side === 'up' ? 'callers' : 'calls';
     const n = scene?.hiddenOn(k, side).length ?? 0;
-    if (opensHere(k, side)) return `${who} not on screen: click to show them (also removed ones)`;
-    if (n) return `${n} hidden or removed ${who}: click to show them again`;
-    return 'more beyond the call depth: raise it in the toolbar';
+    if (opensHere(k, side)) return `show ${who} hidden calls`;
+    if (n) return `${n} hidden or removed ${who}: show`;
+    return 'more beyond call depth';
 }
 
 /**
@@ -871,6 +878,123 @@ function labelClass(d: LabelSpan): string {
     if (selected.has(d.key)) cls.push('sel');
     if (d.key === focusKey) cls.push('focus');
     return cls.join(' ');
+}
+
+// ---- hover card ----------------------------------------------------------------------------------
+/** Language-server hover code per vertex (null: none), asked once per session (host `hover`). */
+const hoverText = new Map<NodeKey, string | null>();
+let card: { key: NodeKey; d: LabelSpan; x: number; y: number } | undefined;
+let cardTimer: ReturnType<typeof setTimeout> | undefined;
+let cardNext: { d: LabelSpan; x: number; y: number } | undefined;   // card waiting for CARD_DELAY
+// preview pages (scripts/preview.mjs) show the card at once, so a screenshot taken on load holds it
+const CARD_DELAY = (window as unknown as { gaffyPreview?: boolean }).gaffyPreview ? 0 : 350;
+
+/** Pointer on the function name, past the `>> ` of callers off screen (that marker has its own title). */
+function onName(ev: MouseEvent, d: LabelSpan): boolean {
+    const pre = scene?.decor.get(d.key)?.pre.length ?? 0;
+    return rootPoint(ev)[0] / cw - d.col >= pre;
+}
+
+function cardShow(ev: MouseEvent, d: LabelSpan) {
+    if (card?.key === d.key) { card.x = ev.clientX; card.y = ev.clientY; cardPlace(); return; }
+    if (cardNext?.d.key === d.key) { cardNext.x = ev.clientX; cardNext.y = ev.clientY; return; }
+    cardHide();
+    cardNext = { d, x: ev.clientX, y: ev.clientY };
+    const open = () => {
+        const n = cardNext;
+        cardTimer = undefined;
+        cardNext = undefined;
+        if (!n) return;
+        card = { key: n.d.key, d: n.d, x: n.x, y: n.y };
+        if (!hoverText.has(n.d.key)) { hoverText.set(n.d.key, ''); api.postMessage({ type: 'hover', key: n.d.key }); }
+        cardRender();
+    };
+    if (CARD_DELAY) cardTimer = setTimeout(open, CARD_DELAY); else open();
+}
+function cardHide() {
+    clearTimeout(cardTimer);
+    cardTimer = undefined;
+    cardNext = undefined;
+    card = undefined;
+    select('#hovercard').style('display', 'none');
+}
+
+type Run = { t: string; c?: 'kw' | 'fn' | 'param' | 'type' };
+const KEYWORDS = new Set(['def', 'async', 'function', 'class', 'method', 'property', 'variable', 'static', 'const', 'inline', 'virtual', 'constexpr',
+    'export', 'public', 'private', 'protected', 'fn', 'pub', 'func', 'fun', 'void', '__global__', '__device__', '__host__', 'constructor']);
+
+/** Words of a signature head or tail: keywords and `(kind)` tags as keywords, other words as types. */
+function words(text: string): Run[] {
+    return text.split(/(\s+|[()<>[\],:*&|=]|->)/).filter(Boolean).map((w) => (KEYWORDS.has(w) ? { t: w, c: 'kw' } : /^\w[\w.:@]*$/.test(w) ? { t: w, c: 'type' } : { t: w }));
+}
+
+/** One parameter: `name: Type = default`, else C-like `Type name`; `self`, `*args` as names. */
+function paramRuns(p: string): Run[] {
+    const s = p.trim();
+    const eq = s.search(/(?<![=!<>])=(?!=)/);
+    const head = eq >= 0 ? s.slice(0, eq).trim() : s, dflt = eq >= 0 ? ` ${s.slice(eq)}` : '';
+    const colon = /(^|[^:]):(?!:)/.exec(head);
+    if (colon) {
+        const name = head.slice(0, colon.index + colon[1].length).trim(), type = head.slice(colon.index + colon[0].length).trim();
+        return [{ t: name, c: 'param' }, { t: ': ' }, ...words(type), ...(dflt ? [{ t: dflt }] : [])];
+    }
+    const m = /^(.*?)\s*([*&]*)\s*\b([A-Za-z_]\w*)$/.exec(head);
+    if (m && m[1]) return [...words(m[1]), { t: m[2] ? ` ${m[2]}` : ' ' }, { t: m[3], c: 'param' }, ...(dflt ? [{ t: dflt }] : [])];
+    return [{ t: head, c: /^\*{0,2}\w+$/.test(head) ? 'param' : 'type' }, ...(dflt ? [{ t: dflt }] : [])];
+}
+
+/**
+ * Signature lines from the language server's hover code: head, name, one parameter per line, closing parenthesis
+ * with the return part (`-> T`, `: T`); whitespace of the server's text collapsed first. Without `name(`: the text
+ * as it is, one run per line.
+ */
+function signatureLines(code: string, name: string): Run[][] {
+    const flat = code.replace(/\s+/g, ' ').trim();
+    const at = flat.search(new RegExp(`\\b${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*\\(`));
+    if (at < 0) return code.split('\n').slice(0, 12).map((l) => [{ t: l }]);
+    const open = flat.indexOf('(', at);
+    let depth = 0, close = -1;
+    for (let i = open; i < flat.length; i++) {
+        if (flat[i] === '(') depth++;
+        else if (flat[i] === ')' && --depth === 0) { close = i; break; }
+    }
+    if (close < 0) return [[{ t: flat }]];
+    const head = [...words(flat.slice(0, at)), { t: name, c: 'fn' } as Run];
+    const inner = flat.slice(open + 1, close).trim();
+    const tail = words(flat.slice(close + 1));
+    if (!inner) return [[...head, { t: '()' }, ...tail]];
+    const ps = splitTop(inner);
+    return [[...head, { t: '(' }], ...ps.map((p, i) => [{ t: '    ' }, ...paramRuns(p), ...(i < ps.length - 1 ? [{ t: ',' }] : [])]), [{ t: ')' }, ...tail]];
+}
+
+function cardRender() {
+    if (!card || !scene) return;
+    let el = select<HTMLDivElement, unknown>('#hovercard');
+    if (el.empty()) el = select('body').append('div').attr('id', 'hovercard');
+    el.selectAll('*').remove();
+    const code = hoverText.get(card.key);
+    const name = scene.graph.nodes[card.key]?.name ?? '';
+    if (code === '') el.append('div').attr('class', 'sig').text('…');
+    else if (code) {
+        const sig = el.append('div').attr('class', 'sig');
+        for (const line of signatureLines(code, name)) {
+            const row = sig.append('div');
+            for (const r of line) row.append('span').attr('class', r.c ?? null).text(visible(r.t));
+        }
+    }
+    el.append('div').attr('class', 'meta').text(tooltip(card.d));
+    el.style('display', 'block');
+    cardPlace();
+}
+
+/** Card below and right of the pointer, kept inside the window. */
+function cardPlace() {
+    const el = select<HTMLDivElement, unknown>('#hovercard');
+    const node = el.node();
+    if (!card || !node) return;
+    const w = node.offsetWidth, h = node.offsetHeight;
+    const x = Math.min(card.x + 14, window.innerWidth - w - 8), y = card.y + 18 + h > window.innerHeight ? card.y - h - 10 : card.y + 18;
+    el.style('left', `${Math.max(4, x)}px`).style('top', `${Math.max(4, y)}px`);
 }
 
 function tooltip(d: LabelSpan): string {
@@ -1452,6 +1576,10 @@ function toolbar() {
                 act: () => setArrange('grow') },
             { label: 'Global Toolbar: + - call depth - +', title: 'caller and callee levels from the toolbar; the same picture, no opening or closing of single functions', on: v.arrange !== 'grow',
                 act: () => setArrange('auto') },
+        ] },
+        { caption: 'Seeds', items: [
+            { label: 'Only paths between seeds', title: 'draw only functions on call paths from one seed to another (the call depths or open sides set how far paths are searched); seeds always',
+                on: !!v.between, act: () => commit((x) => { if (x.view.between) delete x.view.between; else x.view.between = true; }) },
         ] },
         ...(v.arrange !== 'grow' ? [{ caption: 'Call depth by', radio: true, items: (['shortest', 'longest'] as const).map((r) => ({
             label: r === 'shortest' ? 'Shortest call path' : 'Longest call path',
