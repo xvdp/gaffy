@@ -220,3 +220,13 @@ describe('class headers (implicit construction through base classes)', () => {
         expect(pyBases('(\n    Moo,\n    goo.Magoo,\n):').map((x) => x.name)).toEqual(['Moo', 'goo.Magoo']);
     });
 });
+
+describe('binding text from the workspace is data', () => {
+    it('a TORCH_LIBRARY variable that is no identifier is skipped, not compiled into an expression', () => {
+        const src = `TORCH_LIBRARY(ns, .*.*.*.*.*) {\n${'x'.repeat(200)}\n}\nTORCH_LIBRARY(ok, m) {\n  m.def("shoo", &shoo);\n}\n`;
+        const t0 = performance.now();
+        const out = scanNative(src);
+        expect(performance.now() - t0).toBeLessThan(200);
+        expect(out.map((b) => b.module)).toEqual(['torch.ops.ok']);
+    });
+});

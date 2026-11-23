@@ -20,9 +20,12 @@ import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { parseDoc, ViewDoc } from '../core/viewdoc';
 import { folderOf, gaffyDir } from './style';
-import { Cause, Moved, traceRecord } from './tracerec';
+import { noLinks } from './safefs';
+import { Cause, checkedCause, Moved, traceRecord } from './tracerec';
 
 const on = (uri: vscode.Uri) => vscode.workspace.getConfiguration('gaffy', uri).get<boolean>('trace') ?? false;
+/** Size at which a trace file moves to `<view>.1.jsonl` (replacing the previous one) and a new file starts: at most 2 × 20 MB per view. */
+const MAX_BYTES = 20 * 1024 * 1024;
 
 export class Trace {
     private last = new Map<string, ViewDoc>();
@@ -30,13 +33,17 @@ export class Trace {
     private seq = new Map<string, number>();
     private command: string | undefined;
 
-    /** The cause of the next change of `doc` (a webview edit). */
-    edit(doc: vscode.TextDocument, cause: Cause | undefined, moved: Moved | undefined) {
-        if (cause) this.pending.set(doc.uri.toString(), { cause, moved });
+    /** The cause of the next change of `doc` (a webview edit; its fields checked, tracerec.ts `checkedCause`). */
+    edit(doc: vscode.TextDocument, cause: unknown, moved: unknown) {
+        const c = checkedCause(cause, moved);
+        if (c) this.pending.set(doc.uri.toString(), c);
     }
 
-    /** A host command ran: the next change is its doing unless the webview names another cause. */
-    ran(id: string) { this.command = id; }
+    /** After an edit was written: a cause no change consumed (the text did not change) goes, so it names nothing later. */
+    written(doc: vscode.TextDocument) { this.pending.delete(doc.uri.toString()); }
+
+    /** A host command runs (`id`) or ended (undefined): changes meanwhile are its doing unless the webview names another cause. */
+    ran(id: string | undefined) { this.command = id; }
 
     /** The view as last recorded, so the first change after opening has a before. */
     open(doc: vscode.TextDocument) {
@@ -52,7 +59,6 @@ export class Trace {
         const p = this.pending.get(id);
         this.pending.delete(id);
         const command = this.command;
-        this.command = undefined;
         if (!on(doc.uri)) return;
         const cause: Cause = reason === vscode.TextDocumentChangeReason.Undo ? { event: 'undo' }
             : reason === vscode.TextDocumentChangeReason.Redo ? { event: 'redo' }
@@ -61,9 +67,18 @@ export class Trace {
         this.seq.set(id, n);
         const name = path.basename(doc.uri.path, '.gaffy');
         const rec = traceRecord(before, now, cause, p?.moved, name, n);
-        const file = vscode.Uri.joinPath(gaffyDir(folderOf(doc.uri)), 'trace', `${name}.jsonl`);
+        // only in a trusted workspace, never through a symbolic link (safefs.ts)
+        if (!vscode.workspace.isTrusted) return;
+        const base = folderOf(doc.uri);
+        const file = vscode.Uri.joinPath(gaffyDir(base), 'trace', `${name}.jsonl`);
+        const old = vscode.Uri.joinPath(gaffyDir(base), 'trace', `${name}.1.jsonl`);
         if (file.scheme !== 'file') return;
+        await noLinks(base, file);
+        await noLinks(base, old);
         await fs.mkdir(path.dirname(file.fsPath), { recursive: true });
+        try {
+            if ((await fs.stat(file.fsPath)).size > MAX_BYTES) await fs.rename(file.fsPath, old.fsPath);
+        } catch { /* no file yet */ }
         await fs.appendFile(file.fsPath, JSON.stringify(rec) + '\n');
     }
 }

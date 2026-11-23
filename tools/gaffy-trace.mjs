@@ -24,6 +24,12 @@ let recs = readFileSync(file, 'utf8').split('\n').filter(Boolean).map((l, i) => 
 if (from !== undefined) recs = recs.filter((r) => typeof r.seq !== 'number' || r.seq >= from);
 if (last !== undefined) recs = recs.slice(-last);
 
+// trace text comes from graph data (language-server names, paths): control characters (terminal escape sequences),
+// zero-width and bidirectional controls print as \u{…}, as gaffy shows them (model.ts `visible`)
+const SHOWN = /[\u0000-\u001f\u007f-\u009f\u00ad\u061c\u180e\u200b-\u200f\u2028-\u202e\u2060-\u206f\ufeff\ufff9-\ufffb]/g;
+const safe = (s) => String(s).replace(SHOWN, (c) => `\\u{${c.codePointAt(0).toString(16)}}`);
+const print = (s) => console.log(safe(s));
+
 /** `py:pkg/mod.py#Cls.fn` → `mod.Cls.fn()`; `box:dir:a/b` → `[a/b]`; `collapsed:<key>` → `<key> (collapsed)`. */
 function short(key) {
     if (typeof key !== 'string') return String(key);
@@ -92,10 +98,11 @@ function moves(moved = []) {
     return out;
 }
 
-if (json) { for (const r of recs) console.log(JSON.stringify(r)); process.exit(0); }
+// --json: JSON.stringify escapes U+0000–U+001F only; C1 and bidirectional controls become \uXXXX escapes (still JSON)
+if (json) { for (const r of recs) console.log(JSON.stringify(r).replace(SHOWN, (c) => `\\u${c.charCodeAt(0).toString(16).padStart(4, '0')}`)); process.exit(0); }
 for (const r of recs) {
-    console.log(`#${r.seq}  ${time(r.t)}  ${cause(r.cause)}`);
-    for (const l of changed(r.changed)) console.log(`    ${l}`);
-    if (r.graph) console.log(`    data: functions +${r.graph.nodes[0]} −${r.graph.nodes[1]}, calls +${r.graph.edges[0]} −${r.graph.edges[1]}`);
-    for (const l of moves(r.moved)) console.log(`    ${l}`);
+    print(`#${r.seq}  ${time(r.t)}  ${cause(r.cause)}`);
+    for (const l of changed(r.changed)) print(`    ${l}`);
+    if (r.graph) print(`    data: functions +${r.graph.nodes[0]} −${r.graph.nodes[1]}, calls +${r.graph.edges[0]} −${r.graph.edges[1]}`);
+    for (const l of moves(r.moved)) print(`    ${l}`);
 }

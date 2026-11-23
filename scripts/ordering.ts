@@ -180,21 +180,70 @@ call u → v in the data (graph.edges)
             └── no route in 400 000 steps ────────────────────────────► dashed fallback L with its arrowhead   ${href(G, 'const fallback = () => {')}
 </pre>`;
 
+// ---- 5. a drag -------------------------------------------------------------------------------------
+const PL = 'src/core/place.ts', ST = 'src/core/settle.ts';
+const drag = `<pre>
+drop: pointer delta in whole cells; zero cells: nothing   ${href(MAIN, 'const dc = Math.round((ev.x - ev.subject.x) / cw)')}
+├── 1. units: a group is its box (selection ignored); a function is itself with its tree below, or every selected
+│      function with its tree, once each, when one of several selected is dragged   ${href(MAIN, "units = !unit.startsWith('box:') && selected.has(d.key)")}
+├── 2. drop spot: as dropped when no call loses its route and the dropped labels collide with nothing; else the
+│      nearest such spot up to 12 cells along the drag or sideways (1.5 s); else as dropped   ${href(MAIN, 'function settleDrop(')}
+├── 3. stored: a locked unit moves its lock, any other its offset   ${href(MAIN, 'function moveUnit(')}
+├── 4. placement: what was not moved keeps its computed place
+│   ├── a moved function lands at its computed place + offset, with its tree   ${href(PL, '} else if (off) shift.set(k,')}
+│   │   └── labels within 2 cells of another label of its group on the row ─────► slides down until clear   ${href(PL, '// shifted unlocked subtrees descend')}
+│   ├── a moved group lands at the row it would take unmoved + offset; a locked one at its cell   ${href(PL, 'const home = Math.max(cr, top - 1);')}
+│   ├── a sibling placed later (order: locked first, then calling order)   ${href(PL, 'const order = [...topo.filter(')}
+│   │   ├── after a group moved by an offset: counts it at its unmoved place ───► stays   ${href(PL, 'const avoid = [...placed.map(')}
+│   │   └── after a locked group, or one stretched by moves inside it ─────────► slides below it   ${href(PL, 'rr += Math.max(1, hit.r1 + 1 - r.r0);')}
+│   ├── frames grow to hold moved content (Tight groups: fit it on all sides) ────► later siblings of the
+│   │   enclosing group may slide below it   ${href(PL, 'const frame = (x: Rect): Rect =>')}
+│   └── content above row 0 or left of column 0 ──────────────────────────────► whole picture shifts back   ${href(PL, '// normalize: nothing at negative coordinates')}
+├── 5. settle, up to 3 rounds in every redraw: moved, unlocked units that collide move to the nearest clear
+│      offset, the least displacement (distance × labels) first; unmoved and locked units never move here   ${href(ST, 'export function settleMoved(')}
+└── 6. the view saves the settled offsets (at most 3 saves in a row) and pans so the still function keeps its spot   ${href(MAIN, 'function afterRender() {')}
+</pre>`;
+const DRAG: Row[] = [
+    ['which units move', at(MAIN, "units = !unit.startsWith('box:') && selected.has(d.key)"), 'a box header moves `box:<key>`; a label its unit (`vertexUnit`, `collapsed:<key>` for a collapsed container), or `topUnits` of the selection'],
+    ['units of a selection', at(MAIN, 'function topUnits('), 'each selected function with its tree, skipping one inside another selected function\'s tree'],
+    ['still function', at(MAIN, 'const still = [...doc!.view.seeds, ...sc.placement.pos.keys()]'), 'the first seed, else any function, outside what moves; none: the drop is a pan of everything'],
+    ['drop accepted', at(MAIN, 'if (clean(dc, dr)) return [dc, dr];'), 'a probe redraw: no more unroutable calls, `collisions` of the dropped labels and frames zero; each probe settles (step 5), so the first spot usually passes'],
+    ['drop search', at(MAIN, 'for (let k = 1; k <= 12 && performance.now() - t0 < 1500; k++)'), 'k cells further along the drag, then sideways either way, then back; k ≤ 12'],
+    ['lock or offset', at(MAIN, 'function moveUnit('), '`lock[unit]` when locked, else `offset[unit]` += (Δcolumn, Δrow)'],
+    ['function offset', at(PL, '} else if (off) shift.set(k,'), 'the shift of a function: its lock, else its parent\'s shift + its offset; the tree below inherits it'],
+    ['moved function descent', at(PL, '// shifted unlocked subtrees descend'), 'labels on one row closer than 2 cells to another label of the group: down one row, at most 500'],
+    ['sibling order', at(PL, 'const order = [...topo.filter('), 'locked items first, then the topological order of calls between items; "earlier" in the rows below'],
+    ['stacking', at(PL, 'const below = stack.length ?'), 'rows and columns of later siblings from earlier siblings\' unmoved extents'],
+    ['what later items avoid', at(PL, 'const avoid = [...placed.map('), 'an earlier box moved by an offset at its unmoved place; a locked box, or one stretched by moves inside it, where drawn'],
+    ['unmoved block descent', at(PL, 'const hit = avoid.find((a) => overlaps(a, rectOf(rowMap)));'), 'the functions of a group slide below what they avoid'],
+    ['moved group', at(PL, 'const home = Math.max(cr, top - 1);'), 'the row it would take unmoved + offset'],
+    ['unmoved group descent', at(PL, 'rr += Math.max(1, hit.r1 + 1 - r.r0);'), 'trial placement, then below the overlapped earlier sibling, by the distance from its top'],
+    ['frame extent', at(PL, 'const frame = (x: Rect): Rect =>'), 'Tight groups: the content\'s bounding box; otherwise the computed corner, growing to hold content moved up or left'],
+    ['picture origin', at(PL, '// normalize: nothing at negative coordinates'), 'everything shifts so nothing lies above row 0 or left of column 0; the pan cancels it on screen'],
+    ['settle rounds', at('src/core/scene.ts', 'for (let round = 0; round < 3; round++) {'), 'at most 3 rounds of settle per redraw'],
+    ['settle candidates', at(ST, 'const moved = Object.keys(doc.view.offset).filter('), 'units with an offset, unlocked, on screen'],
+    ['collision', at(ST, 'const hits = (x: Unit, a: number, d: number) =>'), 'a label on another frame\'s border; closer than 4 cells to a label of its row; another label inside its frame; its frame partly over another'],
+    ['clear offset', at(ST, 'const nearest = (x: Unit)'), 'rings of up to 12 cells (vertical first), then straight lines up to 80; never off the canvas'],
+    ['who moves first', at(ST, 'const cost = (r: { x: Unit;'), 'distance × labels moved: a small unit yields to a large one'],
+    ['save and pan', at(MAIN, 'function afterRender() {'), 'the settled offsets become the view\'s offsets (at most 3 saves in a row); render pans to the still function'],
+];
+
 // ---- document ------------------------------------------------------------------------------------
 const table = (head: string[], rows: Row[]) => [`| ${head.join(' | ')} |`, `|${head.map(() => '---').join('|')}|`, ...rows.map((r) => `| ${r.join(' | ')} |`)].join('\n');
 const doc = `# gaffy node order: triggers, interpreters, layout
 
-Every function that changes which functions a view shows or where they sit, in three kinds, and the decision tree of one call's drawing. Generated by \`npm run heuristics\` from [scripts/ordering.ts](scripts/ordering.ts): the line links follow the code. The rules named h01–h35 are explained in [.HEURISTICS.md](.HEURISTICS.md).
+Taxonomy of graph layout ordering functions. Drawing decision tree per call.
 
 1. **Triggers**: user actions in the webview (mouse, keys, toolbar, Options), the context menu, and events outside the view.
 2. **Interpreters**: functions that turn a trigger into a change of the view document (\`ViewDoc.view\`) and commit it; each commit is one undo step.
 3. **Layout**: functions that compute positions from a view document, on every redraw; the same document gives the same picture.
 
 Terms:
-- **unit**: what one move displaces: a function with its tree below it (key), a namespace box with its content (\`box:<key>\`), or a collapsed container (\`collapsed:<key>\`).
-- **offset**: a unit's move \`[Δcolumn, Δrow]\` from its computed place; **lock**: its absolute cell.
-- **settle**: moved units that content grew into move to the nearest clear offset (\`settleMoved\`); the webview saves those offsets.
-- **anchor**: the function the view pans to keep still after an action (no view change).
+- **unit**: group of displaced symbols: a function with its tree below, a namespace box with its content (\`box:<key>\`), or a collapsed container (\`collapsed:<key>\`).
+- **offset**: move distance \`[Δcolumn, Δrow]\` from its computed place; If lock then abs cell.
+- **settle**: units moved to the nearest clear offset  (\`settleMoved\`); offests saved in webview.
+- **anchor**: symbol that does not shift on graph window, when a graph rearranges.
+
 
 ## 1. Triggers
 
@@ -233,6 +282,20 @@ ${table(['function', 'code', 'what it does', 'rules'], P)}
 ${tree}
 
 Nets: \`t:<parent>\` holds a tree stem and its elbows, \`l:<target>\` every call into one function (lanes, routes, the arrival). Calls into one function merge into one trunk (cost 0.3 on its own net).
+
+## 5. Dragging a function or a group
+
+Three mechanisms move the rest of the picture after a drop, in this order: placement (positions from the stored moves), settle (moved units that collide go to the nearest clear place) and the pan (the still function keeps its spot on screen). Content never moved is not relocated to make room, except that an unmoved group slides below an earlier sibling that is locked or stretched by moves inside it.
+
+${drag}
+
+${table(['condition', 'code', 'effect'], DRAG)}
+
+Consequences:
+- A group dropped onto unmoved content: the content stays; when the dropped group collides, settle moves it, or another moved unit when that displaces fewer labels.
+- A group dropped onto something moved earlier: settle moves whichever of the two displaces fewer labels.
+- A function dragged far down or right: its group's frame stretches to hold it, and later siblings of that group in the same parent slide below the stretched frame; the remaining source of large vertical moves.
+- Drop repulsion (step 2) seldom changes the drop: each probe redraw settles already, so the dropped spot tests clear.
 
 ## Trace
 

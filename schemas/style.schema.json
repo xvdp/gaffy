@@ -34,12 +34,14 @@
         },
         "size": {
           "type": "number",
-          "minimum": 6
+          "minimum": 6,
+          "maximum": 72
         },
         "lineHeight": {
           "type": "number",
           "minimum": 1,
-          "description": "Row height as a multiple of the font size."
+          "description": "Row height as a multiple of the font size.",
+          "maximum": 4
         }
       }
     },
@@ -49,12 +51,14 @@
         "indent": {
           "type": "integer",
           "minimum": 3,
-          "description": "Columns per tree level; the elbow `└─> ` takes 4."
+          "description": "Columns per tree level; the elbow `└─> ` takes 4.",
+          "maximum": 16
         },
         "laneGap": {
           "type": "integer",
           "minimum": 1,
-          "description": "Minimum column distance between lanes sharing rows."
+          "description": "Minimum column distance between lanes sharing rows.",
+          "maximum": 8
         },
         "parentRule": {
           "enum": [
@@ -94,7 +98,8 @@
         "width": {
           "type": "number",
           "minimum": 0.5,
-          "description": "Stroke width in vector mode."
+          "description": "Stroke width in vector mode.",
+          "maximum": 8
         },
         "curve": {
           "enum": [
@@ -180,22 +185,26 @@
         "bend": {
           "type": "number",
           "minimum": 0,
-          "description": "Router cost per bend."
+          "description": "Router cost per bend.",
+          "maximum": 100
         },
         "cross": {
           "type": "number",
           "minimum": 0,
-          "description": "Router cost per crossing of another call."
+          "description": "Router cost per crossing of another call.",
+          "maximum": 100
         },
         "border": {
           "type": "number",
           "minimum": 0,
-          "description": "Router cost per box border crossed."
+          "description": "Router cost per box border crossed.",
+          "maximum": 100
         },
         "channel": {
           "type": "integer",
           "minimum": 1,
-          "description": "Base width of the routing channel between sibling boxes."
+          "description": "Base width of the routing channel between sibling boxes.",
+          "maximum": 16
         }
       }
     }

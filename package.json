@@ -2,7 +2,7 @@
   "name": "gaffy",
   "displayName": "gaffy",
   "description": "Persistent, manipulable call graphs on a character grid, rendered with D3",
-  "version": "0.9.22",
+  "version": "0.9.23",
   "publisher": "xvdp",
   "license": "Apache-2.0",
   "repository": {
@@ -912,6 +912,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "package": "npm run typecheck && npm test && npm run build && vsce package --no-dependencies",
+    "install:local": "code --install-extension gaffy-$npm_package_version.vsix",
     "preview": "npm run build && node scripts/preview.mjs",
     "heuristics": "node scripts/heuristics.mjs"
   },
@@ -936,7 +937,12 @@
   "capabilities": {
     "untrustedWorkspaces": {
       "supported": "limited",
-      "description": "In a workspace that is not trusted, gaffy does not run git (view file names take the date instead of the commit). Language servers follow their own trust rules."
+      "description": "In a workspace that is not trusted, gaffy does not run git (view file names take the date instead of the commit), records no trace, and reads gaffy.trace, gaffy.exclude and gaffy.style from user settings only. Language servers follow their own trust rules.",
+      "restrictedConfigurations": [
+        "gaffy.trace",
+        "gaffy.exclude",
+        "gaffy.style"
+      ]
     },
     "virtualWorkspaces": false
   }

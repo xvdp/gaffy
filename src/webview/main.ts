@@ -14,7 +14,7 @@ import { cellId, cellRC, charRows, EdgePath, Grid, LabelSpan } from '../core/gri
 import { ancestors, GNode, isContainer, NodeKey, visible } from '../core/model';
 import { buildScene, isStub, Scene, siblingsOf, unitAnchor, unitMembers } from '../core/scene';
 import { Curve, E, glyphSet, N, S, Style, W } from '../core/style';
-import { collapsedUnit, Depth, dropMovesWithin, excludedBy, globToRegExp, isStandard, OpenSide, parseDoc, ROOTS, serializeDoc, ViewDoc } from '../core/viewdoc';
+import { collapsedUnit, Depth, dropMovesWithin, excludedBy, globMatcher, isStandard, OpenSide, parseDoc, PathTest, ROOTS, serializeDoc, ViewDoc } from '../core/viewdoc';
 import { opens, seedSide, within } from '../core/reveal';
 
 interface VsApi { postMessage(m: unknown): void; getState(): any; setState(s: unknown): void }
@@ -28,7 +28,7 @@ let doc: ViewDoc | undefined;
 let style: Style | undefined;
 let styleText = '';
 let excludeGlobs: string[] = [];
-let excludeRx: RegExp[] = [];          // `gaffy.exclude` globs as expressions, for buildScene
+let excludes: PathTest[] = [];        // `gaffy.exclude` globs as path tests, for buildScene
 let settings = { includeExternal: false, includeStandardLibrary: false, saveViews: false, untitled: false, trace: false };   // VS Code settings (Options; `trace`: gaffy.trace)
 /** External code drawn (scene.ts `Outside`): from the settings above. */
 const outside = () => ({ external: settings.includeExternal, standard: settings.includeStandardLibrary });
@@ -113,7 +113,7 @@ window.addEventListener('message', (ev) => {
         // a changed setting or gaffy.exclude redraws at once, with the same document
         const was = JSON.stringify([settings, excludeGlobs]);
         excludeGlobs = m.exclude ?? excludeGlobs;
-        excludeRx = excludeGlobs.map(globToRegExp);
+        excludes = excludeGlobs.map(globMatcher);
         settings = m.settings ?? settings;
         pageContext();
         if (JSON.stringify([settings, excludeGlobs]) !== was && doc) { render(); }
@@ -375,7 +375,7 @@ function render() {
     measure(style);
     applyColors(style);
     try {
-        scene = buildScene(doc, style, excludeRx, outside());
+        scene = buildScene(doc, style, excludes, outside());
     } catch (e) {
         showError(`layout failed: ${(e as Error).message}`);
         return;
@@ -1038,7 +1038,7 @@ function settleDrop(units: string[], dc: number, dr: number): [number, number] {
         const probe = structuredClone(doc!);
         for (const u of units) moveUnit(probe, u, a, b);
         try {
-            const sc = buildScene(probe, style!, excludeRx, outside());
+            const sc = buildScene(probe, style!, excludes, outside());
             return sc.grid.unrouted <= unrouted && collisions(sc, keys, units) === 0;
         } catch { return false; }
     };
@@ -1068,7 +1068,7 @@ function unlockUnit(unit: string) {
     const probe = structuredClone(doc);
     delete probe.view.lock[unit];
     delete probe.view.offset[unit];
-    const auto = unitAnchor(buildScene(probe, style!, excludeRx, outside()), unit);
+    const auto = unitAnchor(buildScene(probe, style!, excludes, outside()), unit);
     commit((x) => {
         delete x.view.lock[unit];
         if (auto && (here[0] !== auto[0] || here[1] !== auto[1])) x.view.offset[unit] = [here[0] - auto[0], here[1] - auto[1]];
@@ -1367,7 +1367,7 @@ const LIB_ROOT = /^(site-packages|dist-packages|stdlib|python\d+(\.\d+)?|include
  */
 function folders(): { path: string; label: string; excluded: boolean }[] {
     if (!doc) return [];
-    const ex = excludedBy(doc.view, excludeRx);
+    const ex = excludedBy(doc.view, excludes);
     const shown = (n: GNode) => !n.external || (settings.includeExternal && (settings.includeStandardLibrary || !isStandard(n.path)));
     const all = Object.values(doc.graph.nodes).filter((n) => n.path && !isContainer(n));
     const extTop = new Set(all.filter((n) => n.external).map((n) => n.path!.split('/')[0]));

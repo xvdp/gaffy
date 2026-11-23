@@ -1,4 +1,4 @@
-/** (c) 2026 xvdp
+/** @xvdp
  * Commands: graph creation from the editor and explorer, view commands, and node commands invoked from
  * the webview context menu. A `webview/context` command receives the merged `data-vscode-context`
  * object of the clicked element: `{ webviewSection, key, webview }`.
@@ -11,8 +11,9 @@ import { toHtmlPre, toText } from '../core/grid';
 import { ancestors, GNode, NodeKey, plain, visible } from '../core/model';
 import { buildScene, siblingsOf } from '../core/scene';
 import { DEFAULT_STYLE, glyphSet } from '../core/style';
-import { Direction, dropMovesWithin, emptyDoc, globToRegExp, ROOTS, serializeDoc, ViewDoc, ViewSpec } from '../core/viewdoc';
+import { Direction, dropMovesWithin, emptyDoc, globMatcher, ROOTS, serializeDoc, ViewDoc, ViewSpec } from '../core/viewdoc';
 import { GaffyEditor, Session } from './editor';
+import { noLinks } from './safefs';
 import { readable } from './scope';
 import { folderOf, gaffyDir } from './style';
 
@@ -40,7 +41,8 @@ async function uniqueUri(dir: vscode.Uri, stem: string, ext: string): Promise<vs
  * or downloaded folder can carry a `.git/config` whose settings make git run programs.
  */
 function gitShort(cwd: string): Promise<string | undefined> {
-    if (!vscode.workspace.isTrusted) return Promise.resolve(undefined);
+    // a trusted window can still hold a folder outside its workspace folders (the file of an active editor)
+    if (!vscode.workspace.isTrusted || !vscode.workspace.getWorkspaceFolder(vscode.Uri.file(cwd))) return Promise.resolve(undefined);
     return new Promise((res) => execFile('git', ['rev-parse', '--short', 'HEAD'], { cwd, timeout: 3000 },
         (err, out) => res(err ? undefined : out.trim() || undefined)));
 }
@@ -84,7 +86,7 @@ export function registerCommands(ctx: vscode.ExtensionContext, editor: GaffyEdit
     const reg = (id: string, fn: (...a: any[]) => unknown) =>
         ctx.subscriptions.push(vscode.commands.registerCommand(id, async (...a: any[]) => {
             editor.trace.ran(id);
-            try { await fn(...a); } catch (e) { void vscode.window.showErrorMessage(plain(`gaffy: ${(e as Error).message}`)); }
+            try { await fn(...a); } catch (e) { void vscode.window.showErrorMessage(plain(`gaffy: ${(e as Error).message}`)); } finally { editor.trace.ran(undefined); }
         }));
 
     const active = (): Session => {
@@ -116,9 +118,11 @@ export function registerCommands(ctx: vscode.ExtensionContext, editor: GaffyEdit
         fromEditor = false) => {
         const folder = folderOf(base);
         const views = vscode.Uri.joinPath(gaffyDir(folder), 'views');
+        await noLinks(folder, views);
         await vscode.workspace.fs.createDirectory(views);
         // <symbol>_<short commit hash, or date>.gaffy
         const uri = await uniqueUri(views, `${stem}_${(await gitShort(folder.fsPath)) ?? dateSlug()}`, '.gaffy');
+        await noLinks(folder, uri);   // also where the view is saved later (untitled)
         // starting choices from style.json `view`
         const start = (await editor.styles.get(folder)).view;
         doc.view.depth = cfg().get<number>('depth') ?? 3;
@@ -261,7 +265,7 @@ export function registerCommands(ctx: vscode.ExtensionContext, editor: GaffyEdit
     reg('gaffy.sel.rearrange', forward('rearrangeSelection'));
     reg('gaffy.sel.clear', forward('clearSelection'));
 
-    const excludes = (s: Session) => (vscode.workspace.getConfiguration('gaffy', s.document.uri).get<string[]>('exclude') ?? []).map(globToRegExp);
+    const excludes = (s: Session) => (vscode.workspace.getConfiguration('gaffy', s.document.uri).get<string[]>('exclude') ?? []).map(globMatcher);
     const external = (s: Session) => {
         const c = vscode.workspace.getConfiguration('gaffy', s.document.uri);
         return { external: c.get<boolean>('includeExternal') ?? false, standard: c.get<boolean>('includeStandardLibrary') ?? false };
@@ -273,6 +277,7 @@ export function registerCommands(ctx: vscode.ExtensionContext, editor: GaffyEdit
         const sc = buildScene(doc, style, excludes(s), external(s));
         const gs = glyphSet(style);
         const outDir = gaffyDir(s.folder);
+        await noLinks(s.folder, outDir);
         await vscode.workspace.fs.createDirectory(outDir);
         const href = (key: NodeKey) => {
             const n = nodeOf(doc, key);
@@ -298,8 +303,10 @@ export function registerCommands(ctx: vscode.ExtensionContext, editor: GaffyEdit
         } catch { /* new folder */ }
         const stem = n ? `${base}_${n + 1}` : base;
         const mdUri = vscode.Uri.joinPath(outDir, `${stem}.md`);
-        await vscode.workspace.fs.writeFile(mdUri, new TextEncoder().encode(md.replace(`# ${doc.name}`, `# ${stem}`)));
         const txtUri = vscode.Uri.joinPath(outDir, `${stem}.txt`);
+        await noLinks(s.folder, mdUri);
+        await noLinks(s.folder, txtUri);
+        await vscode.workspace.fs.writeFile(mdUri, new TextEncoder().encode(md.replace(`# ${doc.name}`, `# ${stem}`)));
         await vscode.workspace.fs.writeFile(txtUri, new TextEncoder().encode(toText(sc.grid, gs) + '\n'));
         await vscode.commands.executeCommand('markdown.showPreviewToSide', mdUri);
         void vscode.window.showInformationMessage(plain(`gaffy: exported .gaffy/${stem}.md and .gaffy/${stem}.txt`), 'Reveal in Explorer')
@@ -324,6 +331,7 @@ export function registerCommands(ctx: vscode.ExtensionContext, editor: GaffyEdit
         const folder = editor.active?.folder ?? vscode.workspace.workspaceFolders?.[0]?.uri;
         if (!folder) throw new Error('no workspace folder');
         const uri = vscode.Uri.joinPath(gaffyDir(folder), 'style.json');
+        await noLinks(folder, uri);
         try { await vscode.workspace.fs.stat(uri); } catch {
             await vscode.workspace.fs.createDirectory(gaffyDir(folder));
             await vscode.workspace.fs.writeFile(uri, new TextEncoder().encode(JSON.stringify(DEFAULT_STYLE, null, 2) + '\n'));
@@ -400,7 +408,8 @@ export function registerCommands(ctx: vscode.ExtensionContext, editor: GaffyEdit
 
     reg('gaffy.node.revealInExplorer', node(async (_s, d, k) => {
         const n = nodeOf(d, k);
-        if (n?.uri) await vscode.commands.executeCommand('revealInExplorer', vscode.Uri.parse(n.uri));
+        const u = n?.uri ? vscode.Uri.parse(n.uri) : undefined;
+        if (u && readable(u)) await vscode.commands.executeCommand('revealInExplorer', u);
     }));
     reg('gaffy.node.copyPath', node(async (_s, d, k) => {
         const n = nodeOf(d, k);
@@ -413,7 +422,7 @@ export function registerCommands(ctx: vscode.ExtensionContext, editor: GaffyEdit
 
     // ---- webview messages that need the host ----------------------------------------------------------
     editor.onMessage = async (s, m) => {
-        const key = m.key as NodeKey | undefined;
+        const key = typeof m.key === 'string' ? m.key as NodeKey : undefined;
         switch (m.type) {
             // a click on a function: its definition next to the graph (gaffy.openDefinitions)
             case 'open': if (cfg().get<boolean>('openDefinitions') ?? true) await openNode(key ? nodeOf(s.doc(), key) : undefined, false, besideGraph(s)); break;
@@ -423,7 +432,7 @@ export function registerCommands(ctx: vscode.ExtensionContext, editor: GaffyEdit
                 await openNode(n && line !== undefined ? { ...n, line, character: 0 } : n, false, besideGraph(s));
                 break;
             }
-            case 'expand': if (key) await s.expand(key, m.dir === 'in' ? 'in' : 'out'); break;
+            case 'expand': if (key && Object.hasOwn(s.doc().graph.nodes, key)) await s.expand(key, m.dir === 'in' ? 'in' : 'out'); break;
             case 'refresh': await s.refresh(undefined, 'revalidate'); break;
             case 'export': await exportView(s); break;
             case 'save': await vscode.commands.executeCommand('gaffy.view.save'); break;
@@ -450,7 +459,7 @@ export function registerCommands(ctx: vscode.ExtensionContext, editor: GaffyEdit
             }
             case 'hiddenNeighbors': {
                 const doc = s.doc();
-                const keys = (m.keys as NodeKey[] | undefined) ?? [];
+                const keys = Array.isArray(m.keys) ? m.keys.filter((k): k is NodeKey => typeof k === 'string').slice(0, 1000) : [];
                 const items = keys.map((k) => {
                     const n = nodeOf(doc, k);
                     return { label: visible(n ? (n.qual ? `${n.module}.${n.qual}` : n.module) : k), description: n?.path && visible(n.path), key: k, picked: true };

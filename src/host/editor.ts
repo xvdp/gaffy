@@ -7,7 +7,7 @@ import { randomBytes } from 'node:crypto';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { isContainer, NodeKey, plain } from '../core/model';
-import { globToRegExp, parseDoc, serializeDoc, ViewDoc } from '../core/viewdoc';
+import { globMatcher, parseDoc, serializeDoc, ViewDoc } from '../core/viewdoc';
 import { BuildMode, extendGraph, Extension, Pair } from './build';
 import { frontierOf, visibleOf } from '../core/scene';
 import { CallCache } from './cache';
@@ -125,7 +125,7 @@ export class Session {
         const cfg = vscode.workspace.getConfiguration('gaffy', this.document.uri);
         return {
             maxNodes: cfg.get<number>('maxNodes') ?? 400,
-            exclude: (cfg.get<string[]>('exclude') ?? []).map(globToRegExp),
+            exclude: (cfg.get<string[]>('exclude') ?? []).map(globMatcher),
             external: cfg.get<boolean>('includeExternal') ?? false,
             // external code drawn, and of it the standard library (scene.ts `Outside`)
             outside: { external: cfg.get<boolean>('includeExternal') ?? false, standard: cfg.get<boolean>('includeStandardLibrary') ?? false },
@@ -390,7 +390,7 @@ export class GaffyEditor implements vscode.CustomTextEditorProvider {
     cacheFor(folder: vscode.Uri): CallCache {
         const k = folder.toString();
         let c = this.caches.get(k);
-        if (!c) this.caches.set(k, (c = new CallCache(vscode.Uri.joinPath(gaffyDir(folder), 'cache', 'calls.json'))));
+        if (!c) this.caches.set(k, (c = new CallCache(vscode.Uri.joinPath(gaffyDir(folder), 'cache', 'calls.json'), folder)));
         return c;
     }
 
@@ -410,7 +410,10 @@ export class GaffyEditor implements vscode.CustomTextEditorProvider {
         }));
         // one record per document change, whatever number of panels show the document
         ctx.subscriptions.push(vscode.workspace.onDidChangeTextDocument((e) => {
-            if (e.contentChanges.length && [...this.sessions.values()].some((s) => s.document === e.document)) void this.trace.change(e.document, e.reason);
+            if (e.contentChanges.length && [...this.sessions.values()].some((s) => s.document === e.document)) {
+                // a failed record (a link on the way, a full disk) leaves the view as it is
+                this.trace.change(e.document, e.reason).catch(() => { /* not recorded */ });
+            }
         }));
     }
 
@@ -440,6 +443,7 @@ export class GaffyEditor implements vscode.CustomTextEditorProvider {
                     } else if (m.type === 'edit') {
                         if (m.text !== document.getText()) this.trace.edit(document, m.cause, m.moved);
                         await s.write(parseDoc(m.text, s.name));
+                        this.trace.written(document);
                         void s.ensure();
                     } else {
                         await this.onMessage(s, m);

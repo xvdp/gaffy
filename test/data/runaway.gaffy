@@ -16,16 +16,20 @@
   "sibling": {},
   "offset": {
    "box:dir:aj_scoobie_": [
-    118,
-    36
+    117,
+    41
    ],
    "py:aj_scoobie_/aw_scoobie_doo_magoo.py#ap_scoo": [
     21,
-    -7
+    -5
    ],
    "box:dir:ax_scoobie_doo/bi_scoob": [
     0,
-    -17
+    2
+   ],
+   "box:dir:ax_scoobie_doo": [
+    -1,
+    6
    ]
   },
   "lock": {},
@@ -41,7 +45,7 @@
   "arrange": "grow",
   "open": {
    "py:ax_scoobie_doo/bi_scoob/bh_sc.py#Ac_scoob": "both",
-   "py:ax_scoobie_doo/bi_scoob/bh_sc.py#_af_scoobie": "down",
+   "py:ax_scoobie_doo/bi_scoob/bh_sc.py#_af_scoobie": "none",
    "py:ax_scoobie_doo/as_scoo.py#bg_scoobie_doo_magoo_pa": "down",
    "py:ax_scoobie_doo/be_scoobie_doo.py#am_scoobie_doo_mag": "up",
    "py:ax_scoobie_doo/be_scoobie_doo.py#al_scoobie_doo_mago": "up",

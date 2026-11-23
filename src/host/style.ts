@@ -4,7 +4,7 @@
  */
 import * as vscode from 'vscode';
 import { plain } from '../core/model';
-import { deepMerge, DEFAULT_STYLE, Style } from '../core/style';
+import { boundedStyle, deepMerge, DEFAULT_STYLE, Style } from '../core/style';
 
 export const gaffyDir = (folder: vscode.Uri) => vscode.Uri.joinPath(folder, '.gaffy');
 
@@ -53,7 +53,7 @@ export class StyleService implements vscode.Disposable {
                 void vscode.window.showWarningMessage(plain(`gaffy: .gaffy/style.json ignored: ${(e as Error).message}`));
             }
         }
-        return deepMerge(DEFAULT_STYLE, setting, file);
+        return boundedStyle(deepMerge(DEFAULT_STYLE, setting, file));
     }
 
     dispose(): void {

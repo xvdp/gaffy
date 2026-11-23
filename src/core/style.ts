@@ -94,6 +94,29 @@ const FRAMES: Record<FrameLine, GlyphSet['frame']> = {
     double: { tl: '╔', tr: '╗', bl: '╚', br: '╝', h: '═', v: '║' },
 };
 
+/** Ranges of the numeric style fields (schemas/style.schema.json): larger values only grow the grid a layout allocates. */
+const BOUNDS: [keyof Style, string, number, number][] = [
+    ['font', 'size', 6, 72], ['font', 'lineHeight', 1, 4], ['grid', 'indent', 3, 16], ['grid', 'laneGap', 1, 8],
+    ['edges', 'width', 0.5, 8], ['edges', 'lead', 0, 20], ['edges', 'tension', 0, 1], ['boxes', 'alpha', 0, 1],
+    ['route', 'bend', 0, 100], ['route', 'cross', 0, 100], ['route', 'border', 0, 100], ['route', 'adjacent', 0, 100], ['route', 'channel', 1, 16],
+];
+
+/**
+ * A merged style with every numeric field inside its range (a value of another type takes the default) and the
+ * crossing glyph cut to one character. Styles come from settings and `.gaffy/style.json`, which a cloned
+ * repository can carry: `grid.indent: 20000` made one layout take 7 s and 600 MB.
+ */
+export function boundedStyle(st: Style): Style {
+    const out = structuredClone(st);
+    for (const [sec, key, lo, hi] of BOUNDS) {
+        const o = out[sec] as unknown as Record<string, unknown>, d = DEFAULT_STYLE[sec] as unknown as Record<string, number>;
+        const v = o[key];
+        o[key] = typeof v === 'number' && Number.isFinite(v) ? Math.min(hi, Math.max(lo, v)) : d[key];
+    }
+    out.edges.cross = typeof out.edges.cross === 'string' && out.edges.cross ? [...out.edges.cross][0] : DEFAULT_STYLE.edges.cross;
+    return out;
+}
+
 export function glyphSet(style: Style): GlyphSet {
     const ascii = style.edges.glyphs === 'ascii';
     const table = ascii ? ASCII : UNICODE;

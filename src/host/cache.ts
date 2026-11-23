@@ -11,6 +11,7 @@
  * version 4 empty answers a loading server gave for definitions with calls).
  */
 import * as vscode from 'vscode';
+import { noLinks } from './safefs';
 import { ancestors, GEdge, GNode, NodeKey } from '../core/model';
 import { readable } from './scope';
 
@@ -33,7 +34,7 @@ export class CallCache {
     private timer: NodeJS.Timeout | undefined;
     private readonly loaded: Promise<void>;
 
-    constructor(private readonly file: vscode.Uri) {
+    constructor(private readonly file: vscode.Uri, private readonly base: vscode.Uri) {
         this.loaded = this.load();
     }
 
@@ -126,7 +127,10 @@ export class CallCache {
     private async save(): Promise<void> {
         const files: Record<string, number> = {};
         await Promise.all([...this.files.keys()].map(async (uri) => {
-            try { files[uri] = (await vscode.workspace.fs.stat(vscode.Uri.parse(uri))).mtime; } catch { /* gone */ }
+            try {
+                const u = vscode.Uri.parse(uri);
+                if (readable(u)) files[uri] = (await vscode.workspace.fs.stat(u)).mtime;
+            } catch { /* gone */ }
         }));
         const out: Stored = {
             version: 5,
@@ -136,8 +140,9 @@ export class CallCache {
             files,
         };
         try {
+            await noLinks(this.base, this.file);
             await vscode.workspace.fs.createDirectory(vscode.Uri.joinPath(this.file, '..'));
             await vscode.workspace.fs.writeFile(this.file, new TextEncoder().encode(JSON.stringify(out)));
-        } catch { /* read-only workspace: the cache stays in memory */ }
+        } catch { /* read-only workspace, or a link on the way (safefs.ts): the cache stays in memory */ }
     }
 }

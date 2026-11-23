@@ -2,13 +2,17 @@
 
 VS Code extension: persistent, manipulable call graphs laid out on a character grid and rendered with D3. Each view is a `.gaffy` file under `<workspace>/.gaffy/views/` and opens as a tab. Call data comes from the language server's call hierarchy (LSP[^lsp]); shader languages whose servers have none get calls found in the text. See [Languages](#languages).
 
-## Install
+## Install from Source
 
 ```bash
 npm install
 npm run package                              # typecheck, tests, bundles, gaffy-<version>.vsix
-code --install-extension gaffy-0.9.16.vsix
+npm run install:local                        # code --install-extension gaffy-<version>.vsix
 ```
+
+
+![demo](images/demo.gif)
+
 
 Development: open `gaffy/` in VS Code and press F5 (Extension Development Host). `npm run watch` rebuilds on change.
 

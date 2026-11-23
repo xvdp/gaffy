@@ -31,6 +31,7 @@ const PY_CONSTRUCT = ['__new__', '__init__', '__post_init__'];
 const PY_INHERITED = new Set(['__init__']);
 const JS_CONSTRUCT = ['constructor'];
 const BASE_DEPTH = 4;
+const MAX_CLASSES = 64;   // classes one base-class walk visits at most
 /** Call sites of one function asked for their type: the rest of a long function is not followed. */
 const MAX_SITES = 48;
 
@@ -79,7 +80,7 @@ export class Implicit {
             const next: ClassAt[] = [];
             for (const c of level) {
                 const id = `${c.uri.toString()}#${c.cls.selectionRange.start.line}`;
-                if (seen.has(id)) continue;
+                if (seen.has(id) || seen.size >= MAX_CLASSES) continue;
                 seen.add(id);
                 const m = (c.cls.children ?? []).find((s) => s.name === name && METHODS.has(s.kind));
                 if (m) return { uri: c.uri, sym: m };
@@ -91,12 +92,20 @@ export class Implicit {
         return undefined;
     }
 
-    /** Whether a class or one of its bases (depth ≤ 4) is named `Module` (torch `nn.Module`). */
+    /**
+     * Whether a class or one of its bases (depth ≤ 4) is named `Module` (torch `nn.Module`). Each class is visited
+     * once and at most MAX_CLASSES in all: a class listing itself or one base many times (`class A(B, B, …)`, from
+     * workspace source) would otherwise multiply the definition requests per level.
+     */
     private async isModule(start: ClassAt): Promise<boolean> {
         let level = [start];
+        const seen = new Set<string>();
         for (let depth = 0; depth <= BASE_DEPTH && level.length; depth++) {
             const next: ClassAt[] = [];
             for (const c of level) {
+                const id = `${c.uri.toString()}#${c.cls.selectionRange.start.line}`;
+                if (seen.has(id) || seen.size >= MAX_CLASSES) continue;
+                seen.add(id);
                 if (depth > 0 && c.cls.name === 'Module') return true;
                 next.push(...(await this.bases(c)));
             }

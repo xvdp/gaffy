@@ -82,6 +82,8 @@ export interface RouteCost { bend: number; cross: number; border: number; adjace
 export type CallKind = 'implicit' | 'bridge';
 
 const STRIDE = 1 << 16;
+/** Largest grid (cells) routed by search: 4 headings × 12 bytes per cell, 48 MB; view files keep moves within ±1000 cells. */
+const MAX_CELLS = 1_000_000;
 export const cellId = (r: number, c: number) => r * STRIDE + c;
 export const cellRC = (id: number): [number, number] => [Math.floor(id / STRIDE), id % STRIDE];
 
@@ -368,7 +370,9 @@ export function buildGrid(P: Placement, vg: VGraph, opts: { arrow: boolean; cost
 
     let width = P.width, height = P.height;
     const RW = P.width + 16, RH = P.height + 12;
-    const size = RW * RH * 4;
+    // the search arrays take 12 bytes per (cell, heading): past MAX_CELLS cells every call is drawn as its fallback
+    const routable = RW * RH <= MAX_CELLS;
+    const size = routable ? RW * RH * 4 : 0;
     const g = new Float64Array(size).fill(Infinity);
     const came = new Int32Array(size).fill(-1);
     const touched: number[] = [];
@@ -446,7 +450,7 @@ export function buildGrid(P: Placement, vg: VGraph, opts: { arrow: boolean; cost
                 : [[sc, sr + 0.5], [xm, sr + 0.5], [xm, pv.row + 0.5], [tip, pv.row + 0.5]];
             paths.push({ from: u, to: v, net, pts, cells: [], start: 'E', arrive: left ? 'E' : 'W', fallback: true });
         };
-        if (sr < 0 || sr >= RH || sc >= RW || blocked.has(cellId(sr, sc))) { fallback(); continue; }
+        if (!routable || sr < 0 || sr >= RH || sc >= RW || blocked.has(cellId(sr, sc))) { fallback(); continue; }
         // start states: label end heading E; under and over the first character heading S and N
         // a caller that receives calls at its right end sends from under or over its name, never from that end
         const starts: { id: number; r: number; c: number; d: number; cost: number }[] =

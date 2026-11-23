@@ -41,7 +41,7 @@ const FNS: [string, string, string][] = [
 
 /** Calls between pipeline functions: caller, callee, text of the call. */
 const CALLS: [string, string, string][] = [
-    ['render', 'buildScene', 'scene = buildScene(doc, style, excludeRx, outside())'],
+    ['render', 'buildScene', 'scene = buildScene(doc, style, excludes, outside())'],
     ['render', 'afterRender', 'setTimeout(afterRender, 0)'],
     ['buildScene', 'sortKeyOf', 'sortKey: (k) => (isStub(k)'],
     ['buildScene', 'revealView', 'revealView('],
@@ -99,7 +99,7 @@ const RULES: Rule[] = [
     { id: 'h15_block_descent', stage: 'Placement', title: 'Block descent', in: 'placeBlock', at: 'const hit = avoid.find((a) => overlaps(a, rectOf(rowMap)));',
         text: 'A block that would overlap something already placed moves down until clear.' },
     { id: 'h21_moved_function_descent', stage: 'Placement', title: 'Moved function descent', in: 'placeBlock', at: '// shifted unlocked subtrees descend',
-        text: 'A moved, unlocked function with its tree moves down until its labels clear the other labels of its own block.' },
+        text: 'A moved, unlocked function with its tree moves down until its labels clear the other labels of its own block. A collapsed container moves and locks as `collapsed:<key>`, apart from its expanded vertex, so expanding it returns to the layout before the collapse.' },
     { id: 'h16_item_order', stage: 'Placement', title: 'Item order', in: 'placeBox', at: 'const order = [...topo.filter',
         text: 'Within a box: locked items first, then callers\' items before callees\' items (ties by h03_box_order).' },
     { id: 'h17_item_column', stage: 'Placement', title: 'Item column', in: 'placeBox', at: 'const col = sibCallers.length ?',
@@ -113,7 +113,7 @@ const RULES: Rule[] = [
     { id: 'h20_unmoved_box_descent', stage: 'Placement', title: 'Unmoved box descent', in: 'item_state', at: '// trial placement, then descend below overlapped siblings',
         text: 'An unmoved box that overlaps an earlier item moves down until clear, by the distance from its top to below that item. An earlier box moved by an offset counts at its unmoved place, so a move never pushes unmoved boxes down. Moved boxes are exempt; h23_settle handles them.' },
     { id: 'h22_frame_extent', stage: 'Placement', title: 'Frame extent', in: 'placeBox', at: 'const frame = (x: Rect): Rect =>',
-        text: 'Tight boxes (style `boxes.tight`, the default): a frame is its content\'s bounding box plus margin. Otherwise the frame keeps the box\'s unmoved corner and only grows.' },
+        text: 'Tight groups (style `boxes.tight`, the default): a frame is its content\'s bounding box plus margin. Otherwise the frame keeps the box\'s unmoved corner and only grows. Ungrouping or grouping a container drops the moves inside it (`dropMovesWithin`): offsets count from the box that held them.' },
     { id: 'h23_settle', stage: 'Placement', title: 'Settle', in: 'settleMoved', at: 'const ranked = todo.map(',
         text: 'Every redraw, moved units whose labels or frames lie on other content move to the nearest clear offset, up to 3 rounds (the loop in buildScene). The move that displaces least goes first (distance × labels moved: a small unit yields to a large one); ties: boxes before functions, then the smaller unit. Search: 12 cells around (vertical first), then straight lines up to 80, never off the top or left edge. Locked units never move. Lines are not considered.' },
     { id: 'h24_tree_lines_first', stage: 'Routing', title: 'Tree lines first', in: 'buildGrid', at: 'for (const [p, kids] of P.elbows ?? [])',
@@ -128,6 +128,10 @@ const RULES: Rule[] = [
         text: 'A call leaves from the label end (cost 0) or from under or over the first character (cost 2). A function whose end receives calls never sends from it; with no free start the call is drawn dashed.' },
     { id: 'h29_route_cost', stage: 'Routing', title: 'Route cost', in: 'buildGrid', at: 'if (nd !== d) step += opts.cost.bend + turnPenalty;',
         text: 'A* over (cell, heading), guided by the grid (Manhattan) distance to the arrival cell. Each step costs 1; +4 entering a frame border (`route.border`), +6 crossing another call\'s line (`route.cross`), 0.3 along this target\'s own line (joining it), +3 per change of heading (`route.bend`), +2 for a vertical step next to another call\'s vertical line (`route.adjacent`). Never: label cells and padding, markers, reversing, running along a border, cells reserved for another call. The first pass forbids running along or turning on another line; a second pass allows them at +400 and +40. No route in both passes (400 000 search steps): dashed.' },
+    { id: 'h36_call_kind_style', stage: 'Routing', title: 'Call kind style', in: 'buildGrid', at: 'const kinds = new Map<number, CallKind>();',
+        text: 'Cells that only implicit calls (construction, instance call) or only calls across languages pass are drawn in their kind\'s style: dotted and dash-dot, in text and export (`┈ ┊`, `─·─·`) and in every vector style; a plain call on a cell makes it plain.' },
+    { id: 'h37_hops', stage: 'Webview', title: 'Hops', in: 'render', at: 'for (const [net, d] of maskPaths(g))',
+        text: 'Where a horizontal call line crosses a vertical one (one cell, neither turning), the horizontal line hops over it with a half circle of 0.525 cell, in orthogonal and rounded edges; text shows the crossing glyph.' },
     { id: 'h30_action_anchor', stage: 'Webview', title: 'Action anchor', in: 'render', at: 'const at = nameCell(sc, anchor.key);', also: [['anchorAt', 'anchor = { key: k, at:']],
         text: 'The function you last opened, closed or removed keeps its spot on screen: the view pans to compensate.' },
     { id: 'h31_still_anchor', stage: 'Webview', title: 'Still anchor', in: 'dragUnit', at: 'const still = [...doc!.view.seeds', also: [['runCmd', 'const still = [...doc.view.seeds']],
@@ -166,7 +170,7 @@ const heading = new Map<string, number>();       // rule id → 0-based line of 
 const intro = [
     '# gaffy layout heuristics',
     '',
-    'The rules that decide what is on screen, where it sits and how calls are drawn, in the order the code applies them. Generated by `npm run heuristics` from [scripts/heuristics.ts](scripts/heuristics.ts); the same graph opens in gaffy as [.heuristics.gaffy](.heuristics.gaffy) (a static view: no language server).',
+    'Rules that determine the location and ordering of the symbols drawn on the gaffy graph. Generated by `npm run heuristics` from [scripts/heuristics.ts](scripts/heuristics.ts); the same graph opens in gaffy as [.heuristics.gaffy](.heuristics.gaffy) (a static view: no language server).',
     '',
     'Structure: a pipeline of stages (reveal → boxes → block layout → placement → settle → routing, then the webview after layout). Inside the stages, decisions choose between rules (`tree_parent_rule`, `item_state`); four rules are orderings rather than steps (h04, h06, h07, h25); two loops repeat at most 3 times (settle inside `buildScene`, save and redraw in the webview).',
     '',
@@ -174,10 +178,10 @@ const intro = [
     '',
     '## Terms',
     '',
-    '- **block**: the functions directly in one namespace box, laid out together.',
-    '- **tree parent**: the caller a function hangs under (`└─>`); its other callers reach it by routed lines.',
-    '- **offset**: the stored displacement (columns, rows) of something you dragged, from where the layout would put it.',
-    '- **unit**: a function with the functions hanging below it, or a box with its content; an offset moves its whole unit.',
+    '- **block**: functions grouped in a namspace box.',
+    '- **tree parent**: the immediate caller of a function under (`└─>`).',
+    '- **offset**: stored displacement in (columns, rows) of a user dragged symbol.',
+    '- **unit**: group of symbols that drag together: a function with hanging functions or a namespace and its contents.',
     '',
 ];
 

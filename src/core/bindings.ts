@@ -85,6 +85,8 @@ export function scanNative(text: string): Binding[] {
         const kind = b[1];
         if (kind.startsWith('TORCH_LIBRARY')) {
             const ns = args[0], v = args[args.length - 1];
+            // the library variable is an identifier; anything else (from workspace source) would enter the expression unescaped
+            if (!/^[A-Za-z_]\w*$/.test(v)) continue;
             const def = new RegExp(`\\b${v}\\s*\\.\\s*(def|impl)\\s*\\(\\s*"([^"(.]+)`, 'g');
             def.lastIndex = body0;
             for (let d = def.exec(m); d && d.index < body1; d = def.exec(m)) {
@@ -199,7 +201,8 @@ export function pyBases(text: string): { name: string; at: number }[] {
     let off = head[0].indexOf('(') + 1;
     for (const part of head[1].split(',')) {
         const m = /^\s*([A-Za-z_][\w.]*)\s*$/.exec(part);
-        if (m && m[1].split('.').pop() !== 'object') out.push({ name: m[1], at: off + part.indexOf(m[1]) + m[1].lastIndexOf('.') + 1 });
+        // each base once: `class A(B, B, …)` repeats nothing in the walk over bases (host/implicit.ts)
+        if (m && m[1].split('.').pop() !== 'object' && !out.some((o) => o.name === m[1])) out.push({ name: m[1], at: off + part.indexOf(m[1]) + m[1].lastIndexOf('.') + 1 });
         off += part.length + 1;
     }
     return out;

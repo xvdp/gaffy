@@ -71,11 +71,11 @@ export async function extendGraph(
     await pool(queries, 6, async ({ key, dir }) => {
         if (opts.token?.isCancellationRequested) return;
         if (opts.mode !== 'cacheOnly' && opts.maxNodes && defs() >= opts.maxNodes) { capped++; return; }
-        if (!nodes[key]) return;
+        if (!Object.hasOwn(nodes, key)) return;   // own keys only: `constructor` and kin are not definitions
         let es: GEdge[] | undefined;
         const hit = opts.mode !== 'fresh' ? opts.cache?.get(key, dir) : undefined;
         if (hit) {
-            for (const [k, n] of Object.entries(hit.nodes)) if (!nodes[k]) nodes[k] = n;
+            for (const [k, n] of Object.entries(hit.nodes)) if (!Object.hasOwn(nodes, k)) nodes[k] = n;
             es = hit.edges;
             if (hit.clamped) clamped.push({ key, dir, total: hit.clamped });
             stats.cached++;

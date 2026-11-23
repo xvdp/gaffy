@@ -6,7 +6,7 @@ import { nodeLabel } from '../src/core/labels';
 import { GNode, plain, visible } from '../src/core/model';
 import { buildScene, Scene, unitAnchor, unitMembers } from '../src/core/scene';
 import { deepMerge, DEFAULT_STYLE, glyphSet, Style } from '../src/core/style';
-import { boxUnit, collapsedUnit, dropMovesWithin, excludedBy, globToRegExp, parseDoc, serializeDoc, ViewDoc } from '../src/core/viewdoc';
+import { boxUnit, collapsedUnit, dropMovesWithin, excludedBy, globMatcher, parseDoc, serializeDoc, ViewDoc } from '../src/core/viewdoc';
 import { frontierOf } from '../src/core/scene';
 import { fixtureDoc, k, KAZOO, MOO, STAR } from './fixtures';
 
@@ -297,14 +297,14 @@ describe('folder filters apply when drawing', () => {
         const doc = fixtureDoc(KAZOO, { seeds: [k('kazoo.moomoo.boogaloos:scoobie')], direction: 'out' });
         const rt = (sc: Scene) => [...sc.vg.nodes.keys()].filter((x) => x.includes('/noodles/')).length;
         const all = buildScene(doc, boxed());
-        const out = buildScene(doc, boxed(), [globToRegExp('**/noodles/**')]);
+        const out = buildScene(doc, boxed(), [globMatcher('**/noodles/**')]);
         invariants(out);
         expect(rt(all)).toBeGreaterThan(0);
         expect(rt(out)).toBe(0);
         expect(out.grid.markers.some((m) => m.key === k('kazoo.moomoo.boogaloos:scoobie'))).toBe(false);
         const back = structuredClone(doc);
         back.view.include = ['kazoo/noodles'];
-        expect(rt(buildScene(back, boxed(), [globToRegExp('**/noodles/**')]))).toBe(rt(all));
+        expect(rt(buildScene(back, boxed(), [globMatcher('**/noodles/**')]))).toBe(rt(all));
     });
 
     it('external code is off screen unless shown (gaffy.includeExternal)', () => {
@@ -435,12 +435,34 @@ describe('cycles', () => {
 });
 
 describe('folder filters', () => {
+    // the regular expression globs compiled to before (exponential backtracking): the reference for matching
+    const globRegex = (glob: string) => {
+        let re = '';
+        for (let i = 0; i < glob.length; i++) {
+            const c = glob[i];
+            if (c === '*') {
+                if (glob[i + 1] === '*') { i++; if (glob[i + 1] === '/') { i++; re += '(?:.*/)?'; } else re += '.*'; } else re += '[^/]*';
+            } else if (c === '?') re += '[^/]';
+            else re += c.replace(/[.+^${}()|[\]\\]/g, '\\$&');
+        }
+        return new RegExp(`^${re}$`);
+    };
+
+    it('globMatcher matches as the regular expression does, in linear time', () => {
+        const globs = ['**/tests/**', '**/test_*.py', 'src/*', 'src/**', '*.py', 'a?c/**', '**', '**/', 'x/**/y.py', '**/a/**/b', 'stdlib', '*/*/x', '**a**b'];
+        const paths = ['', 'a', 'src', 'src/a.py', 'src/a/b.py', 'tests/x', 'k/tests/t.py', 'a/b/test_x.py', 'abc/d', 'x/y.py', 'x/m/n/y.py', 'q/a/r/b', 'stdlib', 'p/q/x', 'zab', 'a/b'];
+        for (const g of globs) for (const p of paths) expect(globMatcher(g).test(p), `${g} ~ ${p}`).toBe(globRegex(g).test(p));
+        const t0 = performance.now();
+        expect(globMatcher('**a'.repeat(10) + 'b').test('a'.repeat(100))).toBe(false);
+        expect(performance.now() - t0).toBeLessThan(100);
+    });
+
     it('glob and view lists', () => {
-        const tests = globToRegExp('**/tests/**');
+        const tests = globMatcher('**/tests/**');
         expect(tests.test('kazoo/tests/test_a.py')).toBe(true);
         expect(tests.test('tests/test_a.py')).toBe(true);
         expect(tests.test('kazoo/src/a.py')).toBe(false);
-        expect(globToRegExp('**/test_*.py').test('a/b/test_x.py')).toBe(true);
+        expect(globMatcher('**/test_*.py').test('a/b/test_x.py')).toBe(true);
         const doc = fixtureDoc([], { exclude: ['kazoo/scripts'], include: ['kazoo/tests'] });
         const ex = excludedBy(doc.view, [tests]);
         expect(ex('kazoo/scripts/run.py')).toBe(true);
@@ -711,5 +733,39 @@ describe('call kinds on the grid', () => {
         // a kind cell carries calls of that kind only
         const kindOf = (p: { from: string; to: string }) => marked.graph.edges.find((e) => e.from === p.from && e.to === p.to);
         for (const [id] of sc.grid.kinds) for (const p of sc.grid.paths.filter((q) => q.cells.includes(id))) expect(kindOf(p)?.implicit || kindOf(p)?.via).toBeTruthy();
+    });
+});
+
+describe('view files are data', () => {
+    // a view may come from a cloned repository: field types, special keys and sizes are checked when parsing
+    it('parseDoc keeps known values, drops special keys and wrong types, bounds moves and locks', () => {
+        const text = JSON.stringify({
+            gaffy: 1, name: 'v', view: {
+                seeds: ['py:a.py#f', 3], offset: { 'py:a.py#f': [5e6, -2.6], constructor: [1, 1], bad: [1, 'x'] }, lock: { 'py:a.py#g': [20000, -5] },
+                open: { 'py:a.py#f': 'up', 'py:a.py#g': 'sideways', __proto__: 'up' }, tags: { 'py:a.py#f': 7 }, edges: 'wobbly', depthUp: 1e9,
+            },
+            explored: { 'py:a.py#f': 'in', x: 'everywhere' }, graph: { nodes: { 'py:a.py#f': { key: 'py:a.py#f' }, y: 5 }, edges: [{ from: 'a', to: 'b' }, { from: 1 }] },
+        });
+        const d = parseDoc(text);
+        expect(d.view.seeds).toEqual(['py:a.py#f']);
+        expect(d.view.offset).toEqual({ 'py:a.py#f': [1000, -3] });
+        expect(Object.hasOwn(d.view.offset, 'constructor')).toBe(false);
+        expect(d.view.lock).toEqual({ 'py:a.py#g': [2000, 0] });
+        expect(d.view.open).toEqual({ 'py:a.py#f': 'up' });
+        expect(d.view.tags).toEqual({});
+        expect(d.view.edges).toBeUndefined();
+        expect(d.view.depthUp).toBe(1000);
+        expect(d.explored).toEqual({ 'py:a.py#f': 'in' });
+        expect(Object.keys(d.graph.nodes)).toEqual(['py:a.py#f']);
+        expect(d.graph.edges).toEqual([{ from: 'a', to: 'b' }]);
+    });
+
+    it('a lock at the bound lays out without routing a huge grid', () => {
+        const doc = fixtureDoc(MOO, { seeds: [k('moomoo.yo_blinkers:flibbity_jibbity_jabby')], direction: 'in' });
+        doc.view.lock = { [k('moomoo.yo_blinkers:flibbity_jibbity_jabby')]: [2000, 2000] };
+        const t0 = performance.now();
+        const sc = buildScene(doc, flat());
+        expect(performance.now() - t0).toBeLessThan(3000);
+        expect(sc.placement.height).toBeGreaterThan(2000);
     });
 });
