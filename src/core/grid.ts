@@ -1,25 +1,20 @@
 /** @xvdp
- * Character grid from a placement. Each cell holds, per net, a direction mask (N, S, E, W). A net is
- * one drawn connection set: `t:<parent>` (stem and elbows to tree children) or `l:<target>` (all
- * calls into one vertex: lanes, routed paths, their arrival). Glyph text and vector paths derive
- * from the same masks; `paths` keeps one polyline per call for curved rendering.
+ * Character grid from a placement. Cell: direction mask (N, S, E, W) per net; net: `t:<parent>` (tree stem and
+ * elbows) or `l:<target>` (calls into one vertex). Glyph text and vector paths share the masks; `paths`: one
+ * polyline per call.
  *
  * Drawing order:
- * 1. Labels, namespace frames with headers.
- * 2. Per block: tree elbows and lanes whose vertices share one subtree shift (unmoved relative to each other).
- * 3. Every other call: A* on the grid (Hart, Nilsson, Raphael 1968), the maze routing of Lee (1961).
- *    Step cost 1, bend `bend`, crossing a perpendicular segment of another net `cross`, crossing a frame
- *    border at right angle `border`. Labels, headers, frame corners, arrowheads, and segments of other
- *    nets running along the same axis are blocked; a turn on a cell of another net is blocked. Cells of
- *    the same net, or of calls from the same caller, cost 0.3: calls into one target merge into one trunk.
- *    Departure from the label end (`f() ──`), or at a cost of 2 from under or over the label's first
- *    character (`├─>`, `┌─>`), which keeps a callee moved above its caller readable. Arrival from the left
- *    (`──> f()`) for vertices without a drawn tree elbow, else at the right (`f() <──`).
+ * 1. Labels; namespace frames with headers.
+ * 2. Per block: tree elbows and lanes of vertices sharing one subtree shift.
+ * 3. Other calls: A* (Hart, Nilsson, Raphael 1968), grid maze routing (Lee 1961). Costs: step 1, `bend`,
+ *    `cross` (another net's perpendicular segment), `border` (frame border at right angle); 0.3 on own net or
+ *    caller cells (merging into a trunk). Blocked: labels, headers, frame corners, arrowheads, running along or
+ *    turning on another net. Departure: label end (`f() ──`), or at cost 2 below or above the first character
+ *    (`├─>`, `┌─>`; callee above caller). Arrival: left (`──> f()`) without a drawn tree elbow, else right (`f() <──`).
  *
- * Glyph per cell: one net → box glyph of its mask; several nets → union mask, except a pure crossing
- * (each mask exactly N|S or exactly E|W, both present), which renders `GlyphSet.cross`. A straight cell that
- * only implicit calls, or only calls across languages, pass (`Grid.kinds`) takes `GlyphSet.kinds`: dotted, or
- * dash and dot alternating by cell.
+ * Cell glyph: one net → its mask glyph; several → union mask, or `GlyphSet.cross` for a pure crossing (masks
+ * N|S and E|W only). Straight cells of implicit-only or cross-language-only calls (`Grid.kinds`) →
+ * `GlyphSet.kinds`: dotted, or dash and dot alternating by cell.
  */
 import { NodeKey } from './model';
 import { Frame, Placement } from './place';
@@ -52,10 +47,10 @@ export interface EdgePath {
     to: NodeKey;
     net: string;
     pts: [number, number][];  // [x, y] in cell units: x = column, y = row; centers at +0.5
-    cells: number[];           // cell ids from caller to callee, through merged trunks
-    start: 'E' | 'S' | 'N';    // initial heading: from the label end, or from under or over its first character
+    cells: number[];           // cell ids, caller to callee, through merged trunks
+    start: 'E' | 'S' | 'N';    // initial heading: label end, below or above its first character
     arrive: 'E' | 'W';         // final heading
-    fallback?: boolean;        // no route found: a dashed L drawn over everything, no grid cells
+    fallback?: boolean;        // no route: dashed L on top, no grid cells
 }
 
 export interface Grid {
@@ -72,17 +67,17 @@ export interface Grid {
     unrouted: number;          // calls without a route
     failed: [NodeKey, NodeKey][];
     markers: { row: number; col: number; text: string; key: NodeKey; side: 'up' | 'down' }[];
-    arrowTo: Map<number, NodeKey>;      // arrowhead cell → the vertex it points at
-    kinds: Map<number, CallKind>;       // cells only calls of one kind pass (`bridge` where both kinds meet)
+    arrowTo: Map<number, NodeKey>;      // arrowhead cell → target
+    kinds: Map<number, CallKind>;       // cells of one call kind only (`bridge` where both meet)
 }
 
 export interface RouteCost { bend: number; cross: number; border: number; adjacent: number }
 
-/** A call the runtime makes without a call expression (`implicit`), or one across languages (`bridge`, GEdge.via). */
+/** implicit: runtime call without a call expression; bridge: cross-language call (GEdge.via). */
 export type CallKind = 'implicit' | 'bridge';
 
 const STRIDE = 1 << 16;
-/** Largest grid (cells) routed by search: 4 headings × 12 bytes per cell, 48 MB; view files keep moves within ±1000 cells. */
+/** Max cells routed by search: 4 headings × 12 bytes per cell = 48 MB; view files bound moves to ±1000 cells. */
 const MAX_CELLS = 1_000_000;
 export const cellId = (r: number, c: number) => r * STRIDE + c;
 export const cellRC = (id: number): [number, number] => [Math.floor(id / STRIDE), id % STRIDE];
@@ -93,9 +88,9 @@ const BIT = [N, S, E, W];
 const OPP = [S, N, W, E];
 const AXIS_V = N | S, AXIS_H = E | W;
 const RELAX_TURN = 40;     // relaxed pass: turning on another net
-const RELAX_ALONG = 400;   // relaxed pass: running along another net (ambiguous, last resort)
+const RELAX_ALONG = 400;   // relaxed pass: running along another net (ambiguous)
 
-/** Bend points of a cell path: centers of cells where the direction changes. */
+/** Bend points of a cell path: centers of direction-change cells. */
 function bends(cells: number[]): [number, number][] {
     const out: [number, number][] = [];
     for (let i = 1; i < cells.length - 1; i++) {
@@ -106,9 +101,8 @@ function bends(cells: number[]): [number, number][] {
 }
 
 /**
- * `joint` (tree parent rule `joint`): elbow tails belong to the callee's net, so other calls into the callee
- * can join them; collector lanes enter their target from the left; routed calls arrive from the left
- * whenever the two cells before the label are free (callers' positions do not vote).
+ * `joint` (tree parent rule): elbow tails in the callee's net, open to its other calls; collector lanes enter from
+ * the left; routed calls arrive left when the two cells before the label are free (no caller vote).
  */
 export function buildGrid(P: Placement, vg: VGraph, opts: { arrow: boolean; cost: RouteCost; first?: string[]; joint?: boolean; kind?: (from: NodeKey, to: NodeKey) => CallKind | undefined }): Grid {
     const cells = new Map<number, Map<string, number>>();
@@ -147,7 +141,7 @@ export function buildGrid(P: Placement, vg: VGraph, opts: { arrow: boolean; cost
         labels.push({ row: p.row, col: p.col, text, key: k, kind: 'node' });
         for (let c = p.col; c < p.col + text.length; c++) blocked.add(cellId(p.row, c));
     }
-    // one free cell on each side of a label: no line touches a label except at its arrival and departure cells
+    // one free cell each side of a label: lines touch it only at arrival and departure
     const pad = new Set<number>();
     for (const [k, p] of P.pos) { pad.add(cellId(p.row, p.col - 1)); pad.add(cellId(p.row, P.end.get(k)!)); }
     const border = new Map<number, 'v' | 'h'>();
@@ -175,7 +169,7 @@ export function buildGrid(P: Placement, vg: VGraph, opts: { arrow: boolean; cost
     const eid = (a: NodeKey, b: NodeKey) => `${a}\u0000${b}`;
     const elbowInto = new Set<NodeKey>();
     const same = (a: [number, number], b: [number, number]) => a[0] === b[0] && a[1] === b[1];
-    /** Stem under p and elbows to the children whose stem column and elbow row cross no label. */
+    /** Stem under p, elbows to children whose stem column and elbow row cross no label. */
     const elbows = (p: NodeKey, kids: NodeKey[], keep: (c: NodeKey) => boolean) => {
         const pp = P.pos.get(p)!;
         const ok = kids.filter((c) => {
@@ -194,7 +188,7 @@ export function buildGrid(P: Placement, vg: VGraph, opts: { arrow: boolean; cost
         for (let r = pp.row + 1; r <= last; r++) add(r, pp.col, net, N | (r < last ? S : 0) | (childRows.has(r) ? E : 0), p);
         for (const c of ok) {
             const pc = P.pos.get(c)!;
-            // joint: the tail after the stem belongs to the callee's net, where its other calls may join
+            // joint: tail in the callee's net, open to its other calls
             const tn = opts.joint ? lane(c) : net;
             hline(pc.row, pp.col + 1, pc.col - 3, tn, p);
             if (opts.arrow) { add(pc.row, pc.col - 2, tn, W, p); mark({ row: pc.row, col: pc.col - 2, ch: '>', net: tn, role: 'arrowE' }); }
@@ -208,10 +202,7 @@ export function buildGrid(P: Placement, vg: VGraph, opts: { arrow: boolean; cost
                 cells: [...colCells(pp.col, pp.row + 1, pc.row), ...row(pc.row, pp.col + 1, pc.col - 2)] });
         }
     };
-    /**
-     * Collector lane (rule `joint`): down the lane column to the approach row above the target, back left
-     * to the collector column, down into the target's row, and in from the left.
-     */
+    /** Collector lane (rule `joint`): down to the approach row, left to the collector column, down, in from left. */
     const leftLane = (ln: Placement['blocks'][number]['L']['lanes'][number], B: Placement['blocks'][number], col: number, srcRows: number[]) => {
         const s0 = B.shift.get(ln.target)!;
         const tp = P.pos.get(ln.target)!;
@@ -258,7 +249,7 @@ export function buildGrid(P: Placement, vg: VGraph, opts: { arrow: boolean; cost
         }
     };
 
-    // markers of the stable placement: obstacles for the router, clickable in the webview
+    // stable-placement markers: router obstacles, clickable
     const markers = P.markers ?? [];
     for (const m of markers) {
         for (let i = 0; i < m.text.length; i++) {
@@ -328,7 +319,7 @@ export function buildGrid(P: Placement, vg: VGraph, opts: { arrow: boolean; cost
         const pa = P.pos.get(a)!, pb = P.pos.get(b)!;
         return Math.abs(pa.row - pb.row) + Math.abs(pa.col - pb.col);
     };
-    // level calls first (straight arrows), shortest first; then the rest, longest first
+    // level calls (straight) shortest first, then the rest longest first
     const departRow = (k: NodeKey) => (P.port.get(k) ?? P.pos.get(k)!).row;
     const level = (e: { from: NodeKey; to: NodeKey }) => departRow(e.from) === P.pos.get(e.to)!.row;
     const first = new Set(opts.first ?? []);
@@ -337,13 +328,12 @@ export function buildGrid(P: Placement, vg: VGraph, opts: { arrow: boolean; cost
         || (level(a) ? dist(a.from, a.to) - dist(b.from, b.to) : dist(b.from, b.to) - dist(a.from, a.to))
         || (a.from + a.to < b.from + b.to ? -1 : 1));
 
-    // arrival side per target, decided before routing; left arrival cells reserved for the target's net
-    // callers mostly left of the target arrive from the left (`──> f()`), callers right of it at its end (`f() <──`)
+    // arrival side per target by caller majority: left (`──> f()`) or end (`f() <──`); left cells reserved
     const leftArrival = new Map<NodeKey, boolean>();
     const reserved = new Map<number, string>();
     const votes = new Map<NodeKey, number>();
     for (const e of todo) votes.set(e.to, (votes.get(e.to) ?? 0) + (P.pos.get(e.from)!.col < P.pos.get(e.to)!.col ? 1 : -1));
-    // a vertex that sends calls from its label end keeps that end: calls into it arrive from the left
+    // a vertex sending from its label end keeps that end: arrivals from the left
     const departs = new Set<NodeKey>(todo.map((e) => e.from));
     for (const [id, own] of srcOf) { const [r, c] = cellRC(id); for (const u of own) { const p = P.pos.get(u); if (p && p.row === r && c === P.end.get(u)! + 1) departs.add(u); } }
     for (const e of todo) {
@@ -351,16 +341,16 @@ export function buildGrid(P: Placement, vg: VGraph, opts: { arrow: boolean; cost
         if (leftArrival.has(v)) continue;
         const pv = P.pos.get(v)!;
         const free = (r: number, c: number) => c >= 0 && !blocked.has(cellId(r, c)) && !border.has(cellId(r, c)) && !cells.has(cellId(r, c)) && !reserved.has(cellId(r, c));
-        // a collector lane or a joint elbow already enters from the left: join it
+        // collector lane or joint elbow already enters left: join it
         const own = !!cells.get(cellId(pv.row, pv.col - 2))?.has(`l:${v}`) && !elbowInto.has(v);
-        // a vertex sending calls from its label end receives from the left even when those cells are taken
-        // (the route then fails to a dashed fallback): its end never carries a call in and a call out
+        // a vertex sending from its label end receives left even when those cells are taken (dashed fallback):
+        // its end never carries calls in and out
         const sends = departs.has(v) && !elbowInto.has(v);
         const left = own || sends || (!elbowInto.has(v) && (opts.joint || votes.get(v)! >= 0) && pv.col >= 2 && free(pv.row, pv.col - 2) && free(pv.row, pv.col - 1));
         leftArrival.set(v, left);
         if (left && !own) { reserved.set(cellId(pv.row, pv.col - 2), `l:${v}`); reserved.set(cellId(pv.row, pv.col - 1), `l:${v}`); }
     }
-    // departure cells reserved for their caller: two cells right of the label, or right of the port
+    // departure cells reserved for the caller: two cells after the label or port
     for (const e of todo) {
         const port = P.port.get(e.from);
         const r = port ? port.row : P.pos.get(e.from)!.row;
@@ -370,7 +360,7 @@ export function buildGrid(P: Placement, vg: VGraph, opts: { arrow: boolean; cost
 
     let width = P.width, height = P.height;
     const RW = P.width + 16, RH = P.height + 12;
-    // the search arrays take 12 bytes per (cell, heading): past MAX_CELLS cells every call is drawn as its fallback
+    // 12 bytes per (cell, heading); beyond MAX_CELLS every call draws as fallback
     const routable = RW * RH <= MAX_CELLS;
     const size = routable ? RW * RH * 4 : 0;
     const g = new Float64Array(size).fill(Infinity);
@@ -441,7 +431,7 @@ export function buildGrid(P: Placement, vg: VGraph, opts: { arrow: boolean; cost
         };
         const h = (r: number, c: number) => Math.abs(r - gr) + Math.abs(c - gc);
 
-        // no route: the call still shows, as a dashed L from the caller to the callee's arrival side, with its arrowhead
+        // no route: dashed L to the callee's arrival side, with arrowhead
         const fallback = () => {
             unrouted++;
             failed.push([u, v]);
@@ -451,8 +441,8 @@ export function buildGrid(P: Placement, vg: VGraph, opts: { arrow: boolean; cost
             paths.push({ from: u, to: v, net, pts, cells: [], start: 'E', arrive: left ? 'E' : 'W', fallback: true });
         };
         if (!routable || sr < 0 || sr >= RH || sc >= RW || blocked.has(cellId(sr, sc))) { fallback(); continue; }
-        // start states: label end heading E; under and over the first character heading S and N
-        // a caller that receives calls at its right end sends from under or over its name, never from that end
+        // start states: label end heading E; below / above the first character heading S / N.
+        // A caller receiving at its right end sends only from below or above its name
         const starts: { id: number; r: number; c: number; d: number; cost: number }[] =
             !port && leftArrival.get(u) === false ? [] : [{ id: sid(sr, sc, 2), r: sr, c: sc, d: 2, cost: 0 }];
         if (!port) {
@@ -467,12 +457,12 @@ export function buildGrid(P: Placement, vg: VGraph, opts: { arrow: boolean; cost
         if (!starts.length) { fallback(); continue; }
         const startDir = new Map(starts.map((s) => [s.id, s.d] as const));
         let goal = -1;
-        // a stem that starts on a trunk of this net alone joins it there (`├───┴─>`: the caller sits right above)
+        // a stem starting on a trunk of this net alone joins it (`├───┴─>`: caller directly above)
         const onNet = starts.find((s) => s.d !== 2 && cells.get(cellId(s.r, s.c))?.has(net) && cells.get(cellId(s.r, s.c))!.size === 1);
         if (onNet) { goal = onNet.id; g[onNet.id] = 0; touched.push(onNet.id); }
-        // the arrival cell already drawn for this net (collector lane): reaching it is a merge
+        // arrival cell already drawn for this net (collector lane): reaching it merges
         const drawnGoal = !!cells.get(cellId(gr, gc))?.has(net);
-        // pass 0 strict; pass 1 relaxed: running along or turning on another net costs RELAX instead of being blocked
+        // pass 0 strict; pass 1: running along or turning on another net costs RELAX_* instead of blocking
         for (let pass = 0; pass < 2 && goal < 0; pass++) {
         const relaxed = pass === 1;
         for (const t of touched) { g[t] = Infinity; came[t] = -1; }
@@ -487,8 +477,7 @@ export function buildGrid(P: Placement, vg: VGraph, opts: { arrow: boolean; cost
             const r = Math.floor(cellIx / RW), c = cellIx % RW;
             const gcur = g[id];
             if (r === gr && c === gc && d === gdir) { goal = id; break; }
-            // merge into an existing trunk of the same net
-            // merge only where the trunk of this net runs alone: a merge on a line other calls share is ambiguous
+            // merge into a trunk of this net only where it runs alone (shared lines: ambiguous)
             const here0 = cells.get(cellId(r, c));
             if (!startDir.has(id) && here0?.has(net) && here0.size === 1 && !(r === gr && c === gc)) { goal = id; break; }
             const here = otherNets(cellId(r, c));
@@ -527,8 +516,8 @@ export function buildGrid(P: Placement, vg: VGraph, opts: { arrow: boolean; cost
                     }
                 }
                 if (nd !== d) step += opts.cost.bend + turnPenalty;
-                // spacing: a vertical run in the column next to an unrelated vertical line reads as one thick line;
-                // horizontal runs on adjacent rows are a row apart and stay free
+                // spacing: vertical runs beside unrelated vertical lines cost `adjacent` (read as one thick line);
+                // horizontal runs on adjacent rows read apart
                 const side = nd < 2 ? [cellId(nr, nc - 1), cellId(nr, nc + 1)] : [];
                 const along = AXIS_V;
                 for (const sc2 of side) {
@@ -589,7 +578,7 @@ export function buildGrid(P: Placement, vg: VGraph, opts: { arrow: boolean; cost
             let end = pts[pts.length - 1];
             let arrive: 'E' | 'W' = left ? 'E' : 'W';
             if (merged) {
-                // continue along the trunk this call joined, to the callee, arriving as that trunk does
+                // follow the joined trunk to the callee; arrive as the trunk does
                 const j = own[own.length - 1];
                 const host = paths.find((q) => q.to === v && q.net === net && q.cells.includes(j));
                 if (host) {
@@ -598,8 +587,7 @@ export function buildGrid(P: Placement, vg: VGraph, opts: { arrow: boolean; cost
                     arrive = host.arrive;
                 }
             } else if (!roots.has(net)) roots.set(net, cellId(gr, gc));
-            // the cell the start point leaves from precedes the path, so a turn at its first cell (a stem merging
-            // where it starts, `├───┴─>`) is a bend too
+            // start cell precedes the path: a turn at the first cell (stem merging, `├───┴─>`) is a bend
             const pre = startKind === 'E' ? (port ? undefined : cellId(sr, sc - 1)) : cellId(pu.row, pu.col);
             const full: [number, number][] = [pts[0], ...(startKind === 'E' && port ? [pts[1]] : []), ...bends(pre === undefined ? own : [pre, ...own]), end];
             paths.push({ from: u, to: v, net, pts: full, cells: own, start: startKind === 'E' ? (port ? 'S' : 'E') : startKind, arrive });
@@ -614,7 +602,7 @@ export function buildGrid(P: Placement, vg: VGraph, opts: { arrow: boolean; cost
         if (l.kind !== 'node') continue;
         for (let c = l.col; c < l.col + l.text.length; c++) if (cells.has(cellId(l.row, c))) conflicts++;
     }
-    // cells only implicit calls or only calls across languages pass: a plain call on a cell makes it plain
+    // cells of implicit-only or cross-language-only calls; one plain call makes a cell plain
     const kinds = new Map<number, CallKind>();
     if (opts.kind) {
         const plain = new Set<number>();
@@ -645,7 +633,7 @@ export function cellGlyph(nets: Map<string, number>, gs: GlyphSet): string {
     return gs.mask(union);
 }
 
-/** A straight call cell in the style of its call kind: dotted (implicit), dash and dot by cell parity (bridge). */
+/** Straight call cell by call kind: dotted (implicit), dash and dot by cell parity (bridge). */
 function kindGlyph(glyph: string, kind: CallKind, r: number, c: number, gs: GlyphSet): string {
     const k = gs.kinds;
     if (glyph === gs.mask(E | W)) return kind === 'implicit' ? k.implicit.h : k.bridge.h[c % 2];
@@ -665,7 +653,7 @@ function markGlyph(m: Mark, gs: GlyphSet): string {
     }
 }
 
-/** Character matrix with labels; `blankLabels` leaves label cells empty (SVG draws labels apart). */
+/** Character matrix with labels; `blankLabels`: empty label cells (SVG draws labels). */
 export function charRows(g: Grid, gs: GlyphSet, blankLabels = false, withMarkers = true): string[][] {
     const rows = Array.from({ length: g.height }, () => Array<string>(g.width).fill(' '));
     const put = (r: number, c: number, ch: string) => {
@@ -681,7 +669,7 @@ export function charRows(g: Grid, gs: GlyphSet, blankLabels = false, withMarkers
         put(r, c, kind ? kindGlyph(glyph, kind, r, c, gs) : glyph);
     }
     for (const m of g.marks) {
-        // a call crossing a frame border keeps its own glyph: the frame breaks, the call stays continuous
+        // a call crossing a frame border keeps its glyph: frame breaks, call continues
         if (m.role !== 'frame' && (withMarkers || m.role !== 'marker')) put(m.row, m.col, markGlyph(m, gs));
     }
     for (const l of g.labels) {
@@ -699,7 +687,7 @@ export function toText(g: Grid, gs: GlyphSet): string {
 /* secure tooling: HTML export: attributes escape " and '*/
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 
-/** `<pre>` body with vertex labels wrapped in links (`href` returns undefined for unlinked labels); `bold` labels in `<b>` (seeds). */
+/** `<pre>` body; vertex labels as links (`href` undefined: no link); `bold` labels (seeds) in `<b>`. */
 export function toHtmlPre(g: Grid, gs: GlyphSet, href: (key: NodeKey) => string | undefined, bold: (key: NodeKey) => boolean = () => false): string {
     const rows = charRows(g, gs, true);
     const byRow = new Map<number, LabelSpan[]>();

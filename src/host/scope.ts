@@ -1,5 +1,5 @@
 /** @xvdp
-* Security tooling: prevent abitrary scheme URIs. Block URIs from outside data reaching external providers.
+* Security tooling: rejects arbitrary URI schemes; blocks URIs from outside data reaching external providers.
 **/
 import * as vscode from 'vscode';
 

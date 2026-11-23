@@ -1,7 +1,6 @@
 /** @xvdp
- * Style: defaults, merged with the `gaffy.style` setting, then `.gaffy/style.json`, then per-view
- * overrides (ViewSpec.boxes, edges, curve, parentRule). `view` holds the choices a new view starts
- * with (layout, traverse); they are written into the view file at creation.
+ * Style merge order: defaults, `gaffy.style` setting, `.gaffy/style.json`, per-view overrides (ViewSpec.boxes,
+ * edges, curve, parentRule). `view`: initial layout and traverse of a new view, written to its file.
  */
 import type { EdgeMode, ParentRule } from './viewdoc';
 
@@ -55,7 +54,7 @@ function mergeOne(a: unknown, b: unknown): unknown {
     if (b === undefined || b === null) return a;
     if (isPlain(a) && isPlain(b)) {
         const r: Plain = { ...a };
-        // a key that names an object's prototype would change what the merged style inherits: skipped
+        // skip prototype keys: they would alter the merged style's inheritance
         for (const [k, v] of Object.entries(b)) if (k !== '__proto__' && k !== 'constructor' && k !== 'prototype') r[k] = mergeOne(a[k], v);
         return r;
     }
@@ -81,11 +80,11 @@ export interface GlyphSet {
     mask: (m: number) => string;
     cross: string;
     frame: { tl: string; tr: string; bl: string; br: string; h: string; v: string };
-    /** Straight segments of implicit calls (dotted) and of calls across languages (dash and dot, by cell parity). */
+    /** Straight segments: implicit calls dotted, cross-language calls dash and dot by cell parity. */
     kinds: { implicit: { h: string; v: string }; bridge: { h: [string, string]; v: [string, string] } };
 }
 
-/** Frame glyphs per line style: dashed and dotted frames read apart from solid call lines. */
+/** Frame glyphs per line style (dashed, dotted: distinct from solid call lines). */
 const FRAMES: Record<FrameLine, GlyphSet['frame']> = {
     solid: { tl: '┌', tr: '┐', bl: '└', br: '┘', h: '─', v: '│' },
     rounded: { tl: '╭', tr: '╮', bl: '╰', br: '╯', h: '─', v: '│' },
@@ -94,7 +93,7 @@ const FRAMES: Record<FrameLine, GlyphSet['frame']> = {
     double: { tl: '╔', tr: '╗', bl: '╚', br: '╝', h: '═', v: '║' },
 };
 
-/** Ranges of the numeric style fields (schemas/style.schema.json): larger values only grow the grid a layout allocates. */
+/** Numeric style field ranges (schemas/style.schema.json); larger values only grow the allocated grid. */
 const BOUNDS: [keyof Style, string, number, number][] = [
     ['font', 'size', 6, 72], ['font', 'lineHeight', 1, 4], ['grid', 'indent', 3, 16], ['grid', 'laneGap', 1, 8],
     ['edges', 'width', 0.5, 8], ['edges', 'lead', 0, 20], ['edges', 'tension', 0, 1], ['boxes', 'alpha', 0, 1],
@@ -102,9 +101,8 @@ const BOUNDS: [keyof Style, string, number, number][] = [
 ];
 
 /**
- * A merged style with every numeric field inside its range (a value of another type takes the default) and the
- * crossing glyph cut to one character. Styles come from settings and `.gaffy/style.json`, which a cloned
- * repository can carry: `grid.indent: 20000` made one layout take 7 s and 600 MB.
+ * Merged style with numeric fields clamped to range (non-numbers → default), crossing glyph cut to one character.
+ * `.gaffy/style.json` may come with a cloned repository: `grid.indent: 20000` made one layout take 7 s and 600 MB.
  */
 export function boundedStyle(st: Style): Style {
     const out = structuredClone(st);

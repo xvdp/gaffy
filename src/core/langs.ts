@@ -1,15 +1,15 @@
 /** @xvdp
- * Language rules of the call graph provider, kept apart from its behaviour (pure, no VS Code API).
+ * Language rules of the call graph provider (pure, no VS Code API).
  *
- * - `LANG`: file extension → key prefix of the language (`<lang>:<relpath>#<qual>`).
- * - `TEXT_LANGS`: languages whose servers commonly lack call hierarchy (shader languages); for these the
- *   provider finds calls in the text (textcalls.ts) when the server returns no call hierarchy item.
- * - `EXTERNAL`: paths of code outside the project (installed packages, build output, system headers).
- * - `segments`: a document-symbol or call-hierarchy name → qualified-name segments. Rules, in order:
- *   Rust `impl [<…>] [Trait for] Type` → `Type`, or `Type[Trait]` (two trait impls of one type both define
- *   `fmt`); Go `(*T).M` → `T`, `M`; TypeScript `x.forEach() callback` → `x·forEach·callback`; C++
- *   `ns::Foo<T>::bar(int)` → `ns`, `Foo`, `bar`, operators kept whole (`operator()`); otherwise the
- *   name without its parameter list. A `.` left inside a segment becomes `·`, so `.` separates segments.
+ * - `LANG`: file extension → language key prefix (`<lang>:<relpath>#<qual>`).
+ * - `TEXT_LANGS`: shader languages, servers commonly without call hierarchy: calls from text (textcalls.ts) when
+ *   the server returns no item.
+ * - `EXTERNAL`: paths outside the project (installed packages, build output, system headers).
+ * - `segments`: symbol or call-hierarchy name → qualified-name segments, rules in order: Rust
+ *   `impl [<…>] [Trait for] Type` → `Type` or `Type[Trait]` (two trait impls of one type may both define `fmt`);
+ *   Go `(*T).M` → `T`, `M`; TypeScript `x.forEach() callback` → `x·forEach·callback`; C++ `ns::Foo<T>::bar(int)`
+ *   → `ns`, `Foo`, `bar`, operators whole (`operator()`); else the name without parameters. `.` inside a
+ *   segment → `·`; `.` separates segments.
  */
 
 export const LANG: Record<string, string> = {
@@ -29,7 +29,7 @@ export const LANG: Record<string, string> = {
 
 export const TEXT_LANGS = new Set(['glsl', 'hlsl', 'slang', 'wgsl', 'metal']);
 
-/** VS Code extensions whose language servers give a language document symbols and call hierarchy (for messages). */
+/** VS Code extension per language for document symbols and call hierarchy (messages). */
 export const SERVERS: Record<string, string> = {
     py: 'Python with Pylance (ms-python.python)',
     rs: 'rust-analyzer (rust-lang.rust-analyzer)',
@@ -44,19 +44,19 @@ export const SERVERS: Record<string, string> = {
     glsl: 'WebGL GLSL Editor (raczzalan.webgl-glsl-editor)',
 };
 
-/** Message for a file whose server lists its functions but gives them no call hierarchy. */
+/** Message: server lists the file's functions but returns no call hierarchy. */
 export const noHierarchyHint = (path: string) => langOf(path) === 'rs'
     ? 'rust-analyzer gives no call hierarchy for code it treats as inactive under #[cfg] (for example a module behind a Cargo feature that is off): '
         + 'enable the feature for rust-analyzer, "rust-analyzer.cargo.features": ["<feature>"] or "all", in the workspace settings'
     : `the language server lists the functions but answers no call hierarchy for them (still indexing, or code it treats as inactive); ${serverHint(path)}`;
 
-/** Message for a file whose language answered nothing: the extension that would. */
+/** Message: no answer for the file's language; names the extension that would. */
 export const serverHint = (path: string) => {
     const lang = langOf(path);
     return SERVERS[lang] ? `install or enable ${SERVERS[lang]}` : `no language server with call hierarchy is known for .${path.split('.').pop()} files`;
 };
 
-/** Extensions of one language (for the text index of a language). */
+/** File extensions of a language (for its text index). */
 export const extsOf = (lang: string) => Object.entries(LANG).filter(([, l]) => l === lang).map(([e]) => e);
 
 export const langOf = (path: string) => {
@@ -70,15 +70,14 @@ export const EXTERNAL = new RegExp([
     '\\.d\\.ts$',
     '(^|[\\\\/])target[\\\\/](debug|release|[\\w-]+-[\\w-]+-[\\w-]+)[\\\\/]',      // Rust build output
     '(^|[\\\\/])(_deps|vcpkg_installed|\\.conan2?|\\.cargo|\\.rustup)[\\\\/]',          // fetched C/C++ and Rust dependencies
-    '(^|[\\\\/])pkg[\\\\/][\\w-]+(_bg)?\\.js$',                                    // wasm-pack glue (calls show from the caller to the Rust function)
+    '(^|[\\\\/])pkg[\\\\/][\\w-]+(_bg)?\\.js$',                                    // wasm-pack glue (calls show caller → Rust function)
     '^/usr/(include|lib|local/include)/',
 ].join('|'));
 
 /**
- * Library roots in a path of code outside every workspace folder. The capture is the directory where
- * the library's own paths begin: Python import roots (`site-packages`, `dist-packages`, a typeshed
- * `stdlib` or stub distribution, `lib/python3.x`), C and C++ `include`, the Rust standard `library`, a
- * Cargo crate folder, `node_modules`. `py: true`: files under it import by their path.
+ * Library roots in paths outside every workspace folder. Capture: directory where library paths begin: Python
+ * import roots (`site-packages`, `dist-packages`, typeshed `stdlib` or stub distribution, `lib/python3.x`),
+ * C/C++ `include`, Rust standard `library`, Cargo crate folder, `node_modules`. `py: true`: files import by path.
  */
 const LIB_ROOTS: { re: RegExp; py: boolean }[] = [
     { re: /\/((?:site|dist)-packages)\//g, py: true },
@@ -92,11 +91,10 @@ const LIB_ROOTS: { re: RegExp; py: boolean }[] = [
 ];
 
 /**
- * A file outside every workspace folder (absolute POSIX path) → `root` + `/` + `rel` = `abs`, where `rel`
- * starts at the innermost library root the path passes through: `…/lib/python3.12/site-packages/torch/functional.py`
- * → rel `site-packages/torch/functional.py`, module `torch.functional`. Keys stay short and stable across
- * machines, and the folder chain of `rel` is finite. A path through no library root keeps every segment
- * (`rel` = `abs` without its leading `/`); `module` is set only for Python files under an import root.
+ * File outside every workspace folder (absolute POSIX path) → `root` + `/` + `rel` = `abs`; `rel` starts at the
+ * innermost library root: `…/lib/python3.12/site-packages/torch/functional.py` → rel
+ * `site-packages/torch/functional.py`, module `torch.functional`. Keys: short, machine-independent; finite folder
+ * chain of `rel`. No library root: `rel` = `abs` without leading `/`. `module`: Python files under an import root only.
  */
 export function externalPath(abs: string): { root: string; rel: string; module?: string } {
     let best: { start: number; py: boolean } | undefined;

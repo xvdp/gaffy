@@ -1,5 +1,5 @@
-// Browser preview of the webview without VS Code: dist/preview.html?doc=moo|star|kazoo|grow|two|file (GAFFY_PREVIEW_FILE=<view.gaffy>)
-// Mocks acquireVsCodeApi, echoes edits back as state, maps VS Code theme variables to dark defaults.
+// Webview preview outside VS Code: dist/preview.html?doc=moo|star|kazoo|grow|two|file (GAFFY_PREVIEW_FILE=<view.gaffy>)
+// Mocks acquireVsCodeApi, echoes edits back as state, dark defaults for VS Code theme variables.
 import { execFileSync } from 'node:child_process';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import * as esbuild from 'esbuild';

@@ -1,18 +1,15 @@
 /** @xvdp
- * Language servers for the languages of a workspace: which VS Code extensions give gaffy document
- * symbols and call hierarchy, which are installed and enabled, and what to install.
- *
- * Run once per workspace and gaffy version after start-up (a notification only when a language with
- * files has no server, until "Don't show again"), and on demand: `gaffy: Check Language Servers`.
- * Files are probed with one `findFiles` per language (limit 1); extensions through `vscode.extensions.all`
- * (installed and enabled), compared without case.
+ * Language-server check: per language with workspace files, the VS Code extension providing document symbols and
+ * call hierarchy, installed or missing. Runs after start-up once per workspace and gaffy version (notifies missing
+ * servers until "Don't show again") and on demand (`gaffy: Check Language Servers`). Probes: one `findFiles` per
+ * language (limit 1); `vscode.extensions.all` (installed, enabled), case-insensitive ids.
  */
 import * as vscode from 'vscode';
 
 interface Need {
     label: string;
     glob: string;
-    any: string[];           // any one of these extensions serves the language
+    any: string[];           // any of these extensions serves the language
     install: string;         // the one to suggest
     optional?: string;       // gaffy works without it, with this caveat
 }
@@ -36,7 +33,7 @@ const SKIP = '{**/node_modules/**,**/.git/**,**/.venv/**,**/venv/**,**/site-pack
 
 export interface Finding { label: string; present: boolean; served: string | undefined; install: string; optional?: string }
 
-/** Languages with files in the workspace, and the installed extension serving each (undefined: none). */
+/** Workspace languages with files, and the installed extension serving each (undefined: none). */
 export async function checkServers(): Promise<Finding[]> {
     const installed = new Set(vscode.extensions.all.map((e) => e.id.toLowerCase()));
     const out: Finding[] = [];
@@ -70,8 +67,7 @@ export async function showReport(found?: Finding[]): Promise<void> {
 }
 
 /**
- * After start-up: once per workspace and gaffy version, a notification when a language with files has no
- * server (required ones only), with Install, Show Report, and Don't Show Again.
+ * Start-up check, once per workspace and gaffy version: notification for missing required servers.
  */
 export async function checkOnStart(ctx: vscode.ExtensionContext): Promise<void> {
     if (!vscode.workspace.workspaceFolders?.length || ctx.workspaceState.get<boolean>('gaffy.servers.dismissed')) return;

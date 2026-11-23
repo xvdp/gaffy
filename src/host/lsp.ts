@@ -1,15 +1,12 @@
 /** @xvdp
- * Call graph provider over the LSP call hierarchy exposed by VS Code built-in commands:
- * `vscode.prepareCallHierarchy`, `vscode.provideIncomingCalls`, `vscode.provideOutgoingCalls`,
- * `vscode.executeDocumentSymbolProvider`. Works for every language whose server implements call
- * hierarchy (TS/JS built in, Python via Pylance, C/C++, Rust, Go, …). Languages whose server has none
- * (shader languages, `TEXT_LANGS`) get calls found in the text (textcalls.ts): call sites in a function
- * body resolved by go to definition, else by name among the functions of that language in the workspace;
- * callers by references, else by the same scan over the workspace.
+ * Call graph provider over the LSP call hierarchy (VS Code commands `vscode.prepareCallHierarchy`,
+ * `vscode.provideIncomingCalls`, `vscode.provideOutgoingCalls`, `vscode.executeDocumentSymbolProvider`): TS/JS
+ * built in, Python via Pylance, C/C++, Rust, Go, …. Languages without call hierarchy (shaders, `TEXT_LANGS`): text
+ * calls (textcalls.ts); callees by go to definition, else by name; callers by references, else workspace scan.
  *
- * Node keys: `<lang>:<relpath>#<qual>`; qual = segments (langs.ts) of the document-symbol chain enclosing
- * the item's name position. Containers: file `<lang>:<relpath>`, class `<lang>:<relpath>#<Class>`, folder
- * `dir:<reldir>` (Python packages when the folder holds `__init__.py`).
+ * Node keys: `<lang>:<relpath>#<qual>`; qual: segments (langs.ts) of the document-symbol chain at the item's name.
+ * Containers: file `<lang>:<relpath>`, class `<lang>:<relpath>#<Class>`, folder `dir:<reldir>` (Python package
+ * with `__init__.py`).
  */
 import * as path from 'node:path';
 import * as vscode from 'vscode';
@@ -21,8 +18,8 @@ import { Bridges } from './bridges';
 import { Implicit } from './implicit';
 import { readable } from './scope';
 
-// symbols that enclose a qualified name: types, functions, namespaces, impl blocks (Object), object
-// literals and their variables (TypeScript `const obj = { run() {} }` → `obj.run`)
+// symbols enclosing a qualified name: types, functions, namespaces, impl blocks (Object), object literals
+// and their variables (TypeScript `const foo = { run() {} }` → `foo.run`)
 const SCOPE = new Set([
     vscode.SymbolKind.Class, vscode.SymbolKind.Interface, vscode.SymbolKind.Struct, vscode.SymbolKind.Enum,
     vscode.SymbolKind.Function, vscode.SymbolKind.Method, vscode.SymbolKind.Constructor,
@@ -45,14 +42,14 @@ function kindOf(k: vscode.SymbolKind): Kind {
 
 type Sym = vscode.DocumentSymbol;
 
-/* Time limit to prevent requests stalling. */
+/* Per-request time limit against stalls. */
 const REQUEST_MS = 30000;
-/* secure tooling: limit max calls in either direction to prevent functions becoming hubs. */
+/* secure tooling: calls kept per answer, either direction; stops a function becoming an unbounded hub. */
 export const MAX_CALLS = 5000;
-/** Definitions described at once while folding one answer (symbols, documents and folders are cached per file). */
+/** Concurrent `describe` calls per answer (symbols, documents, folders cached per file). */
 const DESCRIBE_AT_ONCE = 16;
 
-/** `fn` over `items`, at most `limit` at a time; results in input order. Stops taking items once `token` is cancelled. */
+/** `fn` over `items`, ≤ `limit` concurrent, input order; stops on `token` cancel. */
 async function mapLimit<T, R>(items: readonly T[], limit: number, fn: (t: T) => Promise<R>, token?: vscode.CancellationToken): Promise<(R | undefined)[]> {
     const out: (R | undefined)[] = new Array(items.length);
     let i = 0;
@@ -82,7 +79,7 @@ function chainAt(syms: readonly Sym[], pos: vscode.Position): Sym[] {
     return chain.filter((s, i) => i === chain.length - 1 || SCOPE.has(s.kind));
 }
 
-/** Symbol whose chain of segments spells `parts`; non-scope symbols are skipped in quals, so search through them. */
+/** Symbol whose segment chain spells `parts`; searches through non-scope symbols (absent from quals). */
 function findQual(syms: readonly Sym[], parts: string[]): Sym | undefined {
     const queue = [...syms];
     while (queue.length) {
@@ -124,27 +121,27 @@ export class LspProvider {
     private items = new Map<NodeKey, vscode.CallHierarchyItem>();
     private symbols = new Map<string, Promise<Sym[]>>();
     private packages = new Map<string, Promise<boolean>>();
-    /** Outgoing answers with no call at all for a body whose text has calls, by `<dir>:<key>` (read once by `silentOf`). */
+    /** `<dir>:<key>` of empty outgoing answers for bodies with call sites (`silentOf`). */
     private silent = new Set<string>();
-    /** Answers longer than `MAX_CALLS`, by `<dir>:<key>`: their full length (read once by `clampOf`). */
+    /** `<dir>:<key>` → full length of answers over `MAX_CALLS` (`clampOf`). */
     private clamps = new Map<string, number>();
 
     /** Calls across languages (pybind11, nanobind, torch, slangpy, slangtorch); `gaffy.bridges`. */
     readonly bridges = new Bridges(this, () => vscode.workspace.getConfiguration('gaffy').get<boolean>('bridges') ?? true);
-    /** Calls the runtime makes without a call expression: construction, instance calls. */
+    /** Runtime calls without a call expression: construction, instance calls. */
     readonly implicit = new Implicit(this);
 
     constructor(private includeExternal: () => boolean) {}
 
-    /** The function enclosing `pos`, as a call hierarchy item (Python callers of a binding). */
+    /** Function enclosing `pos` as a call hierarchy item (Python callers of a binding). */
     async callerAt(uri: vscode.Uri, pos: vscode.Position): Promise<vscode.CallHierarchyItem | undefined> {
         const fn = functionSymAt(await this.symbolsOf(uri), pos);
         return fn ? (await this.prepare(uri, fn.selectionRange.start))[0] : undefined;
     }
 
     /**
-     * Range of a definition's whole text. Pyright and Pylance give a call hierarchy item the range of its name
-     * only (`range` = `selectionRange`, measured with Pyright); the outline symbol at that name spans the body.
+     * Range of a definition's full text: Pyright and Pylance set `range` = `selectionRange` (name only; measured
+     * with Pyright), so the outline symbol at the name supplies the body.
      */
     async bodyOf(it: vscode.CallHierarchyItem): Promise<vscode.Range> {
         if (!it.range.isEqual(it.selectionRange)) return it.range;
@@ -161,7 +158,7 @@ export class LspProvider {
         return found?.range ?? it.range;
     }
 
-    /** Full length of the last answer for (`key`, `dir`) when it exceeded `MAX_CALLS`, else undefined; read once. */
+    /** Full length of the last (`key`, `dir`) answer over `MAX_CALLS`, else undefined; read once. */
     clampOf(key: NodeKey, dir: 'in' | 'out'): number | undefined {
         const n = this.clamps.get(`${dir}:${key}`);
         this.clamps.delete(`${dir}:${key}`);
@@ -169,8 +166,8 @@ export class LspProvider {
     }
 
     /**
-     * Whether the last answer for (`key`, `dir`) held no call although the definition's text has call sites
-     * (a server still loading, e.g. TypeScript's syntax-only server, answers empty); read once. build.ts doubts it.
+     * Whether the last (`key`, `dir`) answer was empty despite call sites in the text (loading server, e.g.
+     * TypeScript's syntax-only server); read once; build.ts doubts it.
      */
     silentOf(key: NodeKey, dir: 'in' | 'out'): boolean {
         return this.silent.delete(`${dir}:${key}`);
@@ -184,7 +181,7 @@ export class LspProvider {
         this.bridges.invalidate(uri);
     }
 
-    /** Call hierarchy items at a position, or enclosing function for text languages without a call hierarchy. */
+    /** Call hierarchy items at `pos`; for text languages without one, the enclosing function. */
     async prepare(uri: vscode.Uri, pos: vscode.Position): Promise<vscode.CallHierarchyItem[]> {
         if (!readable(uri)) return [];
         let r: vscode.CallHierarchyItem[] | vscode.CallHierarchyItem | undefined;
@@ -207,7 +204,7 @@ export class LspProvider {
                 .then((r) => (r ?? []).filter((s): s is Sym => 'selectionRange' in s))
                 .catch(() => [] as Sym[])
                 .then(async (syms) => {
-                    // text languages without a symbol provider: the text outline
+                    // text languages without symbol provider: text outline
                     if (syms.length || !TEXT_LANGS.has(langOf(uri.path))) return syms;
                     try {
                         const doc = await vscode.workspace.openTextDocument(uri);
@@ -223,7 +220,7 @@ export class LspProvider {
     private textItems = new WeakSet<vscode.CallHierarchyItem>();
     private index = new Map<string, Promise<TextFile[]>>();
 
-    /** The function at `pos` as a call hierarchy item built from document symbols (or the text outline). */
+    /** Function at `pos` as a call hierarchy item from document symbols or text outline. */
     private async textItem(uri: vscode.Uri, pos: vscode.Position): Promise<vscode.CallHierarchyItem | undefined> {
         const fn = functionSymAt(await this.symbolsOf(uri), pos);
         if (!fn) return undefined;
@@ -232,7 +229,7 @@ export class LspProvider {
         return it;
     }
 
-    /** Functions of one text language in the workspace, with their masked text for call sites. */
+    /** Workspace functions of one text language, with masked text for call-site scans. */
     private files(lang: string): Promise<TextFile[]> {
         let p = this.index.get(lang);
         if (!p) {
@@ -256,7 +253,7 @@ export class LspProvider {
         return p;
     }
 
-    /** Functions a call site names: go to definition, else every function of that name (same file first). */
+    /** Call-site callees: go to definition, else functions of that name (same file first). */
     private async resolve(uri: vscode.Uri, pos: vscode.Position, name: string): Promise<vscode.CallHierarchyItem[]> {
         let locs: (vscode.Location | vscode.LocationLink)[] = [];
         try { locs = await vscode.commands.executeCommand<(vscode.Location | vscode.LocationLink)[]>('vscode.executeDefinitionProvider', uri, pos) ?? []; } catch { /* none */ }
@@ -298,7 +295,7 @@ export class LspProvider {
             const from = c && (await this.describe(c, acc));
             if (from) edges.push({ from, to: key, line: pos.line });
         };
-        // references, where the server has them
+        // server references, when available
         let refs: vscode.Location[] = [];
         try { refs = await vscode.commands.executeCommand<vscode.Location[]>('vscode.executeReferenceProvider', it.uri, it.selectionRange.start) ?? []; } catch { /* none */ }
         refs = refs.filter((r) => readable(r.uri) && !(r.uri.toString() === it.uri.toString() && r.range.intersection(it.selectionRange)));
@@ -306,7 +303,7 @@ export class LspProvider {
             for (const r of refs) await callerAt(r.uri, r.range.start);
             return edges;
         }
-        // else every call site of that name in the language's files that resolves here (or does not resolve)
+        // else call sites of that name in the language's files, resolving here or unresolved
         for (const f of await this.files(langOf(it.uri.path))) {
             for (const fn of f.fns) {
                 for (const site of callSites(f.masked, f.doc.offsetAt(fn.selectionRange.end), f.doc.offsetAt(fn.range.end), true)) {
@@ -331,7 +328,7 @@ export class LspProvider {
         return p;
     }
 
-    /** Adds the folder chain of `rel` to `acc`; returns the innermost folder key, null at the root. */
+    /** Adds the folder chain of `reldir` to `acc`; returns the innermost folder key, null at the root. */
     private async folders(root: vscode.Uri, reldir: string, py: boolean, acc: Record<NodeKey, GNode>): Promise<{ key: NodeKey | null; pkg: string[] }> {
         if (!reldir || reldir === '.' || reldir === '/') return { key: null, pkg: [] };
         const key = `dir:${reldir}`;
@@ -347,12 +344,12 @@ export class LspProvider {
         return { key, pkg };
     }
 
-    /** Describes `item` as a node, adding it and its containers to `acc`; undefined when excluded. */
+    /** Adds `item` and its containers to `acc` as nodes; returns its key, undefined when excluded. */
     async describe(item: vscode.CallHierarchyItem, acc: Record<NodeKey, GNode>): Promise<NodeKey | undefined> {
         const folder = vscode.workspace.getWorkspaceFolder(item.uri);
         const external = !folder || EXTERNAL.test(item.uri.path);
         if (external && !this.includeExternal()) return undefined;
-        // outside every folder: the path from the library root it lies under (`site-packages/torch/functional.py`)
+        // outside every folder: path from its library root (`site-packages/torch/functional.py`)
         const lib = folder ? undefined : externalPath(item.uri.path);
         const root = folder?.uri ?? item.uri.with({ path: lib!.root });
         const rel = folder ? path.posix.relative(root.path, item.uri.path) : lib!.rel;
@@ -379,7 +376,7 @@ export class LspProvider {
             qual = '<module>';
             kind = 'other';
         } else if (chain.length && chain[chain.length - 1].selectionRange.contains(item.selectionRange.start)) {
-            // one symbol may carry several segments (`Foo::bar` in C++): the leading ones become containers
+            // a symbol can carry several segments (C++ `Foo::bar`); leading ones become containers
             const segs = chain.flatMap((s, i) => segments(s.name).map((name, j, all) => ({ name, sym: s, last: i === chain.length - 1 && j === all.length - 1, lead: j < all.length - 1 })));
             for (let i = 0; i < segs.length - 1; i++) {
                 const q = segs.slice(0, i + 1).map((x) => x.name).join('.');
@@ -395,8 +392,8 @@ export class LspProvider {
             qual = segs.map((x) => x.name).join('.');
             kind = kindOf(chain[chain.length - 1].kind);
         } else {
-            // not in the outline (an overload the outline lists once, a nested definition): the scopes around it
-            // are its containers, so every overload of `C.f` keys as `C.f`
+            // not in the outline (overload listed once, nested definition): enclosing scopes as containers,
+            // so every overload of `C.f` keys as `C.f`
             const segs = chain.flatMap((sym) => segments(sym.name).map((name, j, all) => ({ name, sym, lead: j < all.length - 1 })));
             for (let i = 0; i < segs.length; i++) {
                 const q = segs.slice(0, i + 1).map((x) => x.name).join('.');
@@ -428,7 +425,7 @@ export class LspProvider {
         return key;
     }
 
-    /** Call hierarchy item for a known node: cache, else re-resolved by qualified name (line moves are tolerated). */
+    /** Call hierarchy item of a node: cached, else by qualified name (tolerates line moves). */
     async item(key: NodeKey, node: GNode | undefined): Promise<vscode.CallHierarchyItem | undefined> {
         const hit = this.items.get(key);
         if (hit) return hit;
@@ -446,8 +443,8 @@ export class LspProvider {
     }
 
     /**
-     * Outgoing calls of a definition. `undefined`: no answer (the definition does not resolve, e.g. while
-     * the language server is still analyzing, or the request failed); `[]`: the definition calls nothing.
+     * Outgoing calls. `undefined`: no answer (unresolved definition: server analyzing, request failed);
+     * `[]`: calls nothing.
      */
     async outgoing(key: NodeKey, acc: Record<NodeKey, GNode>, token?: vscode.CancellationToken): Promise<GEdge[] | undefined> {
         const it = await this.item(key, acc[key]).catch(() => undefined);
@@ -469,18 +466,16 @@ export class LspProvider {
             }
         }
         if (!own) return undefined;
-        // calls across languages (a Python function calling bound C++/CUDA or Slang), and implicit calls, join the answer
+        // plus cross-language calls (bridges.ts) and implicit calls
         const cross = await this.bridges.outgoing(key, it, acc).catch(() => []);
         const implicit = await this.implicit.outgoing(key, it, acc, answered).catch(() => []);
         return own.concat(cross, implicit);
     }
 
     /**
-     * Outgoing calls from the language server, and the call ranges it answered. Locations of other schemes
-     * are dropped; of the rest the first `MAX_CALLS` are taken (`clampOf` reports the full length). `bound`:
-     * call ranges in the caller's file where a binding matched; the server's edge from such a range is
-     * dropped (same-name match). Definitions are described `DESCRIBE_AT_ONCE` at a time. A cancelled `token`
-     * drops the answer (undefined): a partial answer is no answer.
+     * Server outgoing calls and their call ranges; unreadable schemes dropped (scope.ts); first `MAX_CALLS` kept
+     * (`clampOf`: full length). `bound`: binding-matched call ranges; server edges from them drop (same-name match).
+     * Cancelled `token` → undefined (a partial answer is no answer).
      */
     private async lspOutgoing(key: NodeKey, it: vscode.CallHierarchyItem, acc: Record<NodeKey, GNode>,
         bound?: (r: vscode.Range) => boolean, token?: vscode.CancellationToken): Promise<{ edges: GEdge[]; ranges: vscode.Range[] } | undefined> {
@@ -505,7 +500,7 @@ export class LspProvider {
         const it = await this.item(key, acc[key]).catch(() => undefined);
         if (!it) return undefined;
         const own = this.textItems.has(it) ? await this.textIncoming(key, it, acc).catch(() => undefined) : await this.lspIncoming(key, it, acc, token);
-        // Python callers across bindings, and implicit callers (a class constructing), join the answer
+        // plus cross-language callers and implicit callers (constructing class)
         if (!own) return undefined;
         return own.concat(await this.bridges.incoming(key, it, acc).catch(() => []), await this.implicit.incoming(key, it, acc).catch(() => []));
     }
@@ -523,7 +518,7 @@ export class LspProvider {
         const boundBy = new Map<string, Promise<((r: vscode.Range) => boolean) | undefined>>();
         const take = ok.slice(0, MAX_CALLS);
         const froms = await mapLimit(take, DESCRIBE_AT_ONCE, async (c) => {
-            // a caller whose only call ranges are binding call sites called the binding, not this same-named function
+            // caller with only binding call sites called the binding, not this same-named function
             const u = c.from.uri.toString();
             if (!boundBy.has(u)) boundBy.set(u, this.bridges.boundIn(c.from.uri).catch(() => undefined));
             const bound = await boundBy.get(u);

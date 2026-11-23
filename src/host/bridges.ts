@@ -1,25 +1,17 @@
 /** @xvdp
- * Calls across languages joined to the language-server graph (bindings.ts parses the text).
- *
- * Outgoing calls of a Python function gain: a call matching a pybind11, nanobind or torch binding → the
- * C++/CUDA function the binding names (go to definition at the binding's target, else a workspace symbol
- * of that name); in a file loading a .slang module (slangpy, slangtorch), `….fn(…)` → `fn` of that file,
- * and `getattr(…)` → the functions of that file named by string literals (approximate).
- * Incoming calls of a C, C++, CUDA or Slang function gain the Python functions calling it that way.
- * wasm-bindgen: outgoing calls of a TypeScript or JavaScript function gain the Rust functions exported
- * with `#[wasm_bindgen]` that it calls through an import of the crate's wasm-pack package (the crate's
- * `pkg/` folder, `pkg/<crate>.js`, or the package name, which is the crate name); incoming calls of such a
- * Rust function gain those callers. The generated glue `pkg/*.js` counts as external code (langs.ts), so
- * the call shows once, from the caller to the Rust function.
- * torch.autograd: `X.apply(…)` on a `torch.autograd.Function` subclass → `X.forward` (autograd dispatches
- * it at run time; the language server stops at `Function.apply` in torch).
- * Where a call site matched a binding, the language server's own edge from that site is dropped: with
- * the compiled module unresolved, it matches the callee by name (`_C.rasterize_gaussians(…)` taken for
- * the Python wrapper `rasterize_gaussians`; measured with Pyright).
- * Edges carry `via` (`pybind11: src/ext.cpp:42`). Indexes are per project (the nearest folder with a
- * build or package manifest, inside the workspace folder), so a workspace of many projects is searched
- * only where the file lives; the whole workspace is the fallback when the project has no bindings.
- * Indexes are built once and dropped when a file of their kind changes.
+ * Cross-language edges added to language-server answers; bindings.ts parses the text.
+ * - pybind11, nanobind, torch: Python call → bound C++/CUDA function (go to definition at the binding target,
+ *   else workspace symbol by name).
+ * - slangpy, slangtorch: `….fn(…)` → `fn` of the loaded .slang module; `getattr(…)` → functions named by
+ *   string literals (approximate).
+ * - wasm-bindgen: TypeScript/JavaScript → `#[wasm_bindgen]` Rust export, via an import of the crate's wasm-pack
+ *   package (`pkg/`, `pkg/<crate>.js`, crate name). Glue `pkg/*.js` is external code (langs.ts): one edge.
+ * - torch.autograd: `X.apply(…)` → `X.forward`, `X` a `torch.autograd.Function` subclass; the language server
+ *   stops at `Function.apply`.
+ * Incoming calls get the reverse edges. A binding-matched call site drops the server's edge: with the compiled
+ * module unresolved, the server matches by name (`_C.magoo(…)` → wrapper `magoo`; measured with Pyright).
+ * Edges carry `via` (`pybind11: src/ext.cpp:42`). Indexes: per project (nearest folder with a build or package
+ * manifest), else workspace; dropped when a file of their kind changes.
  */
 import * as path from 'node:path';
 import * as vscode from 'vscode';
@@ -59,7 +51,7 @@ export class Bridges {
         if (JS.has(lang)) this.js = undefined;
     }
 
-    /** File text; files over 2 MB (generated, minified, data) are not scanned. */
+    /** File text; '' over 2 MB (generated, minified, data). */
     private async read(uri: vscode.Uri): Promise<string> {
         try {
             if ((await vscode.workspace.fs.stat(uri)).size > 2_000_000) return '';
@@ -67,7 +59,7 @@ export class Bridges {
         } catch { return ''; }
     }
 
-    /** Project folder of a file: the nearest folder above it holding a manifest, below its workspace folder; '' otherwise (the workspace). */
+    /** Project folder: nearest ancestor with a manifest, below the workspace folder; else ''. */
     private project(uri: vscode.Uri): Promise<string> {
         const top = vscode.workspace.getWorkspaceFolder(uri)?.uri.path;
         const up = (dir: string): Promise<string> => {
@@ -98,7 +90,7 @@ export class Bridges {
         return p;
     }
 
-    /** Bindings of a project (or the workspace), each with its Python module; `TORCH_EXTENSION_NAME` takes the name of the extension built from its file. */
+    /** Bindings with their Python module; `TORCH_EXTENSION_NAME` → extension built from the file. */
     private bindings(scope = ''): Promise<Located[]> {
         let cached = this.native.get(scope);
         if (cached) return cached;
@@ -112,7 +104,7 @@ export class Bridges {
                 const base = path.posix.basename(uri.path);
                 for (const b of scanNative(text)) {
                     if (!/^[A-Z_][A-Z0-9_]*$/.test(b.module)) { out.push({ ...b, uri }); continue; }
-                    // a macro module name: the extensions built from this file, else the file's stem
+                    // macro module name → extensions built from this file, else the file stem
                     const names = exts.filter((e) => e.sources.some((s) => path.posix.basename(s) === base)).map((e) => e.name);
                     for (const name of names.length ? names : [base.replace(/\.[^.]+$/, '')]) out.push({ ...b, uri, module: name });
                 }
@@ -130,7 +122,7 @@ export class Bridges {
         return own.length ? own : this.bindings('');
     }
 
-    /** Offsets of the call sites in a Python text that a binding (pybind11, nanobind, torch) matches. */
+    /** Offsets of Python call sites a binding (pybind11, nanobind, torch) matches. */
     private async bound(uri: vscode.Uri, text: string, from = 0, to = text.length): Promise<{ at: number; b: Located }[]> {
         const imports = pyImports(text);
         for (const e of extModules(text)) if (e.local) imports.set(e.local, e.name);
@@ -141,8 +133,8 @@ export class Bridges {
     }
 
     /**
-     * For a Python file: whether a call range of the language server's answer is a binding call site, so
-     * its edge (a same-named Python function) is dropped; undefined for other files or without bindings.
+     * Python file: predicate true at binding call sites, whose server edges (same-named Python function) drop.
+     * Undefined for other files or without bindings.
      */
     async boundIn(uri: vscode.Uri): Promise<((r: vscode.Range) => boolean) | undefined> {
         if (!this.enabled() || langOf(uri.path) !== 'py') return undefined;
@@ -152,7 +144,7 @@ export class Bridges {
         return (r) => { const a = doc.offsetAt(r.start), b = doc.offsetAt(r.end); return at.some((x) => x >= a && x <= b); };
     }
 
-    /** torch.autograd: the `forward` of the `torch.autograd.Function` subclass a `X.apply(…)` call names. */
+    /** torch.autograd: `X.forward` for `X.apply(…)`, `X` a `torch.autograd.Function` subclass. */
     private async forwardOf(uri: vscode.Uri, doc: vscode.TextDocument, at: number, dotted: string): Promise<vscode.CallHierarchyItem | undefined> {
         const cls = dotted.split('.').slice(-2, -1)[0];
         if (!cls) return undefined;
@@ -177,7 +169,7 @@ export class Bridges {
         return undefined;
     }
 
-    /** The C++/CUDA function a binding names: go to definition at its target, else a workspace symbol of that name. */
+    /** Bound C++/CUDA function: go to definition at the target, else workspace symbol by name. */
     private target(b: Located): Promise<vscode.CallHierarchyItem | undefined> {
         const id = `${b.uri.toString()}#${b.targetAt}`;
         let t = this.targets.get(id);
@@ -206,15 +198,15 @@ export class Bridges {
         return t;
     }
 
-    /** The .slang file a Python file loads as `file`: relative to it, else by name anywhere in the workspace (include paths). */
+    /** Loaded .slang `file`: relative to the loader, else by name (include paths). */
     private async slangFile(from: vscode.Uri, file: string): Promise<vscode.Uri | undefined> {
         const near = vscode.Uri.joinPath(from, '..', file);
-        // a path written in source text resolves only inside a workspace folder
+        // source-text paths resolve only inside a workspace folder
         try { if (vscode.workspace.getWorkspaceFolder(near)) { await vscode.workspace.fs.stat(near); return near; } } catch { /* include path */ }
         return (await vscode.workspace.findFiles(`**/${path.posix.basename(file)}`, SKIP, 1))[0];
     }
 
-    /** Functions of a .slang file by name (document symbols, else the text outline). */
+    /** .slang functions by name (document symbols, else text outline). */
     private async slangFns(uri: vscode.Uri): Promise<Map<string, vscode.DocumentSymbol>> {
         const out = new Map<string, vscode.DocumentSymbol>();
         const walk = (ss: readonly vscode.DocumentSymbol[]) => {
@@ -229,7 +221,7 @@ export class Bridges {
 
     // ---- wasm-bindgen -------------------------------------------------------------------------------
 
-    /** Rust items exported with `#[wasm_bindgen]`, each with its crate (the nearest Cargo.toml with a [package] name). */
+    /** `#[wasm_bindgen]` Rust exports with their crate (nearest Cargo.toml with a [package] name). */
     private exportsOf(): Promise<Exported[]> {
         this.wasm ??= (async () => {
             const crates = new Map<string, Promise<Crate | undefined>>();
@@ -267,7 +259,7 @@ export class Bridges {
         return this.js;
     }
 
-    /** The crate an import specifier names: its wasm-pack package folder or file, or the package name (the crate name). */
+    /** Crate of an import specifier: wasm-pack package folder, file, or crate name. */
     private static crateOfSpec(spec: string, from: vscode.Uri, crates: Crate[]): Crate | undefined {
         if (!spec.startsWith('.') && !spec.startsWith('/')) return crates.find((c) => spec === c.name || spec.startsWith(`${c.name}/`));
         const abs = path.posix.normalize(path.posix.join(path.posix.dirname(from.path), spec));
@@ -275,7 +267,7 @@ export class Bridges {
             || path.posix.basename(abs).replace(/\.(m?js|ts)$/, '') === c.name.replace(/-/g, '_') && abs.startsWith(c.dir));
     }
 
-    /** Exports a JavaScript/TypeScript text reaches in `[from, to)`, with each call's offset. */
+    /** Exports called in `[from, to)`, with call offsets. */
     private async wasmCalls(uri: vscode.Uri, text: string, from: number, to: number): Promise<{ e: Exported; at: number }[]> {
         const exports = await this.exportsOf();
         if (!exports.length) return [];
@@ -299,7 +291,7 @@ export class Bridges {
         return `wasm-bindgen: ${vscode.workspace.asRelativePath(e.uri)}:${lineOf(await this.read(e.uri), e.at) + 1}`;
     }
 
-    /** Calls from a Python function across bindings. */
+    /** Cross-language calls out of a function. */
     async outgoing(key: NodeKey, it: vscode.CallHierarchyItem, acc: Record<NodeKey, GNode>): Promise<GEdge[]> {
         if (!this.enabled()) return [];
         if (JS.has(langOf(it.uri.path))) {
@@ -327,7 +319,7 @@ export class Bridges {
             const to = t && (await this.p.describe(t, acc));
             if (to) edges.push({ from: key, to, line: doc.positionAt(s.at).line, via: `torch.autograd: ${s.dotted.split('.').slice(-2, -1)[0]}.apply → forward` });
         }
-        // Slang: the functions of the .slang files this Python file loads
+        // Slang: functions of the .slang files this file loads
         for (const l of slangLoads(text)) {
             const uri = await this.slangFile(it.uri, l.file);
             if (!uri) continue;
@@ -347,12 +339,12 @@ export class Bridges {
         return edges;
     }
 
-    /** Python callers of a C, C++, CUDA or Slang function across bindings. */
+    /** Cross-language callers of a function. */
     async incoming(key: NodeKey, it: vscode.CallHierarchyItem, acc: Record<NodeKey, GNode>): Promise<GEdge[]> {
         const lang = langOf(it.uri.path);
         if (!this.enabled()) return [];
         if (lang === 'rs') {
-            // TypeScript/JavaScript callers of a Rust function exported through wasm-bindgen
+            // TypeScript/JavaScript callers of a wasm-bindgen Rust export
             const rust = segments(it.name).pop()!;
             const mine = (await this.exportsOf()).filter((e) => e.uri.toString() === it.uri.toString() && e.rust === rust);
             if (!mine.length) return [];
@@ -377,12 +369,12 @@ export class Bridges {
             const from = c && (await this.p.describe(c, acc));
             if (from) edges.push({ from, to: key, line: doc.positionAt(at).line, via });
         };
-        // Python files of the function's project, else of the workspace, that mention the name
+        // Python files mentioning the name: the function's project, else the workspace
         const scope = await this.project(it.uri);
         let files = (await this.pyFiles(scope)).filter((f) => f.text.includes(name));
         if (!files.length && scope) files = (await this.pyFiles('')).filter((f) => f.text.includes(name));
         if (lang === 'py') {
-            // torch.autograd: callers of X.apply(…) when this is the forward of a torch.autograd.Function subclass X
+            // torch.autograd: X.forward ← callers of X.apply(…)
             if (name !== 'forward') return [];
             const doc = await vscode.workspace.openTextDocument(it.uri);
             const cls = segments(it.name).length > 1 ? undefined : (await this.p.symbolsOf(it.uri)).flatMap((x) => [x, ...(x.children ?? [])])
@@ -397,7 +389,7 @@ export class Bridges {
             for (const f of files) {
                 const l = slangLoads(f.text).find((x) => path.posix.basename(x.file) === path.posix.basename(it.uri.path));
                 if (!l) continue;
-                // each Python function reaching `name`: its call sites, or its `getattr(` when the file names `name`
+                // sites reaching `name`: call sites, or `getattr(` when the file names `name`
                 const seen = new Set<string>();
                 const holders = new Set(slangLoads(f.text).map((x) => x.target.split('.').pop()!));
                 for (const c of slangCalls(f.text, 0, f.text.length, new Set([name]), holders)) {

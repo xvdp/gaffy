@@ -1,11 +1,10 @@
 /** @xvdp
- * Node label text. One string per vertex; its length sets the grid width of the label.
+ * Node label: one string per vertex; length = grid width.
  *
  * definition:          `<module>.<qual>()`, e.g. `foo.scoobie.do()`
  * module-level code:   `<module>.<module>`
  * collapsed container: `[<container label>] (<members>)`
- * Modules inside namespace boxes show relative names, e.g. functions `foo.magoo()` and `foo.scoobie.do()` 
- * show up as magoo() and scoobie.do() when in namespace box `foo`.
+ * in namespace box:    relative to box, e.g. `magoo()` for `foo.magoo()` in box `foo`
  */
 import { relativeName } from './boxes';
 import { GNode, isContainer, visible } from './model';

@@ -1,7 +1,6 @@
 /** @xvdp
- * Custom text editor for `*.gaffy` view files. The TextDocument holds the view as JSON; the webview
- * renders it and posts whole-document edits back. VS Code supplies tabs, dirty state, undo, redo,
- * save and hot exit through the TextDocument.
+ * Custom text editor for `*.gaffy` views: the TextDocument holds the view JSON (VS Code tabs, dirty state, undo,
+ * redo, save, hot exit); the webview renders it and posts whole-document edits.
  */
 import { randomBytes } from 'node:crypto';
 import * as path from 'node:path';
@@ -42,7 +41,7 @@ export class Session {
         const end = this.document.lineAt(Math.max(0, this.document.lineCount - 1)).range.end;
         edit.replace(this.document.uri, new vscode.Range(new vscode.Position(0, 0), end), text);
         await vscode.workspace.applyEdit(edit);
-        // an unsaved (untitled) view stays unsaved until the user saves it
+        // untitled views skip autoSave
         if (!this.document.isUntitled && vscode.workspace.getConfiguration('gaffy').get<boolean>('autoSave')) await this.document.save();
     }
 
@@ -50,7 +49,7 @@ export class Session {
         const style = await this.host.styles.get(this.folder);
         const cfg = vscode.workspace.getConfiguration('gaffy', this.document.uri);
         const exclude = cfg.get<string[]>('exclude') ?? [];
-        // settings the Options panel shows and toggles
+        // Options panel settings
         const settings = { includeExternal: cfg.get<boolean>('includeExternal') ?? false, includeStandardLibrary: cfg.get<boolean>('includeStandardLibrary') ?? false,
             saveViews: cfg.get<boolean>('saveViews') ?? false, untitled: this.document.isUntitled, trace: cfg.get<boolean>('trace') ?? false };
         void this.panel.webview.postMessage({ type: 'state', text: this.document.getText(), name: this.name, style, exclude, settings, busy: this.busy });
@@ -58,20 +57,19 @@ export class Session {
 
     private queue: Promise<void> = Promise.resolve();
 
-    /** Provider work of one view runs one task at a time. */
+    /** Serial task queue for one view's provider work. */
     private enqueue(task: () => Promise<void>): Promise<void> {
         this.queue = this.queue.then(task, task);
         return this.queue;
     }
 
-    // urgent tasks queued, and the token of the background work running (neighbor checks, prefetch)
+    // queued urgent tasks; token of running background work (neighbor checks, prefetch)
     private waiting = 0;
     private yieldFor: vscode.CancellationTokenSource | undefined;
 
     /**
-     * A task the user waits for (a side opened, an edit): background work running in the queue stops at
-     * its next request (answers so far are kept, the rest stays unasked) and this task runs next; it
-     * redoes the neighbor checks it needs.
+     * User-blocking task (side opened, edit): preempts background work at its next request (answers kept, rest
+     * unasked), runs next, redoes the neighbor checks it needs.
      */
     private urgent(task: () => Promise<void>): Promise<void> {
         this.waiting++;
@@ -79,7 +77,7 @@ export class Session {
         return this.enqueue(async () => { this.waiting--; await task(); });
     }
 
-    /** Token for background work: cancelled with `token`, or when an urgent task is queued. */
+    /** Background-work token: cancelled with `token` or when an urgent task queues. */
     private background(token: vscode.CancellationToken): { token: vscode.CancellationToken; end: () => void } {
         const cts = new vscode.CancellationTokenSource();
         const sub = token.onCancellationRequested(() => cts.cancel());
@@ -88,7 +86,7 @@ export class Session {
         return { token: cts.token, end: () => { sub.dispose(); if (this.yieldFor === cts) this.yieldFor = undefined; cts.dispose(); } };
     }
 
-    /** Banner in the graph, and after 400 ms a notification with a cancel button. */
+    /** Graph banner; after 400 ms, a cancellable notification. */
     private async progress(fn: (show: (t: string) => void, token: vscode.CancellationToken) => Promise<void>): Promise<void> {
         const cts = new vscode.CancellationTokenSource();
         let text = 'starting';
@@ -127,13 +125,13 @@ export class Session {
             maxNodes: cfg.get<number>('maxNodes') ?? 400,
             exclude: (cfg.get<string[]>('exclude') ?? []).map(globMatcher),
             external: cfg.get<boolean>('includeExternal') ?? false,
-            // external code drawn, and of it the standard library (scene.ts `Outside`)
+            // drawn external code and standard library (scene.ts `Outside`)
             outside: { external: cfg.get<boolean>('includeExternal') ?? false, standard: cfg.get<boolean>('includeStandardLibrary') ?? false },
             cache: this.host.cacheFor(this.folder),
         };
     }
 
-    /** Ask for (definition, direction) pairs and merge the answers into the current document; writes only on change. */
+    /** Asks pairs, merges answers into the document; writes on change only. */
     private async ask(qs: Pair[], mode: BuildMode, label: string,
         show: (t: string) => void, token?: vscode.CancellationToken): Promise<Extension | undefined> {
         if (!qs.length) return undefined;
@@ -154,10 +152,10 @@ export class Session {
         return r;
     }
 
-    // limits reported once per view and session: `<dir>:<key>` of answers cut at MAX_CALLS, and `maxNodes`
+    // limits warned once per view and session: `<dir>:<key>` cut at MAX_CALLS; `maxNodes`
     private warned = new Set<string>();
 
-    /** Warns of answers cut at the call limit and of calls lists not asked at the definition limit. */
+    /** Warns of answers cut at MAX_CALLS and calls lists skipped at `maxNodes`. */
     private limits(r: Extension): void {
         const cut = r.clamped.filter((c) => !this.warned.has(`${c.dir}:${c.key}`));
         for (const c of cut) this.warned.add(`${c.dir}:${c.key}`);
@@ -186,14 +184,14 @@ export class Session {
         return pairs.filter(({ key, dir }) => ex[key] !== dir && ex[key] !== 'both');
     }
 
-    // pairs without an answer in the current task; retried with backoff while the language server starts
+    // unanswered pairs of the current task; retried with backoff during server start-up
     private pending = new Map<string, Pair>();
-    // empty answers that would drop a definition's stored calls, per `<dir>:<key>`: counted until confirmed (build.ts)
+    // per `<dir>:<key>`: count of doubted empty answers until confirmed (build.ts)
     private doubted = new Map<string, number>();
     private retries = 0;
     private retryTimer: NodeJS.Timeout | undefined;
 
-    /** After a task: retry unresolved pairs later, or report them after the last attempt. */
+    /** After a task: retries unresolved pairs (RETRY_S), reports them after the last. */
     private settle(): void {
         const n = this.pending.size;
         this.pending.clear();
@@ -216,10 +214,9 @@ export class Session {
     dispose(): void { clearTimeout(this.retryTimer); }
 
     /**
-     * Visible definitions: the directions each may open (seeds both, others the direction that revealed
-     * them) asked once, so the markers know what lies beyond. An answer can reveal more (an open side, or a
-     * level within a full view's depth), so this repeats until nothing visible is unasked: at most 8 rounds
-     * (one per revealed layer), 64 in full views (`all` levels; `gaffy.maxNodes` bounds the data).
+     * Asks each visible definition's openable directions once (seeds: both; others: the revealing direction) for
+     * the markers. Repeats while answers reveal unasked pairs (open side, level within a full view's depth): ≤ 8
+     * rounds (one per layer), 64 in full views (`gaffy.maxNodes` bounds the data).
      */
     private async neighbors(show: (t: string) => void, token: vscode.CancellationToken): Promise<void> {
         const bg = this.background(token);
@@ -232,7 +229,7 @@ export class Session {
         } finally { bg.end(); }
     }
 
-    /** A static view (`view.static`) holds a fixed graph: no task asks the language server. */
+    /** Static view (`view.static`): fixed graph, no language-server requests. */
     private get fixed(): boolean { return !!this.doc().view.static; }
 
     ensure(): Promise<void> {
@@ -246,8 +243,8 @@ export class Session {
     }
 
     /**
-     * Stable views: the seeds' first layer (shown at once), the neighbors of everything on screen (for the
-     * markers), then a prefetch along the traversal direction up to `view.depth` layers, in the background.
+     * Stable views: seeds' first layer, on-screen neighbors (markers), then background prefetch along the
+     * traversal direction to `view.depth`.
      */
     grow(): Promise<void> {
         if (this.fixed) return Promise.resolve();
@@ -272,7 +269,7 @@ export class Session {
         });
     }
 
-    /** Ask a side of one definition, then the neighbors of what that reveals. */
+    /** Asks one side of a definition, then neighbors of what it reveals. */
     expand(key: NodeKey, dir: 'in' | 'out'): Promise<void> {
         if (this.fixed) return Promise.resolve();
         return this.urgent(async () => {
@@ -285,12 +282,10 @@ export class Session {
     }
 
     /**
-     * Stable views, progressive and non-destructive. Every explored pair takes its cached answer (no
-     * language server; the cache drops answers of files changed since). Pairs without a cached answer:
-     * visible ones are asked again in the background, the others lose their explored mark and are asked
-     * when a side opens onto them; until then they keep their stored calls. Then the neighbors of what is
-     * on screen. `force`: every visible pair from the language server, every other pair's cached answer dropped.
-     * With nothing changed since the view was saved this asks the language server nothing.
+     * Stable views; progressive, non-destructive. Explored pairs: cached answers (cache drops changed files).
+     * Uncached: visible → re-asked in background; others → unmarked, stored calls kept until a side opens onto
+     * them. Then on-screen neighbors. `force`: visible pairs from the server, other cached answers dropped.
+     * Unchanged since save → no server request.
      */
     revalidate(force = false): Promise<void> {
         if (this.fixed) return Promise.resolve();
@@ -305,7 +300,7 @@ export class Session {
             const shown = pairs.filter((q) => vis.has(q.key));
             const rest = pairs.filter((q) => !vis.has(q.key));
             if (force) for (const q of rest) o.cache.drop(q.key, q.dir);
-            // cached answers merge without the language server; the others are stale
+            // merge cached answers; the rest are stale
             const quiet = () => undefined;
             const r = force ? undefined : await this.ask(pairs, 'cacheOnly', '', quiet);
             const stale = force ? new Set(rest.map(id)) : new Set((r?.missed ?? []).filter((q) => !vis.has(q.key)).map(id));
@@ -332,7 +327,7 @@ export class Session {
         });
     }
 
-    /** `revalidate`, after an optional change; `how === 'revalidate'` asks the on-screen pairs from the language server. */
+    /** `revalidate` after an optional change; `'revalidate'` re-asks on-screen pairs. */
     async refresh(mutate?: (d: ViewDoc) => void, how: 'cached' | 'revalidate' = 'cached'): Promise<void> {
         if (mutate) { const d = this.doc(); mutate(d); await this.write(d); }
         return this.revalidate(how === 'revalidate');
@@ -346,12 +341,12 @@ export class Session {
     }
 }
 
-/** Retry delays in seconds for answers the language server did not give (startup analysis). */
+/** Retry delays (s) for unanswered pairs during server start-up analysis. */
 const RETRY_S = [2, 4, 8, 15, 30, 60];
 
 const id = (q: Pair) => `${q.dir}:${q.key}`;
 
-/** Order-free fingerprint of the data a build changes: node records, calls, explored directions. */
+/** Order-independent fingerprint of build data: node records, calls, explored directions. */
 function signature(d: ViewDoc): string {
     const nodes = Object.entries(d.graph.nodes).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
     const edges = d.graph.edges.map((e) => `${e.from}\u0000${e.to}\u0000${e.line ?? ''}`).sort();
@@ -359,7 +354,7 @@ function signature(d: ViewDoc): string {
     return JSON.stringify([nodes, edges, ex]);
 }
 
-/** Definitions exactly `n` layers from the seeds along `dirs` in the view's data. */
+/** Definitions exactly `n` layers from the seeds along `dirs`. */
 function layers(doc: ViewDoc, dirs: ('in' | 'out')[], n: number): NodeKey[] {
     const out = new Map<NodeKey, NodeKey[]>(), inc = new Map<NodeKey, NodeKey[]>();
     for (const e of doc.graph.edges) {
@@ -408,10 +403,10 @@ export class GaffyEditor implements vscode.CustomTextEditorProvider {
         ctx.subscriptions.push(vscode.workspace.onDidChangeConfiguration((e) => {
             if (e.affectsConfiguration('gaffy')) this.sessions.forEach((s) => void s.post());
         }));
-        // one record per document change, whatever number of panels show the document
+        // one record per document change, independent of panel count
         ctx.subscriptions.push(vscode.workspace.onDidChangeTextDocument((e) => {
             if (e.contentChanges.length && [...this.sessions.values()].some((s) => s.document === e.document)) {
-                // a failed record (a link on the way, a full disk) leaves the view as it is
+                // failed record (link on the path, full disk): view unchanged
                 this.trace.change(e.document, e.reason).catch(() => { /* not recorded */ });
             }
         }));
@@ -438,7 +433,7 @@ export class GaffyEditor implements vscode.CustomTextEditorProvider {
                     if (m.type === 'ready') {
                         await s.post();
                         const doc = s.doc();
-                        // stored data at once, then only what changed since (no language server when nothing did)
+                        // stored data first, then changes only (no language server when none)
                         if (doc.view.seeds.length) void s.revalidate();
                     } else if (m.type === 'edit') {
                         if (m.text !== document.getText()) this.trace.edit(document, m.cause, m.moved);
@@ -462,7 +457,7 @@ export class GaffyEditor implements vscode.CustomTextEditorProvider {
     }
 
     private html(webview: vscode.Webview, dist: vscode.Uri, media: vscode.Uri): string {
-        // a fresh unguessable nonce per page: only the script carrying it runs (Content Security Policy)
+        // unguessable nonce per page: only the script carrying it runs (Content Security Policy)
         const nonce = randomBytes(18).toString('base64url');
         const js = webview.asWebviewUri(vscode.Uri.joinPath(dist, 'webview.js'));
         const css = webview.asWebviewUri(vscode.Uri.joinPath(media, 'webview.css'));

@@ -1,10 +1,10 @@
 /** @xvdp
- * Graph data model shared by the extension host and the webview.
+ * Graph model shared by extension host and webview.
  *
- * Call multigraph G = (V, E) over definitions, paired with a containment tree T over definitions and
- * containers (class, module or file, package or folder): a compound graph. `parent` encodes T.
- * Keys exclude line numbers: `<lang>:<relpath>#<qualname>` for definitions, `<lang>:<relpath>` for
- * files, `dir:<reldir>` for folders. Edits that move a definition keep its key.
+ * Compound graph: call multigraph G = (V, E) over definitions; containment tree T (`parent`) over definitions
+ * and containers (class, module, file, package, folder).
+ * Keys, line-free (stable under moves): `<lang>:<relpath>#<qualname>` definition, `<lang>:<relpath>` file,
+ * `dir:<reldir>` folder.
  */
 
 export type NodeKey = string;
@@ -20,13 +20,13 @@ export interface GNode {
     key: NodeKey;
     kind: Kind;
     name: string;            // short name: "magoo"
-    qual: string;            // qualified name inside its file: "scoobie.do"; "" for containers
+    qual: string;            // qualified name in file: "scoobie.do"; "" for containers
     module: string;          // display module: "foo.goo", "scripts/moo_tools"
     parent: NodeKey | null;  // innermost container
     uri?: string;            // file URI
     path?: string;           // workspace-relative file path
-    line?: number;           // 0-based line of the name
-    character?: number;      // 0-based column of the name
+    line?: number;           // name line, 0-based
+    character?: number;      // name column, 0-based
     hash?: string;           // body hash, whitespace-invariant
     detail?: string;
     external?: boolean;
@@ -35,9 +35,9 @@ export interface GNode {
 export interface GEdge {
     from: NodeKey;           // caller
     to: NodeKey;             // callee
-    line?: number;           // first call-site line in the caller, 0-based; orders siblings
-    via?: string;            // a call across languages: the binding layer (pybind11, nanobind, torch, slangpy, slangtorch) and where it binds
-    implicit?: 'construction' | 'instance call';   // a call the runtime makes, named by no call expression (host/implicit.ts)
+    line?: number;           // first call-site line in caller, 0-based; sibling order
+    via?: string;            // cross-language binding (pybind11, nanobind, torch, slangpy, slangtorch) and binding site
+    implicit?: 'construction' | 'instance call';   // runtime call without call expression (host/implicit.ts)
 }
 
 export interface Subgraph {
@@ -51,7 +51,7 @@ export function isContainer(n: GNode | undefined): boolean {
     return !!n && CONTAINER_KINDS.has(n.kind);
 }
 
-/** Ancestors of `key`, innermost first, excluding `key`. */
+/** Proper ancestors of `key`, innermost first. */
 export function ancestors(nodes: Record<NodeKey, GNode>, key: NodeKey): NodeKey[] {
     const out: NodeKey[] = [];
     const seen = new Set<NodeKey>([key]);
@@ -64,7 +64,7 @@ export function ancestors(nodes: Record<NodeKey, GNode>, key: NodeKey): NodeKey[
     return out;
 }
 
-/** Union of graphs; later node records replace earlier ones; edges deduplicated by (from, to). */
+/** Graph union: later node records win; edges deduplicated by (from, to). */
 export function mergeGraphs(...gs: Subgraph[]): Subgraph {
     const nodes: Record<NodeKey, GNode> = {};
     const edges = new Map<string, GEdge>();
@@ -79,7 +79,7 @@ export function mergeGraphs(...gs: Subgraph[]): Subgraph {
     return { nodes, edges: [...edges.values()] };
 }
 
-/** FNV-1a 32-bit over UTF-16 code units, hex. Change detection only, not cryptographic. */
+/** FNV-1a 32-bit over UTF-16 code units, hex; change detection, not cryptographic. */
 export function fnv1a(text: string): string {
     let h = 0x811c9dc5;
     for (let i = 0; i < text.length; i++) {
@@ -89,22 +89,20 @@ export function fnv1a(text: string): string {
     return (h >>> 0).toString(16).padStart(8, '0');
 }
 
-/** Body hash invariant to whitespace runs and blank lines. */
+/** Body hash, whitespace-invariant. */
 export function bodyHash(text: string): string {
     return fnv1a(text.replace(/\s+/g, ' ').trim());
 }
 
 /**
- * Security tooling: prevent disguised name Trojan source label characters, CVE-2021-42574.
- * C0/C1 controls, zero-width and joiner characters, bidirectional embeddings, overrides and isolates,
- * the byte-order mark. Text from a language server or a view file is shown with them as `\u{…}` instead.
+ * Security tooling: Trojan Source characters (CVE-2021-42574) in language-server and view-file text shown as `\u{…}`:
+ * C0/C1 controls, zero-width, joiners, bidirectional embeddings, overrides, isolates, byte-order mark.
  */
 const HIDDEN = /[\u0000-\u001f\u007f-\u009f\u00ad\u061c\u180e\u200b-\u200f\u2028-\u202e\u2060-\u206f\ufeff]/g;
 export const visible = (s: string) => s.replace(HIDDEN, (c) => `\\u{${c.codePointAt(0)!.toString(16)}}`);
 
 /**
- * Text for a VS Code notification or progress message: `visible`, and every `](` split, since
- * notifications render `[label](command:…|file:…|https:…)` as links. Names, paths and error messages
- * from language servers and workspace files pass through it.
+ * VS Code notification and progress text from untrusted names, paths, errors: `visible`, `](` split, since
+ * notifications render `[label](command:…|file:…|https:…)` as links.
  */
 export const plain = (s: string) => visible(s).replace(/\]\(/g, '] (');

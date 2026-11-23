@@ -1,5 +1,5 @@
-// npm run heuristics: bundles scripts/heuristics.ts and scripts/ordering.ts and runs them
-// (writes .HEURISTICS.md, .heuristics.gaffy, .ORDERING.md)
+// npm run heuristics: bundles and runs scripts/heuristics.ts, scripts/ordering.ts
+// → .HEURISTICS.md, .heuristics.gaffy, .ORDERING.md
 import { execFileSync } from 'node:child_process';
 import { mkdirSync } from 'node:fs';
 import * as esbuild from 'esbuild';

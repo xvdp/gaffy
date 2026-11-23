@@ -1,6 +1,6 @@
-// Generates .HEURISTICS.md (graph picture and explanations) and .heuristics.gaffy (the same graph as a static
-// gaffy view) from the spec below. Lines are found by searching each anchor's text after the definition of
-// the function it belongs to, so the links follow the code: `npm run heuristics` after a change.
+// Generates .HEURISTICS.md (graph picture, explanations) and .heuristics.gaffy (same graph, static gaffy view)
+// from the spec below. Code lines: first match of each anchor after its function's definition, so links follow
+// the code; rerun `npm run heuristics` after a change.
 import { readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -15,7 +15,7 @@ const DOC = '.HEURISTICS.md';
 const VIEW = '.heuristics.gaffy';
 
 // ---- spec ---------------------------------------------------------------------------------------------
-/** Functions of the pipeline: id, file, text of the definition line. */
+/** Pipeline functions: id, file, definition-line text. */
 const FNS: [string, string, string][] = [
     ['render', 'src/webview/main.ts', 'function render() {'],
     ['afterRender', 'src/webview/main.ts', 'function afterRender() {'],
@@ -39,7 +39,7 @@ const FNS: [string, string, string][] = [
     ['buildGrid', 'src/core/grid.ts', 'export function buildGrid('],
 ];
 
-/** Calls between pipeline functions: caller, callee, text of the call. */
+/** Pipeline calls: caller, callee, call text. */
 const CALLS: [string, string, string][] = [
     ['render', 'buildScene', 'scene = buildScene(doc, style, excludes, outside())'],
     ['render', 'afterRender', 'setTimeout(afterRender, 0)'],
@@ -64,11 +64,11 @@ const CALLS: [string, string, string][] = [
 
 interface Rule { id: string; stage: string; title: string; in: string; at: string; text: string; also?: [string, string][] }
 
-/** Heuristics and the decisions that choose between them: the node they hang under, text of their code line, definition. */
+/** Heuristics and decisions between them: parent node (`in`), code-line anchor (`at`), definition (`text`). */
 const RULES: Rule[] = [
     { id: 'h01_first_revealer', stage: 'Reveal', title: 'First revealer', in: 'reveal', at: 'for (const e of [...(vg.out.get(k) ?? [])].sort((a, b) => a.line - b.line))',
         text: 'One layer at a time: sides open in seed order, and each function\'s neighbours by call line. The first function to reveal another is its opener: the opener fixes the side the revealed function may open and the level an arrowhead into it closes.' },
-    { id: 'h02_call_depth_by_path', stage: 'Reveal', title: 'Call depth by path', in: 'revealDepth', at: '// longest: per side',
+    { id: 'h02_call_depth_by_path', stage: 'Reveal', title: 'Call depth by path', in: 'revealDepth', at: "if (rule === 'shortest') {",
         text: 'Full layout: a function\'s level is its fewest calls from a seed (shortest) or its most calls with loops ignored (longest).' },
     { id: 'h03_box_order', stage: 'Boxes', title: 'Box first-appearance order', in: 'boxTree', at: 'for (const v of all) {',
         text: 'Boxes are created in the order their functions occur in the data. The order only breaks ties of h16_item_order.' },
@@ -98,7 +98,7 @@ const RULES: Rule[] = [
         text: 'A row\'s position is the larger of "row above + 1" and its preferred row (h13_caller_alignment); an approach row stays directly above its function.' },
     { id: 'h15_block_descent', stage: 'Placement', title: 'Block descent', in: 'placeBlock', at: 'const hit = avoid.find((a) => overlaps(a, rectOf(rowMap)));',
         text: 'A block that would overlap something already placed moves down until clear.' },
-    { id: 'h21_moved_function_descent', stage: 'Placement', title: 'Moved function descent', in: 'placeBlock', at: '// shifted unlocked subtrees descend',
+    { id: 'h21_moved_function_descent', stage: 'Placement', title: 'Moved function descent', in: 'placeBlock', at: 'const mine = new Set(descendants(k));',
         text: 'A moved, unlocked function with its tree moves down until its labels clear the other labels of its own block. A collapsed container moves and locks as `collapsed:<key>`, apart from its expanded vertex, so expanding it returns to the layout before the collapse.' },
     { id: 'h16_item_order', stage: 'Placement', title: 'Item order', in: 'placeBox', at: 'const order = [...topo.filter',
         text: 'Within a box: locked items first, then callers\' items before callees\' items (ties by h03_box_order).' },
@@ -110,7 +110,7 @@ const RULES: Rule[] = [
         text: 'A box item is placed by its lock, by its offset, or by trial placement.' },
     { id: 'h19_lock_and_box_offset', stage: 'Placement', title: 'Lock and box offset', in: 'item_state', at: 'if (lock) r = placeBox(it.box, lock[0], lock[1], []);',
         text: 'A locked box sits at its fixed cell; a moved box is displaced from the row it would take unmoved.' },
-    { id: 'h20_unmoved_box_descent', stage: 'Placement', title: 'Unmoved box descent', in: 'item_state', at: '// trial placement, then descend below overlapped siblings',
+    { id: 'h20_unmoved_box_descent', stage: 'Placement', title: 'Unmoved box descent', in: 'item_state', at: 'const snapshot = snapshotP();',
         text: 'An unmoved box that overlaps an earlier item moves down until clear, by the distance from its top to below that item. An earlier box moved by an offset counts at its unmoved place, so a move never pushes unmoved boxes down. Moved boxes are exempt; h23_settle handles them.' },
     { id: 'h22_frame_extent', stage: 'Placement', title: 'Frame extent', in: 'placeBox', at: 'const frame = (x: Rect): Rect =>',
         text: 'Tight groups (style `boxes.tight`, the default): a frame is its content\'s bounding box plus margin. Otherwise the frame keeps the box\'s unmoved corner and only grows. Ungrouping or grouping a container drops the moves inside it (`dropMovesWithin`): offsets count from the box that held them.' },
@@ -122,7 +122,7 @@ const RULES: Rule[] = [
         text: 'Straightened calls first, then level calls (shortest first), then the rest (longest first).' },
     { id: 'h26_arrival_side', stage: 'Routing', title: 'Arrival side', in: 'buildGrid', at: 'const sends = departs.has(v)',
         text: 'A call enters from the left when most callers are to the function\'s left, or the function sends from its label end, or the joint rule applies; else at its right end. The two cells on the entering side are reserved for its incoming calls.' },
-    { id: 'h27_departure_reservation', stage: 'Routing', title: 'Departure reservation', in: 'buildGrid', at: '// departure cells reserved for their caller',
+    { id: 'h27_departure_reservation', stage: 'Routing', title: 'Departure reservation', in: 'buildGrid', at: 'if (!reserved.has(cellId(r, cc))) reserved.set(cellId(r, cc), `src:${e.from}`)',
         text: 'The two cells right of a caller\'s label end, or right of its port, are reserved for its outgoing calls.' },
     { id: 'h28_departure_point', stage: 'Routing', title: 'Departure point', in: 'buildGrid', at: 'const starts: { id: number; r: number; c: number; d: number; cost: number }[] =',
         text: 'A call leaves from the label end (cost 0) or from under or over the first character (cost 2). A function whose end receives calls never sends from it; with no free start the call is drawn dashed.' },
@@ -159,14 +159,14 @@ const fn = new Map(FNS.map(([id, file, def]) => [id, { id, file, line: find(file
 const fileOf = (id: string): string => fn.get(id)?.file ?? fileOf(RULES.find((r) => r.id === id)!.in);
 const defLine = (id: string): number => fn.get(id)?.line ?? defLine(RULES.find((r) => r.id === id)!.in);
 const ruleLine = new Map(RULES.map((r) => [r.id, find(fileOf(r.in), r.at, defLine(r.in))] as const));
-/** The function a rule or decision belongs to (a decision's rules: the decision's function). */
+/** Function owning a rule or decision (a decision's rules: the decision's function). */
 const fnOf = (id: string): string => (fn.has(id) ? id : fnOf(RULES.find((r) => r.id === id)!.in));
 
 // ---- explanations (.HEURISTICS.md) ---------------------------------------------------------------------
 const STAGES = ['Reveal', 'Boxes', 'Block layout', 'Placement', 'Routing', 'Webview'];
 const code = (file: string, line: number) => `[${file.split('/').pop()}:${line + 1}](${file}#L${line + 1})`;
 const body: string[] = [];
-const heading = new Map<string, number>();       // rule id → 0-based line of its heading in the document
+const heading = new Map<string, number>();       // rule id → 0-based heading line in the document
 const intro = [
     '# gaffy layout heuristics',
     '',
@@ -208,7 +208,7 @@ function graph(docLines: Map<string, number>): { nodes: Record<string, GNode>; e
         add({ key: key(x.id), kind: 'function', name: x.id, qual: x.id, module: module(x.file), parent: NODE_FILE(x.file), uri: uriOf(x.file), path: x.file, line: x.line, detail: 'code' });
     }
     for (const r of RULES) {
-        // boxed with the code that applies it, opening its explanation
+        // boxed with its code; opens its explanation
         add({ key: key(r.id), kind: 'function', name: r.id, qual: r.id, module: module(fileOf(r.in)), parent: NODE_FILE(fileOf(r.in)), uri: uriOf(DOC), path: DOC, line: docLines.get(r.id) ?? 0,
             detail: `${r.title}: code ${fileOf(r.in)}:${ruleLine.get(r.id)! + 1}` });
     }
@@ -230,7 +230,7 @@ function view(docLines: Map<string, number>) {
 }
 
 // ---- write --------------------------------------------------------------------------------------------
-// headings first (their lines feed the graph), the picture between intro and explanations
+// headings first (their lines feed the graph); picture between intro and explanations
 function sections(): string[] {
     const out: string[] = [];
     for (const stage of STAGES) {
@@ -244,7 +244,7 @@ function sections(): string[] {
     return out;
 }
 body.push(...sections());
-// the picture's height is fixed by the graph, not by the heading lines: draw once to measure, then with the lines
+// draw once to measure the picture height (set by the graph), then with the heading lines
 const draw = (docLines: Map<string, number>) => {
     const d = view(docLines);
     const sc = buildScene(d, DEFAULT_STYLE);
@@ -255,8 +255,7 @@ const draw = (docLines: Map<string, number>) => {
     };
     return { d, pre: ['## Pipeline graph', '', '<pre>', toHtmlPre(sc.grid, glyphSet(DEFAULT_STYLE), href, (k) => d.view.seeds.includes(k)), '</pre>', ''] };
 };
-// heading lines depend on the picture's height; node lines (the headings) can break ties in the layout:
-// redraw until the height is stable
+// heading lines depend on picture height, and node lines (headings) can break layout ties: redraw until stable
 const height = (pre: string[]) => pre.join('\n').split('\n').length;
 let final = draw(new Map());
 for (let round = 0; round < 4; round++) {

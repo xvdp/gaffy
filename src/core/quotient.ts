@@ -1,26 +1,26 @@
 /** @xvdp
  * Collapse as quotient graph.
  *
- * Collapse set K ⊆ containers. Representative ρ_K(x): the outermost ancestor of x in K, or x itself
- * when no ancestor is collapsed. Hidden set H: x is dropped when x or any ancestor lies in H.
- * Quotient G_K = (V_K, E_K), V_K = {ρ(v)}, E_K = {(ρ(u), ρ(v), w) : ρ(u) ≠ ρ(v)}, w = number of
- * edges mapped to the pair. Edges inside one collapsed container are counted on that container.
- * Vertices are edge endpoints and seeds; containers enter V_K only as representatives.
+ * K ⊆ containers: collapse set. ρ_K(x): outermost ancestor of x in K, else x. H: hidden set; x dropped if
+ * x or an ancestor ∈ H.
+ * G_K = (V_K, E_K), V_K = {ρ(v)}, E_K = {(ρ(u), ρ(v), w) : ρ(u) ≠ ρ(v)}, w = mapped edge count.
+ * Edges within a collapsed container: its `internal` count. V: edge endpoints and seeds; containers enter V_K
+ * only as representatives.
  */
 import { ancestors, GNode, NodeKey, Subgraph } from './model';
 
 export interface VNode {
     key: NodeKey;
     node: GNode;
-    collapsed: boolean;      // representative of a collapsed container
-    members: number;         // definitions mapped to this vertex
-    internal: number;        // calls between members of a collapsed container
+    collapsed: boolean;      // collapsed-container representative
+    members: number;         // definitions mapped here
+    internal: number;        // calls among collapsed-container members
 }
 
 export interface VEdge {
     from: NodeKey;
     to: NodeKey;
-    line: number;            // minimum call-site line over the mapped edges
+    line: number;            // min call-site line of mapped edges
     count: number;           // w
 }
 
@@ -39,7 +39,7 @@ export function representative(
     let rep = key;
     for (const a of ancestors(nodes, key)) {
         if (hidden.has(a)) return null;
-        if (collapsed.has(a)) rep = a;     // walking outward: the last hit is the outermost
+        if (collapsed.has(a)) rep = a;     // outward walk: last hit = outermost
     }
     return rep;
 }
@@ -103,7 +103,7 @@ export function quotient(
     return { nodes, edges, out, inc, selfLoops };
 }
 
-/** Subgraph on the vertices in `keys`. */
+/** Subgraph induced by `keys`. */
 export function induced(vg: VGraph, keys: ReadonlySet<NodeKey>): VGraph {
     const nodes = new Map([...vg.nodes].filter(([k]) => keys.has(k)));
     const edges = vg.edges.filter((e) => keys.has(e.from) && keys.has(e.to));

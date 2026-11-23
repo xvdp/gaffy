@@ -1,5 +1,5 @@
 /** @xvdp 
- * Trace records (trace.ts), without VS Code: testable, and the format `tools/gaffy-trace.mjs` reads.
+ * Trace records (trace.ts) without VS Code: testable; format read by `tools/gaffy-trace.mjs`.
 **/
 import { ViewDoc } from '../core/viewdoc';
 
@@ -11,9 +11,8 @@ const cellOf = (x: unknown): [number, number] | null =>
     (Array.isArray(x) && x.length === 2 && Number.isInteger(x[0]) && Number.isInteger(x[1]) ? [x[0], x[1]] : null);
 
 /**
- * A cause and moved cells as the webview reported them, checked: strings cut at 200 characters, cells pairs of
- * integers, `args` kept when its JSON is under 2000 characters, at most 2000 moved entries. The webview renders
- * outside data, so its message fields are not trusted further than their types.
+ * Type checks on webview cause and moved cells (the webview renders outside data): strings ≤ 200 characters
+ * (`event` 80), cells integer pairs, `args` if its JSON is < 2000 characters, ≤ 2000 moved entries.
  */
 export function checkedCause(cause: unknown, moved: unknown): { cause: Cause; moved?: Moved } | undefined {
     if (!cause || typeof cause !== 'object') return undefined;
@@ -28,7 +27,7 @@ export function checkedCause(cause: unknown, moved: unknown): { cause: Cause; mo
     return { cause: out, moved: m };
 }
 
-/** Changed fields of two views: objects per key, arrays as added and removed, other values as a pair. */
+/** Changed view fields: objects per key, arrays as added/removed, else a pair. */
 export function viewDiff(a: Record<string, unknown>, b: Record<string, unknown>): Record<string, unknown> {
     const out: Record<string, unknown> = {};
     for (const f of new Set([...Object.keys(a), ...Object.keys(b)])) {
@@ -50,7 +49,7 @@ export function viewDiff(a: Record<string, unknown>, b: Record<string, unknown>)
     return out;
 }
 
-/** One trace record (trace.ts): what changed from `before` to `now`, and why. */
+/** Trace record (trace.ts): change from `before` to `now`, and its cause. */
 export function traceRecord(before: ViewDoc | undefined, now: ViewDoc, cause: Cause, moved: Moved | undefined, view: string, seq: number, t = new Date()) {
     const changed = before ? viewDiff(before.view as unknown as Record<string, unknown>, now.view as unknown as Record<string, unknown>) : {};
     const nodes = (d?: ViewDoc) => new Set(Object.keys(d?.graph.nodes ?? {}));

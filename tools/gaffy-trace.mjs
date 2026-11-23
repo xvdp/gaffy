@@ -1,12 +1,11 @@
 #!/usr/bin/env node
-// Prints a gaffy view trace (.gaffy/trace/<view>.jsonl, setting gaffy.trace) as a numbered list: the event, its
-// target and grid cell, the functions that acted, the view fields that changed, and what moved on the grid.
-// Standalone: Node 18+, no dependencies, not part of the extension.
+// Prints a gaffy view trace (.gaffy/trace/<view>.jsonl, setting gaffy.trace) as a numbered list: event, target,
+// grid cell, acting functions, changed view fields, grid moves. Standalone, outside the extension: Node 18+, no deps.
 //
 //   node tools/gaffy-trace.mjs <trace.jsonl> [--last N] [--from SEQ] [--all-moves] [--json]
 //
-// Moves: the shift most labels share (the picture panned or grew above them) is reported once; labels and boxes
-// that moved otherwise are listed with their move beyond that shift, largest first (10, or all with --all-moves).
+// Moves: the shift most labels share (pan, or growth above them) prints once; other moved labels and boxes list
+// their move beyond it, largest first (10, or all with --all-moves).
 import { readFileSync } from 'node:fs';
 
 const args = process.argv.slice(2);
@@ -24,8 +23,8 @@ let recs = readFileSync(file, 'utf8').split('\n').filter(Boolean).map((l, i) => 
 if (from !== undefined) recs = recs.filter((r) => typeof r.seq !== 'number' || r.seq >= from);
 if (last !== undefined) recs = recs.slice(-last);
 
-// trace text comes from graph data (language-server names, paths): control characters (terminal escape sequences),
-// zero-width and bidirectional controls print as \u{…}, as gaffy shows them (model.ts `visible`)
+// trace text holds language-server names and paths: control (terminal escape), zero-width and bidirectional
+// characters print as \u{…}, as in gaffy (model.ts `visible`)
 const SHOWN = /[\u0000-\u001f\u007f-\u009f\u00ad\u061c\u180e\u200b-\u200f\u2028-\u202e\u2060-\u206f\ufeff\ufff9-\ufffb]/g;
 const safe = (s) => String(s).replace(SHOWN, (c) => `\\u{${c.codePointAt(0).toString(16)}}`);
 const print = (s) => console.log(safe(s));
@@ -80,7 +79,7 @@ function moves(moved = []) {
         if (appeared || left) out.push(`grid: ${appeared} appeared, ${left} left`);
         return out;
     }
-    // the shift most moved labels share; labels that kept their cell are not in `moved`, so it may be (0, 0)
+    // shift shared by most moved labels; may be (0, 0): labels that kept their cell are absent from `moved`
     const tally = new Map();
     for (const [, a, b] of both) { const k = `${b[0] - a[0]},${b[1] - a[1]}`; tally.set(k, (tally.get(k) ?? 0) + 1); }
     const [common, n] = [...tally].sort((x, y) => y[1] - x[1])[0];
@@ -98,7 +97,7 @@ function moves(moved = []) {
     return out;
 }
 
-// --json: JSON.stringify escapes U+0000–U+001F only; C1 and bidirectional controls become \uXXXX escapes (still JSON)
+// --json: JSON.stringify escapes only U+0000–U+001F; C1 and bidirectional controls → \uXXXX (valid JSON)
 if (json) { for (const r of recs) console.log(JSON.stringify(r).replace(SHOWN, (c) => `\\u${c.charCodeAt(0).toString(16).padStart(4, '0')}`)); process.exit(0); }
 for (const r of recs) {
     print(`#${r.seq}  ${time(r.t)}  ${cause(r.cause)}`);

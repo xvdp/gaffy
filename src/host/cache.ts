@@ -1,14 +1,11 @@
 /** @xvdp
- * Call cache per workspace folder: the answers of the language server (incoming or outgoing calls of
- * one definition) with the node records they introduced, persisted to `.gaffy/cache/calls.json`.
+ * Call cache per workspace folder (`.gaffy/cache/calls.json`): language-server answers (one definition's incoming
+ * or outgoing calls) with the node records they introduced; resolved definitions only.
  *
- * Validity: a saved or renamed file drops the outgoing entries of its definitions and every incoming
- * entry (a change anywhere can add or remove a call into any definition). On load, files whose
- * modification time differs from the recorded one are treated as saved. Only answers of resolved
- * definitions are stored (version 5; older files are dropped: version 1 may hold empty answers of unresolved
- * definitions, version 2 a second key per overload of a method, `C.f` and `f`, version 3 answers whose body
- * scans (instance calls, bindings) saw only the definition's name),
- * version 4 empty answers a loading server gave for definitions with calls).
+ * Invalidation: a saved or renamed file drops its definitions' outgoing entries and all incoming entries (any
+ * change can add or remove a call into any definition). Load: mtime ≠ record → treated as saved. Format v5; older
+ * dropped: v1 empty answers of unresolved definitions; v2 two keys per overload (`C.f`, `f`); v3 body scans
+ * (instance calls, bindings) that saw only the name; v4 empty answers from a loading server.
  */
 import * as vscode from 'vscode';
 import { noLinks } from './safefs';
@@ -46,7 +43,7 @@ export class CallCache {
             raw = JSON.parse(new TextDecoder().decode(await vscode.workspace.fs.readFile(this.file)));
             if (raw.version !== 5) return;
         } catch { return; }
-        /* secure tooling: drop object behaviour altering prototype keys, `<lang>:<path>#<qual>`, e.g. `JSON __proto__`. */
+        /* secure tooling: drop prototype keys (JSON `__proto__`); node keys are `<lang>:<path>#<qual>`. */
         const ok = (k: string) => k !== '__proto__' && k !== 'constructor' && k !== 'prototype';
         for (const [k, n] of Object.entries(raw.nodes ?? {})) if (ok(k)) this.remember(k, n);
         for (const d of ['in', 'out'] as Dir[]) for (const [k, e] of Object.entries(raw[d] ?? {})) if (ok(k) && Array.isArray(e?.edges)) this.entries[d].set(k, e);
@@ -62,7 +59,7 @@ export class CallCache {
         for (const uri of changed) this.invalidate(uri, false);
     }
 
-    /** Cached answer for `key` in direction `dir`, with the records of every node it names and their containers. */
+    /** Cached (`key`, `dir`) answer with its node and container records. */
     get(key: NodeKey, dir: Dir): { edges: GEdge[]; nodes: Record<NodeKey, GNode>; clamped?: number } | undefined {
         const e = this.entries[dir].get(key);
         if (!e) return undefined;
@@ -101,8 +98,8 @@ export class CallCache {
     }
 
     /**
-     * A file changed: its outgoing entries and every incoming entry are stale. Files with an extension no
-     * cached definition has (logs, bytecode, build output) cannot add or remove a call and change nothing.
+     * File change: drops its outgoing entries and all incoming entries; no-op for extensions without cached
+     * definitions (logs, bytecode, build output).
      */
     invalidate(uri: string, persist = true): void {
         const ext = extOf(uri);
@@ -143,6 +140,6 @@ export class CallCache {
             await noLinks(this.base, this.file);
             await vscode.workspace.fs.createDirectory(vscode.Uri.joinPath(this.file, '..'));
             await vscode.workspace.fs.writeFile(this.file, new TextEncoder().encode(JSON.stringify(out)));
-        } catch { /* read-only workspace, or a link on the way (safefs.ts): the cache stays in memory */ }
+        } catch { /* read-only workspace or link on the path (safefs.ts): memory only */ }
     }
 }

@@ -1,22 +1,16 @@
 /** @xvdp
- * Visibility by open sides, as in the VS Code call hierarchy, in both directions.
+ * Visibility by open sides, VS Code call hierarchy in both directions.
  *
- * Each vertex has open sides (`view.open`): `down` shows what it calls, `up` what calls it, one layer.
- * Visible: the seeds, then breadth-first every neighbor on an open side of a visible vertex. A seed
- * without an entry opens the traversal side of the view. Open sides of vertices that are not visible
- * stay recorded, so reopening a parent restores the layers below it.
+ * `view.open`: open sides per vertex; `down` shows callees, `up` callers, one layer.
+ * Visible set: seeds, then breadth-first neighbors on open sides of visible vertices; a seed without entry opens
+ * the view's traversal side. Open sides of non-visible vertices persist: reopening a parent restores lower layers.
+ * `allowed`: seeds open both sides; vertices revealed via `down` only callees, via `up` only callers.
+ * `view.cut`: calls not followed.
  *
- * Direction: a seed may open both sides; a vertex revealed through calls (`down`) opens only its calls,
- * one revealed through callers (`up`) only its callers (`allowed`). The view explores what flows into
- * and out of its seeds; the other callers of a callee belong to another view.
- * Cut calls (`view.cut`) are not followed.
- *
- * Full views (`revealDepth`): every vertex within `up` caller levels and `down` callee levels of the
- * seeds, with the same direction rule. Level of a vertex: rule `shortest`, its breadth-first distance
- * from the seeds; rule `longest`, its longest call path from the seeds in the graph without back edges
- * (DFS from the seeds; a DAG, so the longest path is a dynamic program over a topological order). A
- * vertex within the limit under `longest` has a predecessor one level up within it, so the visible set
- * stays connected.
+ * `revealDepth` (full view): vertices within `up` caller and `down` callee levels, same `allowed`. Level, rule
+ * `shortest`: breadth-first distance; rule `longest`: longest path from seeds in the DAG without DFS back edges
+ * (dynamic program over a topological order), each vertex within the limit with a predecessor one level up,
+ * so the visible set stays connected.
  */
 import { NodeKey } from './model';
 import { VGraph } from './quotient';
@@ -25,9 +19,9 @@ import type { Depth, DepthRule, Direction, OpenSide } from './viewdoc';
 export interface Reveal {
     visible: Set<NodeKey>;
     order: NodeKey[];                                                  // breadth-first, seeds first
-    opener: Map<NodeKey, { by: NodeKey; side: 'up' | 'down' }>;        // who revealed a vertex, on which of its sides
+    opener: Map<NodeKey, { by: NodeKey; side: 'up' | 'down' }>;        // revealing vertex and side
     allowed: Map<NodeKey, OpenSide>;                                   // sides a vertex may open
-    level: Map<NodeKey, number>;                                       // call levels from the seeds
+    level: Map<NodeKey, number>;                                       // call level from seeds
 }
 
 const under = (lev: number, lim: Depth) => lim === 'all' || lev < lim;
@@ -36,7 +30,7 @@ export const seedSide = (d: Direction): OpenSide => (d === 'out' ? 'down' : d ==
 export const opens = (s: OpenSide | undefined, side: 'up' | 'down') => s === side || s === 'both';
 export const cutKey = (caller: NodeKey, callee: NodeKey) => `${caller}\u0000${callee}`;
 
-/** Open sides of a vertex limited to the sides it may open. */
+/** Open sides ∩ allowed sides. */
 export function within(s: OpenSide | undefined, allowed: OpenSide | undefined): OpenSide {
     const up = opens(s, 'up') && opens(allowed, 'up');
     const down = opens(s, 'down') && opens(allowed, 'down');
@@ -103,7 +97,7 @@ export function revealDepth(vg: VGraph, seeds: readonly NodeKey[], up: Depth, do
         }
         return { visible, order, opener, allowed, level };
     }
-    // longest: per side, reverse DFS postorder from the seeds (a topological order without back edges)
+    // longest: per side, reverse DFS postorder from seeds = topological order without back edges
     for (const side of ['down', 'up'] as const) {
         const lim = side === 'down' ? down : up;
         if (lim === 0) continue;

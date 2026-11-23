@@ -1,17 +1,15 @@
 /** @xvdp
- * Calls found in source text, for languages whose language server has no call hierarchy (shader
- * languages: GLSL, HLSL, Slang, WGSL, Metal). Pure functions over a file's text; the provider resolves
- * the names (go to definition, else by name in the workspace).
+ * Calls from source text for shader languages without server call hierarchy (GLSL, HLSL, Slang, WGSL, Metal).
+ * Pure functions; the provider resolves names (go to definition, else workspace name).
  *
- * `mask`: comments, string literals and preprocessor lines become spaces (offsets kept).
- * `outline`: C-like declarations by brace matching. A `{` whose header (text since the previous `;`, `{`
- * or `}`) names a container (`struct|class|namespace|interface|extension|enum|cbuffer|tbuffer`) opens a
- * container; one whose header ends in `name(…)`, optionally followed by `: SEMANTIC`, `-> Type` or
- * `const`, opens a function, unless a function is already open (then it opens a block).
- * `callSites`: identifiers followed by `(`, optionally with `<…>` generic arguments, minus control-flow
- * keywords. Type constructors (`float3(…)`, `vec3(…)`) stay in; they resolve to nothing in the project.
- * Accuracy: a call through a function pointer or a macro is missed; a constructor call of a project
- * type counts as a call of a function with that name if one exists.
+ * `mask`: comments, strings, preprocessor lines → spaces (offsets kept).
+ * `outline`: C-like declarations by brace matching; header: text since the previous `;`, `{` or `}`. A `{`
+ * opens a container if its header names one (`struct|class|namespace|interface|extension|enum|cbuffer|tbuffer`),
+ * a function if it ends in `name(…)` [`: SEMANTIC` | `-> Type` | `const`] outside a function, else a block.
+ * `callSites`: identifiers before `(`, optional `<…>` generic arguments, minus control-flow keywords; type
+ * constructors (`float3(…)`, `vec3(…)`) stay, resolving to nothing.
+ * Misses: calls through function pointers or macros. False hit: a project-type constructor call matches a
+ * same-named function.
  */
 
 export interface TextSym {
@@ -74,7 +72,7 @@ export function outline(text: string): TextSym[] {
             continue;
         }
         if (c !== '{') continue;
-        // a header longer than any declaration (minified or generated text) is not parsed: bounded regex work
+        // header longer than any declaration (minified or generated text): last 600 characters, bounded regex work
         const header = m.slice(Math.max(since, i - 600), i);
         const parent = [...stack].reverse().find((s) => s.sym)?.sym;
         const add = (sym: TextSym) => (parent ? parent.children : roots).push(sym);
@@ -109,7 +107,7 @@ export function callSites(text: string, from: number, to: number, masked = false
     const re = /\b([A-Za-z_]\w*)\s*(?:<<<[^;]*?>>>\s*|<[^<>;{}()]*>\s*)?\(/g;
     for (let r = re.exec(m); r; r = re.exec(m)) {
         if (KEYWORDS.has(r[1])) continue;
-        // a declaration inside the body (`float3 f(…)` of a local prototype) is rare in shaders: kept
+        // local prototype in a body (`float3 f(…)`): rare in shaders, kept
         out.push({ name: r[1], at: from + r.index });
     }
     return out;

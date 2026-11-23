@@ -1,6 +1,6 @@
 /** @xvdp
  * Style per workspace folder: DEFAULT_STYLE ← setting `gaffy.style` ← `<folder>/.gaffy/style.json`.
- * Fires `onDidChange` when either source changes.
+ * Fires `onDidChange` on either source change.
  */
 import * as vscode from 'vscode';
 import { plain } from '../core/model';
@@ -9,11 +9,11 @@ import { boundedStyle, deepMerge, DEFAULT_STYLE, Style } from '../core/style';
 export const gaffyDir = (folder: vscode.Uri) => vscode.Uri.joinPath(folder, '.gaffy');
 
 export function folderOf(uri: vscode.Uri): vscode.Uri {
-    // an unsaved view (untitled document) carries the path it will be saved to
+    // untitled view: its path is the save target
     if (uri.scheme === 'untitled') uri = vscode.Uri.file(uri.path);
     const f = vscode.workspace.getWorkspaceFolder(uri);
     if (f) return f.uri;
-    // a view file outside any workspace folder: its .gaffy parent's parent
+    // view outside every workspace folder: parent of its .gaffy ancestor
     const parts = uri.path.split('/');
     const i = parts.lastIndexOf('.gaffy');
     return i > 0 ? uri.with({ path: parts.slice(0, i).join('/') }) : vscode.Uri.joinPath(uri, '..');

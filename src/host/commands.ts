@@ -1,7 +1,6 @@
 /** @xvdp
- * Commands: graph creation from the editor and explorer, view commands, and node commands invoked from
- * the webview context menu. A `webview/context` command receives the merged `data-vscode-context`
- * object of the clicked element: `{ webviewSection, key, webview }`.
+ * Commands: graph creation (editor, explorer), view, node (webview context menu). `webview/context` commands
+ * receive the clicked element's merged `data-vscode-context`: `{ webviewSection, key, webview }`.
  */
 import { execFile } from 'node:child_process';
 import * as path from 'node:path';
@@ -25,7 +24,7 @@ function nodeOf(doc: ViewDoc, key: NodeKey): GNode | undefined {
     return doc.graph.nodes[key];
 }
 
-/** A free name in `dir`: no file there, and no open document (an unsaved view is bound to its path, not on disk). */
+/** Unused name in `dir`: no file, no open document (unsaved views hold a path without a file). */
 async function uniqueUri(dir: vscode.Uri, stem: string, ext: string): Promise<vscode.Uri> {
     const safe = stem.replace(/[^\w.-]+/g, '_').slice(0, 80) || 'view';
     const open = new Set(vscode.workspace.textDocuments.map((d) => d.uri.path));
@@ -37,11 +36,11 @@ async function uniqueUri(dir: vscode.Uri, stem: string, ext: string): Promise<vs
 }
 
 /**
- * Short commit hash of HEAD in `cwd`, undefined outside git. Runs only in a trusted workspace: a cloned
- * or downloaded folder can carry a `.git/config` whose settings make git run programs.
+ * Short HEAD hash in `cwd`; undefined outside git. Trusted workspaces only: a cloned or downloaded folder's
+ * `.git/config` can make git run programs.
  */
 function gitShort(cwd: string): Promise<string | undefined> {
-    // a trusted window can still hold a folder outside its workspace folders (the file of an active editor)
+    // a trusted window can hold folders outside its workspace folders (an active editor's file)
     if (!vscode.workspace.isTrusted || !vscode.workspace.getWorkspaceFolder(vscode.Uri.file(cwd))) return Promise.resolve(undefined);
     return new Promise((res) => execFile('git', ['rev-parse', '--short', 'HEAD'], { cwd, timeout: 3000 },
         (err, out) => res(err ? undefined : out.trim() || undefined)));
@@ -50,7 +49,7 @@ function gitShort(cwd: string): Promise<string | undefined> {
 const dateSlug = (d = new Date()) =>
     `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}-${String(d.getHours()).padStart(2, '0')}${String(d.getMinutes()).padStart(2, '0')}`;
 
-/** Column for definitions next to a view: the column left of the graph, else the one beside it. */
+/** Column for definitions: left of the graph, else beside it. */
 function besideGraph(s: Session): vscode.ViewColumn {
     const c = s.panel.viewColumn;
     return c && c > 1 ? c - 1 : vscode.ViewColumn.Beside;
@@ -59,7 +58,7 @@ function besideGraph(s: Session): vscode.ViewColumn {
 async function openNode(n: GNode | undefined, focus: boolean, column: vscode.ViewColumn): Promise<vscode.TextEditor | undefined> {
     if (!n?.uri) return undefined;
     const uri = vscode.Uri.parse(n.uri);
-    /*security tooling: prevent abitrary scheme URIs.*/
+    /*security tooling: reject arbitrary URI schemes.*/
     if (!readable(uri)) return undefined;
     if (n.kind === 'package' || n.kind === 'folder') {
         await vscode.commands.executeCommand('revealInExplorer', uri);
@@ -74,7 +73,7 @@ async function openNode(n: GNode | undefined, focus: boolean, column: vscode.Vie
     });
 }
 
-/** Innermost container of `key` (or `key` itself) whose kind is in `kinds`. */
+/** Innermost container of `key`, or `key`, with kind in `kinds`. */
 function containerOfKind(doc: ViewDoc, key: NodeKey, kinds: string[]): NodeKey | undefined {
     const nodes = doc.graph.nodes;
     for (const k of [key, ...ancestors(nodes, key)]) if (kinds.includes(nodes[k]?.kind)) return k;
@@ -109,10 +108,8 @@ export function registerCommands(ctx: vscode.ExtensionContext, editor: GaffyEdit
     };
 
     /**
-     * A new view under `.gaffy/views/`: the starting choices of style.json `view`, then `over` (a command's own
-     * choices). Without `gaffy.saveViews`: an untitled document bound to that path; Save writes it there,
-     * closing without saving discards it. `fromEditor` with `gaffy.openDefinitions`: the view opens beside
-     * the editor, which keeps the definition in view.
+     * New view in `.gaffy/views/`: style.json `view` settings, then `over`. Without `gaffy.saveViews`: untitled,
+     * bound to that path (Save writes, close discards). `fromEditor` + `gaffy.openDefinitions`: opens beside the editor.
      */
     const createView = async (base: vscode.Uri, stem: string, doc: ViewDoc, over: Partial<Pick<ViewSpec, 'arrange' | 'depthUp' | 'depthDown'>> = {},
         fromEditor = false) => {
@@ -122,13 +119,13 @@ export function registerCommands(ctx: vscode.ExtensionContext, editor: GaffyEdit
         await vscode.workspace.fs.createDirectory(views);
         // <symbol>_<short commit hash, or date>.gaffy
         const uri = await uniqueUri(views, `${stem}_${(await gitShort(folder.fsPath)) ?? dateSlug()}`, '.gaffy');
-        await noLinks(folder, uri);   // also where the view is saved later (untitled)
-        // starting choices from style.json `view`
+        await noLinks(folder, uri);   // also the later save path (untitled)
+        // initial settings: style.json `view`
         const start = (await editor.styles.get(folder)).view;
         doc.view.depth = cfg().get<number>('depth') ?? 3;
         doc.view.arrange = start.arrange;
         if (start.traverse === 'both') doc.view.direction = 'both';
-        // one layer at a time: the seed's first side; full: the same sides to the configured depth
+        // one layer at a time: seed's first side; full: same sides to the configured depth
         doc.view.depthUp = doc.view.direction !== 'out' ? doc.view.depth : 0;
         doc.view.depthDown = doc.view.direction !== 'in' ? doc.view.depth : 0;
         Object.assign(doc.view, over);
@@ -139,7 +136,7 @@ export function registerCommands(ctx: vscode.ExtensionContext, editor: GaffyEdit
         if (!cfg().get<boolean>('saveViews')) {
             target = uri.with({ scheme: 'untitled' });
             const untitled = await vscode.workspace.openTextDocument(target);
-            // the whole text: a document already bound to this path would otherwise hold two views
+            // whole text replaced: else a document bound to this path holds two views
             const edit = new vscode.WorkspaceEdit();
             edit.replace(target, new vscode.Range(new vscode.Position(0, 0), untitled.lineAt(Math.max(0, untitled.lineCount - 1)).range.end), serializeDoc(doc));
             await vscode.workspace.applyEdit(edit);
@@ -150,9 +147,8 @@ export function registerCommands(ctx: vscode.ExtensionContext, editor: GaffyEdit
     };
 
     /**
-     * VS Code's own call hierarchy of the symbol at the cursor, in the References view (`gaffy.openCallHierarchy`).
-     * Run without a `getCommands` check: that list holds only commands of activated extensions, and running
-     * the command activates the References view extension.
+     * VS Code call hierarchy at the cursor, References view (`gaffy.openCallHierarchy`). No `getCommands` check:
+     * it omits inactive extensions' commands; running the command activates the extension.
      */
     const showCallHierarchy = async (direction: Direction) => {
         if (!cfg().get<boolean>('openCallHierarchy')) return;
@@ -202,7 +198,7 @@ export function registerCommands(ctx: vscode.ExtensionContext, editor: GaffyEdit
             if (key) seeds.push(key);
         }
         if (!seeds.length) throw new Error(syms.length ? `no function in this file has call hierarchy: ${noHierarchyHint(uri.path)}` : `no functions found in this file: ${serverHint(uri.path)}`);
-        // the file's functions and their callers, one level, all shown (full layout)
+        // file functions and their callers: one level, all shown (full layout)
         const doc = emptyDoc('', { seeds, direction: 'in', depth: 1 });
         doc.graph.nodes = acc;
         await createView(uri, path.basename(uri.path).replace(/\.[^.]+$/, ''), doc, { arrange: 'auto', depthUp: 1, depthDown: 0 });
@@ -233,7 +229,7 @@ export function registerCommands(ctx: vscode.ExtensionContext, editor: GaffyEdit
     reg('gaffy.toggleBoxes', toggleBoxes);
     reg('gaffy.toggleBoxes.checked', toggleBoxes);
 
-    // commands that need the layout or the selection run in the webview
+    // commands needing layout or selection run in the webview
     const forward = (cmd: string) => (arg?: NodeArg) => {
         const s = active();
         void s.panel.webview.postMessage({ type: 'cmd', cmd, key: arg?.key, unit: arg?.unit, to: arg?.to });
@@ -282,16 +278,15 @@ export function registerCommands(ctx: vscode.ExtensionContext, editor: GaffyEdit
         const href = (key: NodeKey) => {
             const n = nodeOf(doc, key);
             if (!n?.uri) return undefined;
-            /* secure tooling: links always start with ./ or ../, so no path can read as a command */ 
+            /* secure tooling: links start with ./ or ../, so no path reads as a command */
             const p = path.posix.relative(outDir.path, vscode.Uri.parse(n.uri).path);
             const rel = p.startsWith('.') ? p : `./${p}`;
             return n.line !== undefined && n.kind !== 'package' && n.kind !== 'folder' ? `${rel}#L${n.line + 1}` : rel;
         };
         const md = `# ${doc.name}\n\n<pre>\n${toHtmlPre(sc.grid, gs, href, (k) => doc.view.seeds.includes(k))}\n</pre>\n`;
-        // <symbol>_<short commit hash, or date>_<nn>.md and .txt, numbered per symbol and commit
         const seed = doc.view.seeds[0];
         const sym = ((seed && nodeOf(doc, seed)?.name) || s.name).replace(/[^\w.-]+/g, '_');
-        // .gaffy/<symbol>_<short commit hash, or date>.md; later exports of the same symbol and commit: _2, _3, …
+        // .gaffy/<symbol>_<short commit hash, or date>.md, .txt; repeats per symbol and commit: _2, _3, …
         const base = `${sym}_${(await gitShort(s.folder.fsPath)) ?? dateSlug()}`;
         let n = 0;
         try {
@@ -314,12 +309,12 @@ export function registerCommands(ctx: vscode.ExtensionContext, editor: GaffyEdit
     };
     reg('gaffy.export', () => exportView(active()));
 
-    // an unsaved view goes to the .gaffy/views/ path it is bound to
+    // unsaved view: saved to its bound .gaffy/views/ path
     reg('gaffy.view.save', async () => {
         const s = active();
         if (!(await vscode.workspace.save(s.document.uri))) throw new Error(`${s.name} was not saved`);
     });
-    // two menu entries per toggle, `✓ …` when on: a webview menu shows no checkmark for a command's `toggled`
+    // two menu entries per toggle (`✓ …` when on): webview menus show no checkmark for `toggled`
     const toggleSaveViews = async () => {
         const target = vscode.workspace.workspaceFolders?.length ? vscode.ConfigurationTarget.Workspace : vscode.ConfigurationTarget.Global;
         await cfg().update('saveViews', !cfg().get<boolean>('saveViews'), target);
@@ -366,7 +361,7 @@ export function registerCommands(ctx: vscode.ExtensionContext, editor: GaffyEdit
     reg('gaffy.node.collapseClass', collapse(['class'], 'class'));
     reg('gaffy.node.collapseFile', collapse(['module', 'file'], 'file or module'));
     reg('gaffy.node.collapsePackage', collapse(['package', 'folder'], 'package or folder'));
-    // namespace grouping on demand: box a module, dissolve a box, box every module inside a box
+    // namespace grouping: box a module, dissolve a box, box every module inside a box
     reg('gaffy.node.groupModule', node((s, d, k) => {
         const m = containerOfKind(d, k, ['module', 'file']);
         if (!m) throw new Error('no enclosing module');
@@ -384,7 +379,7 @@ export function registerCommands(ctx: vscode.ExtensionContext, editor: GaffyEdit
     }));
     reg('gaffy.node.expandContainer', node((s, _d, k) =>
         s.update((doc) => { doc.view.collapsed = doc.view.collapsed.filter((c) => c !== k); })));
-    // seeds change in the webview (the function keeps its place); its edit asks the language server for what is missing
+    // seeds change in the webview (function keeps its place); the edit asks for missing calls
     reg('gaffy.node.makeSeed', forward('makeSeed'));
     reg('gaffy.node.removeSeed', forward('removeSeed'));
     reg('gaffy.node.tag', node(async (s, d, k) => {
@@ -424,7 +419,7 @@ export function registerCommands(ctx: vscode.ExtensionContext, editor: GaffyEdit
     editor.onMessage = async (s, m) => {
         const key = typeof m.key === 'string' ? m.key as NodeKey : undefined;
         switch (m.type) {
-            // a click on a function: its definition next to the graph (gaffy.openDefinitions)
+            // function click: definition beside the graph (gaffy.openDefinitions)
             case 'open': if (cfg().get<boolean>('openDefinitions') ?? true) await openNode(key ? nodeOf(s.doc(), key) : undefined, false, besideGraph(s)); break;
             case 'openAt': {
                 const n = key ? nodeOf(s.doc(), key) : undefined;
@@ -436,20 +431,20 @@ export function registerCommands(ctx: vscode.ExtensionContext, editor: GaffyEdit
             case 'refresh': await s.refresh(undefined, 'revalidate'); break;
             case 'export': await exportView(s); break;
             case 'save': await vscode.commands.executeCommand('gaffy.view.save'); break;
-            // a webview command lacked what it acts on (a selection, a call, a function): say what
+            // webview command missing its operand (selection, call, function): warning
             case 'warn': void vscode.window.showWarningMessage(plain(`gaffy: ${String(m.text ?? '').slice(0, 300)}`)); break;
             case 'editStyle': await vscode.commands.executeCommand('gaffy.editStyle'); break;
             case 'openSettings': await vscode.commands.executeCommand('workbench.action.openSettings', `@ext:${ctx.extension.id}`); break;
             case 'setting': {
-                // Options > Settings: written to the workspace settings (user settings without a workspace)
-                // only these keys, only values of their type
+                // Options > Settings: workspace settings (user settings without a workspace)
+                // listed keys only, boolean values only
                 const k = m.key as string;
                 const ok = (k === 'includeExternal' || k === 'includeStandardLibrary' || k === 'saveViews') && typeof m.value === 'boolean';
                 if (!ok) break;
                 const target = vscode.workspace.workspaceFolders?.length ? vscode.ConfigurationTarget.Workspace : vscode.ConfigurationTarget.Global;
                 await vscode.workspace.getConfiguration('gaffy').update(k, m.value, target);
-                // external code turned on: answers fetched without it are asked again (on screen now, the rest when opened)
-                // the standard library shown: its functions on screen get their markers
+                // external code on: re-ask answers fetched without it (on screen now, rest when opened)
+                // standard library on: its on-screen functions get markers
                 if (k === 'includeStandardLibrary' && m.value === true) for (const x of new Set(editor.sessions.values())) void x.ensure();
                 if (k === 'includeExternal' && m.value === true) {
                     for (const c of editor.allCaches()) c.clear();
@@ -466,7 +461,7 @@ export function registerCommands(ctx: vscode.ExtensionContext, editor: GaffyEdit
                 });
                 const pick = await vscode.window.showQuickPick(items, { canPickMany: true, title: 'Unhide neighbors', placeHolder: 'selected entries become visible' });
                 if (!pick?.length) break;
-                // a neighbor can be hidden itself or through a hidden container
+                // a neighbor hides directly or through a hidden container
                 const unhide = new Set<NodeKey>();
                 for (const p of pick) { unhide.add(p.key); for (const a of ancestors(doc.graph.nodes, p.key)) unhide.add(a); }
                 await s.update((d) => { d.view.hidden = d.view.hidden.filter((h) => !unhide.has(h)); });

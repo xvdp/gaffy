@@ -1,19 +1,12 @@
 /** @xvdp
- * Language-server answers folded into a view's graph, one (definition, direction) pair at a time.
+ * Language-server answers folded into a view's graph per (definition, direction) pair, bounded concurrency.
+ * Modes: `cacheOnly` (cache, no server; instant), `cached` (cache, else server), `fresh` (server; cache refreshed).
+ * Answers are stored whole; folder filters apply at draw time (re-including a folder needs no server).
  *
- * Modes: `cacheOnly` uses cached answers and asks no language server (instant); `cached` uses cached
- * answers and asks the language server for the rest; `fresh` asks the language server and refreshes
- * the cache. Requests run with bounded concurrency.
- *
- * Every answer is kept whole: folder filters apply when a view is drawn, so including a folder again
- * needs no language server.
- *
- * No answer is not an empty answer: a definition the language server does not resolve (still
- * analyzing, request failed) keeps the calls the view already holds, and its answer is not cached.
- * An empty answer is doubted when it would drop every stored call of a definition, or when the server
- * answered no call although the definition's text has call sites (`silentOf`): a server still analyzing or
- * loading can answer empty instead of not at all. It counts as no answer until `DOUBTS` such answers in a
- * row, across the view's retries (`doubted`, kept by the view), confirm it.
+ * No answer ≠ empty answer. Unresolved definition (server analyzing, request failed): calls kept, not cached.
+ * Doubted empty answer: drops every stored call, or the text has call sites (`silentOf`); a loading server can
+ * answer empty instead of not at all. It counts as no answer until `DOUBTS` consecutive ones (`doubted`, held by
+ * the view across retries).
  */
 import * as vscode from 'vscode';
 import { GEdge, GNode, isContainer, NodeKey, Subgraph } from '../core/model';
@@ -22,7 +15,7 @@ import { CallCache } from './cache';
 import { LspProvider } from './lsp';
 
 export type BuildMode = 'cacheOnly' | 'cached' | 'fresh';
-/** Empty answers in a row that replace a definition's stored calls (the view retries after 2 and 4 s). */
+/** Consecutive empty answers that replace stored calls (view retries at 2 and 4 s). */
 const DOUBTS = 3;
 export interface BuildProgress { level: number; depth: number; definitions: number; requests: number; cached: number }
 
@@ -39,18 +32,15 @@ export interface Extension {
     graph: Subgraph;
     explored: Record<NodeKey, Direction>;
     asked: number;          // pairs answered (cache or language server)
-    unresolved: Pair[];     // asked, no answer: calls kept, direction not recorded as explored
+    unresolved: Pair[];     // asked, unanswered: calls kept, direction not marked explored
     missed: Pair[];         // `cacheOnly`: no cached answer, not asked
-    clamped: (Pair & { total: number })[];   // answers longer than the call limit: the first calls taken, `total` in the answer
-    capped: number;         // pairs not asked: the view holds `maxNodes` definitions
+    clamped: (Pair & { total: number })[];   // answers over the call limit: first calls kept; `total`: answer length
+    capped: number;         // pairs skipped at `maxNodes` definitions
 }
 
 /**
- * Ask for the given (definition, direction) pairs and fold the answers into the view's graph: the
- * calls of a pair are replaced by the answer, new definitions join, explored directions are recorded.
- * A pair without an answer keeps its calls. Modes: `cacheOnly` (cache hits only), `cached` (cache,
- * else the language server), `fresh` (language server).
- * Used by the stable arrangement: one layer at a time, then markers, then prefetch.
+ * Folds answers for `queries`: an answer replaces its pair's calls, adds definitions, marks the direction explored;
+ * an unanswered pair keeps its calls. Stable arrangement: one layer, then markers, then prefetch.
  */
 export async function extendGraph(
     p: LspProvider, doc: ViewDoc, queries: Pair[],
@@ -86,7 +76,7 @@ export async function extendGraph(
             es = dir === 'out' ? await p.outgoing(key, nodes, opts.token) : await p.incoming(key, nodes, opts.token);
             stats.requests++;
             const total = p.clampOf(key, dir);
-            // cancelled: the pair stays unasked (asked again later), not unresolved
+            // cancelled: pair stays unasked (retried later), not unresolved
             if (!es) { if (!opts.token?.isCancellationRequested) unresolved.push({ key, dir }); opts.progress?.({ ...stats }); return; }
             const id = `${dir}:${key}`;
             const stored = edges.some((e) => (dir === 'out' ? e.from === key : e.to === key));

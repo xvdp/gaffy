@@ -1,4 +1,4 @@
-// Two bundles: extension host (Node, CJS, `vscode` external) and webview (browser, IIFE).
+// Bundles: extension host (Node, CJS, `vscode` external), webview (browser, IIFE).
 import * as esbuild from 'esbuild';
 
 const watch = process.argv.includes('--watch');

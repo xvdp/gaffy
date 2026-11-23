@@ -1,20 +1,15 @@
 /** @xvdp
- * Implicit calls: calls the language runtime makes where no call expression names the callee. They join
- * the language server's answers as edges with `implicit`; the language server answers neither kind.
- *
- * - construction: a class calls the methods its construction runs. Python `C(…)` runs `C.__new__` and
- *   `C.__init__`, a dataclass's generated `__init__` runs `__post_init__`; TypeScript and JavaScript
- *   `new C(…)` run `constructor`. `__init__` and `constructor` come from the class or, inherited, from the
- *   nearest base class that defines them (bases by go to definition on the names of the class header,
- *   depth ≤ 4, `object` skipped); `__new__` and `__post_init__` only from the class itself.
- *   Incoming: a construction method has its class as caller.
- * - instance call (Python): `obj(…)` runs `type(obj).__call__`. A torch `nn.Module` (no `__call__`
- *   definition up to a base class named `Module`) runs `forward` through `Module.__call__`. Sites: the call
- *   sites of the caller's body where the language server answered no call; the type of `obj` from type
+ * Implicit calls: runtime calls without a call expression naming the callee, absent from language-server answers;
+ * edges carry `implicit`.
+ * - construction: Python `C(…)` → `C.__new__`, `C.__init__`; dataclass `__init__` → `__post_init__`;
+ *   TypeScript/JavaScript `new C(…)` → `constructor`. `__init__`, `constructor`: class, else nearest defining base
+ *   (go to definition on header names, depth ≤ 4, `object` skipped); `__new__`, `__post_init__`: class only.
+ *   Incoming: the class calls its construction methods.
+ * - instance call (Python): `obj(…)` → `type(obj).__call__`; torch `nn.Module` (no `__call__` below base `Module`)
+ *   → `forward` via `Module.__call__`. Sites: body call sites the server left unanswered; `obj` type by type
  *   definition at the called name (`criterion` in `criterion(x)`, `net` in `self.net(x)`).
- *
- * Out of scope (a call trace, not a call hierarchy): which methods backprop, hooks, `with` blocks, iteration,
- * operators, properties and decorators run.
+ * Out of scope (call trace, not call hierarchy): backprop, hooks, `with` blocks, iteration, operators, properties,
+ * decorators.
  */
 import * as vscode from 'vscode';
 import { pyBases, pyCallSites } from '../core/bindings';
@@ -32,13 +27,13 @@ const PY_INHERITED = new Set(['__init__']);
 const JS_CONSTRUCT = ['constructor'];
 const BASE_DEPTH = 4;
 const MAX_CLASSES = 64;   // classes one base-class walk visits at most
-/** Call sites of one function asked for their type: the rest of a long function is not followed. */
+/** Call sites per function asked for their type; the rest is skipped. */
 const MAX_SITES = 48;
 
 export class Implicit {
     constructor(private readonly p: LspProvider) {}
 
-    /** Innermost class whose range holds `pos` in the file's outline. */
+    /** Innermost outline class containing `pos`. */
     private async classAt(uri: vscode.Uri, pos: vscode.Position): Promise<Sym | undefined> {
         let found: Sym | undefined;
         const walk = (ss: readonly Sym[]) => {
@@ -52,7 +47,7 @@ export class Implicit {
         return found;
     }
 
-    /** Base classes named in a Python class header `class C(A, m.B, metaclass=M):`, by go to definition. */
+    /** Base classes of a Python class header `class C(A, m.B, metaclass=M):`, by go to definition. */
     private async bases(at: ClassAt): Promise<ClassAt[]> {
         if (langOf(at.uri.path) !== 'py') return [];
         const doc = await vscode.workspace.openTextDocument(at.uri);
@@ -72,7 +67,7 @@ export class Implicit {
         return out;
     }
 
-    /** A method `name` of the class, or of its nearest base class defining it (`inherit`); breadth first. */
+    /** Method `name` of the class, else (`inherit`) of the nearest defining base; breadth first. */
     private async methodOf(start: ClassAt, name: string, inherit: boolean): Promise<{ uri: vscode.Uri; sym: Sym } | undefined> {
         let level = [start];
         const seen = new Set<string>();
@@ -93,9 +88,8 @@ export class Implicit {
     }
 
     /**
-     * Whether a class or one of its bases (depth ≤ 4) is named `Module` (torch `nn.Module`). Each class is visited
-     * once and at most MAX_CLASSES in all: a class listing itself or one base many times (`class A(B, B, …)`, from
-     * workspace source) would otherwise multiply the definition requests per level.
+     * Whether a base (depth ≤ 4) is named `Module` (torch `nn.Module`). Each class once, ≤ MAX_CLASSES total:
+     * repeated or self-listed bases (`class A(B, B, …)`, workspace source) would multiply definition requests per level.
      */
     private async isModule(start: ClassAt): Promise<boolean> {
         let level = [start];
@@ -114,13 +108,13 @@ export class Implicit {
         return false;
     }
 
-    /** The node of a method found in an outline, or undefined (excluded, or no call hierarchy item). */
+    /** Node key of an outline method; undefined when excluded or unresolved. */
     private async nodeOf(m: { uri: vscode.Uri; sym: Sym }, acc: Record<NodeKey, GNode>): Promise<NodeKey | undefined> {
         const it = (await this.p.prepare(m.uri, m.sym.selectionRange.start))[0];
         return it && this.p.describe(it, acc);
     }
 
-    /** Implicit calls from `it`: construction methods of a class; instance calls in a Python function's body. */
+    /** Implicit calls: class → construction methods; Python body → instance calls. */
     async outgoing(key: NodeKey, it: vscode.CallHierarchyItem, acc: Record<NodeKey, GNode>, answered: readonly vscode.Range[]): Promise<GEdge[]> {
         const lang = langOf(it.uri.path);
         if (it.kind === vscode.SymbolKind.Class) {
@@ -140,7 +134,7 @@ export class Implicit {
         const sites = pyCallSites(doc.getText(), doc.offsetAt(it.selectionRange.end), doc.offsetAt((await this.p.bodyOf(it)).end))
             .map((s) => ({ ...s, pos: doc.positionAt(s.at) }))
             .filter((s) => !answered.some((r) => r.contains(s.pos)));
-        // one type question per called name; its first site gives the line
+        // one type request per called name; line from its first site
         const first = new Map<string, (typeof sites)[number]>();
         for (const s of sites) if (!first.has(s.dotted)) first.set(s.dotted, s);
         const edges: GEdge[] = [];
@@ -163,7 +157,7 @@ export class Implicit {
         return edges;
     }
 
-    /** Implicit callers of `it`: its class, for a method that construction runs. */
+    /** Implicit caller of a construction method: its class. */
     async incoming(key: NodeKey, it: vscode.CallHierarchyItem, acc: Record<NodeKey, GNode>): Promise<GEdge[]> {
         const lang = langOf(it.uri.path);
         const names = lang === 'py' ? PY_CONSTRUCT : lang === 'ts' || lang === 'js' ? JS_CONSTRUCT : [];

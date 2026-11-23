@@ -1,37 +1,27 @@
 /** @xvdp
- * Grid lanes layout. Integer cells (row, col); the SVG view and the text export print the same grid.
+ * Grid lanes layout: integer cells (row, col); SVG view and text export print one grid.
  *
- * 1. DFS over the quotient graph from its sources (in-degree 0), then from vertices left unvisited
- *    (cycles without an entry from a source; seeds first). Sources and children are visited in reverse
- *    of their display order (override `sibling`, then call-site line, then path), so the reverse
- *    postorder lists them in display order.
- * 2. Row order π = reverse DFS postorder. Every non-back edge (u, v) has π(u) < π(v): reverse
- *    postorder is a topological order of the DAG left after removing back edges (CLRS §22.4).
- *    Back edges (u → v with v on the DFS stack) render as `↻` tags on u; self loops as `↻`.
- * 3. Tree parent: rule `dfs`, the DFS discoverer; rule `nearest`, the caller closest above that passes
- *    the stem check. Stem check for parent p of v: every row strictly between p and v starts right of
- *    col(p). Under `dfs` the check always holds: the DFS subtree of p occupies a contiguous block of
- *    rows starting at p (parenthesis theorem, CLRS Thm 22.7) and its members sit at col ≥ col(p) + indent.
- *    col(v) = col(parent) + indent; roots at column 0.
- *    Rule `joint` (no caller privileged when several call one function), for v with ≥ 2 callers in the block:
- *    merge: the callers are p and u, u a tree child of p on the row right above v; v becomes p's child one
- *    indent further right, so u's stem drops into v's elbow (`├───┴─> v()`).
- *    collector: otherwise v takes no tree parent; an approach row above v carries its lane back left to
- *    a collector column one indent left of v, and every call enters v from the left (`┌──┘`, `└─> v()`).
- *    Else as `dfs`.
- * 4. Cross edges: edges outside the tree and not back. Edges into one target bundle into one lane,
- *    rows [min source row, target row]. A vertex that is both a lane target and a lane source gets a
- *    port row below it; its outgoing lane connections leave from the port row, so an arrival `<─┘` and a
- *    departure `─┐` never share a row.
- * 5. Lane columns: base = max row end over the lane's rows + 3. Lanes sorted by (span, start) take the
- *    first column ≥ base at distance ≥ laneGap from every placed lane with overlapping rows.
- *    Labels never meet a lane: lane columns exceed the row ends of all rows they span.
+ * 1. DFS from sources (in-degree 0), then unvisited vertices (source-less cycles; seeds first), each visited in
+ *    reverse display order (`sibling` override, call-site line, path): reverse postorder yields display order.
+ * 2. Row order π: reverse DFS postorder, topological on non-back edges (CLRS §22.4). Back edge u → v (v on the
+ *    DFS stack): `↻` tag on u; self loop `↻`.
+ * 3. Tree parent p of v: rule `dfs`, DFS discoverer; rule `nearest`, closest caller above passing the stem check:
+ *    rows strictly between p and v start right of col(p). `dfs` always passes: p's DFS subtree fills contiguous
+ *    rows from p at col ≥ col(p) + indent (parenthesis theorem, CLRS Thm 22.7). col(v) = col(p) + indent; roots at 0.
+ *    Rule `joint` (no privileged caller), v with ≥ 2 block callers: merge when the callers are p and its tree
+ *    child u on the row above v: col(v) = col(p) + 2·indent, u's stem drops into v's elbow (`├───┴─> v()`); else
+ *    collector: no tree parent, approach row above v leads its lane to collector column col(v) − indent, calls
+ *    enter v from the left (`┌──┘`, `└─> v()`). Other v: as `dfs`.
+ * 4. Cross edges (neither tree nor back): one lane per target, rows [min source row, target row]. Lane target
+ *    that is also a lane source: port row below it, origin of its outgoing lanes; arrival `<─┘` and departure
+ *    `─┐` never share a row.
+ * 5. Lane column, lanes sorted by (span, start): first column ≥ max row end over lane rows + 3, ≥ laneGap from
+ *    placed lanes with overlapping rows. Labels never meet a lane.
  *
- * Inside namespace boxes the layout runs once per block (the direct members of one box). Calls that
- * leave or enter the block count for port rows (`extIn`, `extOut`); `rootRank` orders the block's
- * roots by the rows of their callers outside the block, so rows can line up with those callers.
+ * Namespace boxes: one layout per block (direct members of a box). `extIn`, `extOut` (calls crossing the block
+ * border) count for port rows; `rootRank` orders block roots by rows of outside callers.
  *
- * Cost: O(V + E) for 1, 2, 4; O(V · d) for the stem checks, d = row distance; O(L²) for first fit.
+ * Cost: O(V + E) for 1, 2, 4; O(V · d) stem checks, d = row distance; O(L²) first fit.
  */
 import { NodeKey } from './model';
 import { VGraph } from './quotient';
@@ -40,15 +30,15 @@ import { ParentRule, ROOTS } from './viewdoc';
 export interface LayoutInput {
     vg: VGraph;
     seeds: readonly NodeKey[];
-    sibling: Record<NodeKey, NodeKey[]>;   // child order override per tree parent; ROOTS for the top level
+    sibling: Record<NodeKey, NodeKey[]>;   // child order override per tree parent; ROOTS: top level
     indent: number;
     laneGap: number;
     parentRule: ParentRule;
     sortKey: (k: NodeKey) => string;
     label: (k: NodeKey, parent: NodeKey | null) => string;
     shortName: (k: NodeKey) => string;
-    extIn?: ReadonlySet<NodeKey>;          // vertices called from outside this block
-    extOut?: ReadonlySet<NodeKey>;         // vertices calling outside this block
+    extIn?: ReadonlySet<NodeKey>;          // vertices called from outside the block
+    extOut?: ReadonlySet<NodeKey>;         // vertices calling outside the block
     rootRank?: (k: NodeKey) => number;     // primary root order, ascending
 }
 
@@ -57,7 +47,7 @@ export interface Row {
     key: NodeKey;
     col: number;
     text: string;
-    end: number;           // first column right of the row content
+    end: number;           // first column right of row content
 }
 
 export interface Lane {
@@ -66,7 +56,7 @@ export interface Lane {
     lo: number;
     hi: number;
     sources: { key: NodeKey; row: number; port: boolean }[];
-    left?: { col: number; row: number };   // rule `joint`, collector: column left of the target, approach row above it
+    left?: { col: number; row: number };   // rule `joint` collector: column left of target, approach row above it
 }
 
 export interface Layout {
@@ -78,7 +68,7 @@ export interface Layout {
     roots: NodeKey[];
     lanes: Lane[];
     back: Map<NodeKey, NodeKey[]>;
-    merges: Set<string>;   // rule `joint`: calls `caller\u0000callee` drawn by a stem into the callee's elbow
+    merges: Set<string>;   // rule `joint`: calls `caller\u0000callee` drawn as stem into callee elbow
     indent: number;
     width: number;
 }
@@ -151,8 +141,8 @@ export function layout(inp: LayoutInput): Layout {
     };
     const sources = keys.filter((k) => vg.inc.get(k)!.length === 0).sort(rootCmp);
     for (let i = sources.length - 1; i >= 0; i--) visit(sources[i]);
-    // cycles without an entry from a source: seeds first, so a seed roots its cycle; blocks of later
-    // roots land above earlier ones (topological order forces it)
+    // source-less cycles: seeds first, so a seed roots its cycle; later roots' blocks land above earlier ones
+    // (topological order)
     for (const k of keys.filter((k) => !state.get(k)).sort(rootCmp)) visit(k);
 
     const order = post.reverse();
@@ -185,7 +175,7 @@ export function layout(inp: LayoutInput): Layout {
                 merges.add(`${pair[1]}\u0000${v}`);
                 continue;
             }
-            // the DFS parent's trunk continues below v when it has later children: keep the collector off its column
+            // DFS parent with later children: trunk continues below v; collector avoids its column
             const later = !!dp && dfsKids.get(dp)!.some((c) => nodeRow0.get(c)! > nodeRow0.get(v)!);
             const c = dp ? col.get(dp)! + (later ? 2 : 1) * indent : Math.min(...callers.map((u) => col.get(u)!)) + indent;
             parent.set(v, null);
@@ -234,7 +224,7 @@ export function layout(inp: LayoutInput): Layout {
         const c = col.get(k)!;
         rowOf.set(k, rows.length);
         rows.push({ kind: 'node', key: k, col: c, text, end: c + text.length });
-        // arrivals land at the right end unless the vertex is a block root (then from the left)
+        // arrivals at right end; block roots: from the left
         const inRight = (crossIn.has(k) && !approachOf.has(k)) || (!!inp.extIn?.has(k) && !!parent.get(k));
         if (inRight && (crossOut.has(k) || !!inp.extOut?.has(k))) {
             portOf.set(k, rows.length);

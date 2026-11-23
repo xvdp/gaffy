@@ -1,10 +1,10 @@
 /** @xvdp
- * Webview renderer. Receives the view text, style and exclude globs from the host, runs the core
- * pipeline (quotient, boxes, placement, routing) and draws the grid with D3:
- *   glyph mode:  one <text> per edge or frame cell (box-drawing glyphs at exact cell positions)
- *   vector mode: frames as rectangles; calls as paths, orthogonal from the grid masks or curved
- *                through each call's polyline (`edges.curve`: rounded, sigmoid, spline)
- * Local changes (moves, locks, collapse, hide, order, modes) commit a new document text to the host.
+ * Webview renderer: host view text, style, exclude globs → core pipeline (quotient, boxes, placement, routing)
+ * → D3 grid.
+ *   glyph mode:  one box-drawing <text> per edge or frame cell
+ *   vector mode: frame rectangles; call paths, orthogonal from the grid masks or curved along each call
+ *                polyline (`edges.curve`)
+ * Local edits (moves, locks, collapse, hide, order, modes) commit new document text to the host.
  */
 import { drag } from 'd3-drag';
 import { select } from 'd3-selection';
@@ -22,25 +22,25 @@ declare function acquireVsCodeApi(): VsApi;
 const api = acquireVsCodeApi();
 
 let text = '';
-let dragging = false;          // a unit is being dragged: no settling of moved units meanwhile
+let dragging = false;          // drag in progress: moved units do not settle
 let name = 'view';
 let doc: ViewDoc | undefined;
 let style: Style | undefined;
 let styleText = '';
 let excludeGlobs: string[] = [];
-let excludes: PathTest[] = [];        // `gaffy.exclude` globs as path tests, for buildScene
+let excludes: PathTest[] = [];        // `gaffy.exclude` path tests for buildScene
 let settings = { includeExternal: false, includeStandardLibrary: false, saveViews: false, untitled: false, trace: false };   // VS Code settings (Options; `trace`: gaffy.trace)
-/** External code drawn (scene.ts `Outside`): from the settings above. */
+/** External code drawn (scene.ts `Outside`), from `settings`. */
 const outside = () => ({ external: settings.includeExternal, standard: settings.includeStandardLibrary });
 let scene: Scene | undefined;
 let focusKey: NodeKey | undefined = api.getState()?.focus;
 let selected = new Set<NodeKey>();
 const callKey = (p: { from: NodeKey; to: NodeKey }) => `${p.from}\u0000${p.to}`;
-let selCalls = new Set<string>();     // selected calls, drawn direction, callKey
-let optsOpen = false;                 // options pulldown
-let anchor: { key: NodeKey; at?: [number, number] } | undefined;   // vertex kept at its screen position when the layout changes
+let selCalls = new Set<string>();     // selected calls (callKey, drawn direction)
+let optsOpen = false;                 // Options pulldown open
+let anchor: { key: NodeKey; at?: [number, number] } | undefined;   // vertex pinned on screen across layouts
 let busy = false;
-let note = '';                         // host note in the status line (language server not ready, unresolved answers)
+let note = '';                         // host status note: language server not ready, unresolved answers
 let cw = 8;
 let ch = 16;
 let placed = false;
@@ -49,8 +49,7 @@ const svg = select<SVGSVGElement, unknown>('#graph');
 const root = svg.append('g').attr('class', 'root');
 const zoomer = zoom<SVGSVGElement, unknown>()
     .scaleExtent([0.08, 8])
-    // wheel zooms anywhere; dragging pans only from the background (labels and headers drag units;
-    // Shift+drag on the background draws a selection window)
+    // zoom: wheel; pan: background drag (labels and headers drag units; Shift+drag selects)
     .filter((ev: Event) => ev.type === 'wheel' || (!(ev as MouseEvent).button && !(ev as MouseEvent).shiftKey
         && !(ev.target as Element).closest?.('.labels g, .heads g')))
     .on('zoom', (ev) => {
@@ -110,7 +109,7 @@ window.addEventListener('message', (ev) => {
     const m = ev.data;
     if (m.type === 'state') {
         busy = !!m.busy;
-        // a changed setting or gaffy.exclude redraws at once, with the same document
+        // setting or gaffy.exclude change: redraw the current document
         const was = JSON.stringify([settings, excludeGlobs]);
         excludeGlobs = m.exclude ?? excludeGlobs;
         excludes = excludeGlobs.map(globMatcher);
@@ -140,7 +139,7 @@ window.addEventListener('message', (ev) => {
         note = m.text ?? '';
         status();
     } else if (m.type === 'cmd') {
-        // a context menu entry: the right click that opened the menu gave the cell
+        // context menu entry: cell from the opening right click
         cause = { event: `menu ${m.cmd}`, target: m.key ?? cause.target, cell: cause.event === 'contextmenu' ? cause.cell : undefined };
         runCmd(m.cmd, m.key, m.unit, m.to);
     }
@@ -158,14 +157,14 @@ function commit(mut: (d: ViewDoc) => void) {
 }
 
 // ---- trace (setting gaffy.trace): why each edit happened, and what moved; the host appends it to .gaffy/trace/ ----
-/** The user event an edit answers (type, target key or text, grid cell [row, column]) and the functions that acted. */
+/** Edit cause: user event, target key or text, grid cell [row, column], acting functions. */
 interface Cause { event?: string; target?: string; cell?: [number, number]; fn?: string; args?: unknown }
 let cause: Cause = {};
-/** Names a function acting on the current event; nested ones chain (`runCmd:remove › runCmd:hideSelection`). */
+/** Adds `fn` to the current cause; nested calls chain (`runCmd:remove › runCmd:hideSelection`). */
 function why(fn: string, args?: unknown) {
     cause = { ...cause, fn: cause.fn ? `${cause.fn} › ${fn}` : fn, ...(args !== undefined ? { args } : {}) };
 }
-// every user event starts a new cause, captured before the handlers run
+// new cause per user event (capture phase, before handlers)
 for (const type of ['click', 'dblclick', 'mousedown', 'contextmenu', 'keydown'] as const) {
     document.addEventListener(type, (ev) => {
         const el = (ev.target as Element | null)?.closest?.('.labels g, .heads g, .markers text, .arrowhits rect, .hits path, button, tspan, .row') ?? undefined;
@@ -176,7 +175,7 @@ for (const type of ['click', 'dblclick', 'mousedown', 'contextmenu', 'keydown'] 
         cause = { event: ev instanceof KeyboardEvent ? `key ${ev.altKey ? 'Alt+' : ''}${ev.key}` : type, target, cell };
     }, true);
 }
-/** Grid cells of labels (vertex keys) and frames (box units): [row, column]. */
+/** [row, column] of labels (vertex keys) and frames (box units). */
 function cells(sc: Scene | undefined): Map<string, [number, number]> {
     const m = new Map<string, [number, number]>();
     if (!sc) return m;
@@ -184,7 +183,7 @@ function cells(sc: Scene | undefined): Map<string, [number, number]> {
     for (const f of sc.placement.frames) m.set(f.unit, [f.r0, f.c0]);
     return m;
 }
-/** Labels and frames whose cell changed: [key, before, after] (before or after null when it appeared or left). */
+/** Cell changes of labels and frames: [key, before, after], null where absent. */
 function movedCells(a: Map<string, [number, number]>, b: Map<string, [number, number]>) {
     const out: [string, [number, number] | null, [number, number] | null][] = [];
     for (const [k, p] of a) { const q = b.get(k); if (!q || q[0] !== p[0] || q[1] !== p[1]) out.push([k, p, q ?? null]); }
@@ -212,10 +211,10 @@ const Y = (y: number) => y * ch;
 const DIRS = [[-1, 0, N], [1, 0, S], [0, 1, E], [0, -1, W]] as const;   // dr, dc, bit
 const OPPOSITE: Record<number, number> = { [N]: S, [S]: N, [E]: W, [W]: E };
 
-/** Radius of a hop: a horizontal call line over a vertical one it crosses (orthogonal and rounded edges). */
+/** Hop radius (orthogonal and rounded edges). */
 const hopRadius = () => Math.min(cw, ch) * 0.525;
 
-/** A crossing cell: some net runs N|S, another E|W, none turns or joins there. */
+/** Crossing cell: one net N|S, another E|W, none turning or joining. */
 function crossing(nets: Map<string, number>): boolean {
     let hasV = false, hasH = false;
     for (const om of nets.values()) {
@@ -227,13 +226,11 @@ function crossing(nets: Map<string, number>): boolean {
 }
 
 /**
- * Orthogonal vector paths per net from the grid masks, without the cells only implicit calls or only calls
- * across languages pass (`Grid.kinds`): those calls are drawn whole (`curvePath`), since a dash pattern restarts
- * on every subpath and per-cell pieces shorter than a dash would draw solid.
- * Crossing of two calls (one cell, one net running N|S, another E|W): the horizontal line hops over
- * the vertical one with a half circle. Junction (three or more directions within one net): each branch
- * bends into the root-side direction with a quarter curve, the flow direction (towards the callee for
- * call nets, away from the caller for tree stems); the straight-through branch stays straight.
+ * Orthogonal vector paths per net from the grid masks, minus `Grid.kinds` cells (implicit or cross-language
+ * calls only), which `curvePath` draws whole: dashes restart per subpath, so per-cell pieces would draw solid.
+ * crossing: the horizontal line hops the vertical one (half circle).
+ * junction (≥ 3 directions in one net): branches bend towards the root with a quarter curve, along the flow
+ * (call nets: to the callee; tree stems: from the caller); the straight branch stays straight.
  */
 function maskPaths(g: Grid): Map<string, string> {
     const byNet = new Map<string, Map<number, number>>();
@@ -300,13 +297,12 @@ function maskPaths(g: Grid): Map<string, string> {
     return out;
 }
 
-/** One call as an SVG path: polyline with rounded corners (square for orthogonal) and hops, sigmoid S-curves, or a B-spline. */
+/** SVG path of one call: rounded polyline with hops (orthogonal: square corners), sigmoid, or B-spline. */
 function curvePath(p: EdgePath, curve: Curve): string {
     const pts = p.pts.map(([x, y]) => [X(x), Y(y)] as [number, number]);
     if (curve === 'spline') return line().curve(curveBasis)(pts) ?? '';
     if (curve === 'sigmoid') {
-        // straight lead-out of `edges.lead` cells, cubic S, straight lead-in; `edges.tension` sets how far the
-        // control points reach along the leads (0: sharp, 1: wide)
+        // `edges.lead` cells straight out, cubic S, straight in; `edges.tension`: control-point reach (0 sharp, 1 wide)
         const [x0, y0] = pts[0], [x1, y1] = pts[pts.length - 1];
         const L = style!.edges.lead, t = style!.edges.tension;
         const vertical = p.start !== 'E';
@@ -319,7 +315,7 @@ function curvePath(p: EdgePath, curve: Curve): string {
         const c2 = p.arrive === 'E' ? [b[0] - kx, b[1]] : [b[0] + kx, b[1]];
         return `M${x0},${y0}L${a[0]},${a[1]}C${c1[0]},${c1[1]} ${c2[0]},${c2[1]} ${b[0]},${b[1]}L${x1},${y1}`;
     }
-    // rounded corners (orthogonal: square); a horizontal run hops over the vertical lines it crosses (`crossing`)
+    // rounded corners (orthogonal: square); horizontal runs hop crossed vertical lines (`crossing`)
     const r = curve === 'orthogonal' ? 0 : Math.min(cw, ch) * 0.9;
     const hop = hopRadius();
     const g = scene?.grid;
@@ -360,8 +356,7 @@ function hue(key: string): number {
 }
 
 // ---- render -------------------------------------------------------------------------------------
-/** Menu context of the whole page: `unsaved` shows right click > Save, `tight` checks right click > Tight Boxes. */
-/** Context keys of the canvas menu (package.json `when`): checkmarks of the toggles, a selection for Re-arrange. */
+/** Canvas menu `when` keys: `unsaved`: Save; `tight`, `boxes`: checkmarks; `selected`: Re-arrange selected. */
 function pageContext() {
     const tight = doc?.view.tight ?? style?.boxes.tight ?? true;
     const boxes = doc?.view.boxes ?? style?.boxes.enabled ?? true;
@@ -383,8 +378,7 @@ function render() {
     const sc = scene;
     const g = sc.grid;
     const grows = doc.view.arrange === 'grow';
-    // the vertex last opened, closed or removed keeps its name at its screen position: the view shifts by
-    // the name's move (a `>> ` prefix that appears or goes moves the label start, not the name)
+    // pan by the anchor name's move (name cell: a `>> ` prefix shifts only the label start)
     if (anchor && placed) {
         const at = nameCell(sc, anchor.key);
         if (at) {
@@ -436,7 +430,7 @@ function render() {
             .text((d) => d.t);
     } else if (curve === 'orthogonal') {
         for (const [net, d] of maskPaths(g)) ge.append('path').attr('class', 'net').attr('data-net', net).attr('d', d);
-        // implicit calls and calls across languages: whole, dotted and dash-dot (their cells are not in the masks)
+        // implicit (dotted) and cross-language (dash-dot) calls: whole paths; maskPaths skips their cells
         for (const p of g.paths) if (!p.fallback && (implicitOf(p) || viaOf(p))) ge.append('path').attr('class', edgeClass(p)).attr('d', curvePath(p, 'orthogonal'));
         for (const m of g.marks) arrowhead(ge, m.col + 0.5, m.row + 0.5, m.role === 'arrowE' ? 1 : m.role === 'arrowW' ? -1 : 0);
     } else {
@@ -449,7 +443,7 @@ function render() {
             }
         }
     }
-    // calls without a route: dashed, over everything, still with their arrowhead
+    // unrouted calls: dashed, on top, with arrowhead
     for (const p of g.paths.filter((q) => q.fallback)) {
         ge.append('path').attr('class', 'net fallback').attr('d', `M${p.pts.map(([x, y]) => `${X(x)},${Y(y)}`).join('L')}`);
         const [x, y] = p.pts[p.pts.length - 1];
@@ -457,9 +451,8 @@ function render() {
     }
     root.append('g').attr('class', 'overlay');
 
-    // calls: wide transparent hit paths; hover highlights, click selects, double click shows only what lies below
-    // calls: wide transparent hit paths. A click gathers every call through the clicked cell, so a click on
-    // a shared line (fork, merge) takes all calls on it. Shift adds or removes; double click isolates.
+    // call hit paths (wide, transparent): click selects all calls through the cell (forks, merges), Shift
+    // toggles; double click isolates
     root.append('g').attr('class', 'hits').selectAll('path').data(g.paths).join('path')
         .attr('d', (p) => callD(p))
         .attr('data-vscode-context', (p) => JSON.stringify(isStub(p.to)
@@ -469,7 +462,7 @@ function render() {
         .on('mouseleave', () => highlight(focusKey))
         .on('click', (ev: MouseEvent, p) => {
             ev.stopPropagation();
-            // a marker row's elbow opens that side, like its `>`; a line only selects (arrowheads close, below)
+            // marker-row elbow opens its side, as `>` does; lines only select; arrowheads close (below)
             if (isStub(p.to)) { markerClick(p.from, 'down'); return; }
             const hit = callsAt(ev, p).map(callKey);
             if (ev.shiftKey) {
@@ -489,8 +482,7 @@ function render() {
         })
         .append('title').text((p) => (isStub(p.to) ? markerTitle(p.from, 'down') : callTitle(p)));
 
-    // arrowheads (one layer at a time): the arrowhead cell and the blank before the name close the level the
-    // arrow points into; hovering shows which
+    // arrowhead hits (one layer at a time): arrowhead cell + blank before the name; closes the target level
     if (grows) {
         const heads = [...g.arrowTo].map(([id, to]) => {
             const [r, c] = cellRC(id);
@@ -547,7 +539,7 @@ function render() {
         .on('mouseleave', () => highlight(focusKey));
     nodes.call(dragUnit((d) => vertexUnit(d.key)) as any);
 
-    // marker rows `└─>>`: the second `>` (the elbow is a path above); opens or restores the side placed below
+    // `└─>>` marker rows: the second `>` (elbow: path above); opens or restores the side below
     root.append('g').attr('class', 'markers').selectAll('text').data(g.markers).join('text')
         .attr('class', 'marker')
         .attr('x', (m) => m.col * cw).attr('y', (m) => (m.row + 0.5) * ch)
@@ -567,7 +559,7 @@ function render() {
     heads.append('rect').attr('class', 'hit').attr('x', -cw).attr('y', 0).attr('width', (d) => (d.text.length + 2) * cw).attr('height', ch);
     heads.append('text').attr('y', ch / 2).text((d) => d.text);
     heads.append('title').text((d) => `${d.text}\nclick select its functions (Delete removes them) · drag to move · double click to collapse${doc!.view.lock[d.key] ? ' · locked' : ''}`);
-    // click a box header: select its functions (Delete removes them)
+    // header click: select the box's functions
     heads.on('click', (ev: MouseEvent, d) => {
         ev.stopPropagation();
         const members = unitMembers(sc, d.key).filter((k) => !isStub(k) && sc.vg.nodes.has(k));
@@ -585,7 +577,7 @@ function render() {
     heads.call(dragUnit((d) => d.key) as any);
 
     root.append('g').attr('class', 'drag');
-    // a background click clears the selection; not the click that ends a selection window, nor a Shift+click
+    // background click: clear selection (not Shift+click, not a selection window's end)
     svg.on('click', (ev: MouseEvent) => {
         if (bandEnded || ev.shiftKey) { bandEnded = false; return; }
         selected.clear(); selCalls.clear(); optsOpen = false; toolbar(); setFocus(undefined);
@@ -598,12 +590,11 @@ function render() {
 }
 
 /**
- * After the picture changed (a side opened, data arrived, a depth changed), once per document state:
- * 1. A moved function whose callers were just opened hands its move to its new tree parent, so the caller
- *    sits right above it (`prev()` then `└─> fun()`) instead of at the parent's unmoved place.
- * 2. The scene drew moved units the picture grew into at the nearest clean spot (settle.ts, scene
- *    `offsets`): the view keeps those offsets, so what is saved is what is drawn. At most 3 such saves in a
- *    row; any other change starts the count again.
+ * Commits after a render:
+ * 1. adopt: the new tree parent of a moved function whose callers just opened takes its offset (`prev()`
+ *    lands right above `└─> fun()`).
+ * 2. settle: saves the drawn offsets (`Scene.offsets`) once per document text, ≤ 3 times in a row; other
+ *    changes reset the count.
  */
 let settledFor = '';
 let settleStreak = 0;
@@ -621,7 +612,7 @@ function afterRender() {
             commit((x) => { x.view.offset[p] = off; delete x.view.offset[k]; });
             return;
         }
-        if (++adopt.renders > 6) adopt = undefined;      // no caller became its parent: nothing to hand over
+        if (++adopt.renders > 6) adopt = undefined;      // no caller became its parent: handover dropped
     }
     if (text === settledFor || settleStreak >= 3) return;
     settledFor = text;
@@ -641,22 +632,22 @@ function callD(p: EdgePath): string {
     return vector && curve !== 'orthogonal' ? curvePath(p, curve) : `M${p.pts.map(([x, y]) => `${X(x)},${Y(y)}`).join('L')}`;
 }
 
-/** Caller and callee of a drawn connection (drawn in call direction). */
+/** Caller and callee of a drawn call (paths run in call direction). */
 function asCall(p: { from: NodeKey; to: NodeKey }): { caller: NodeKey; callee: NodeKey } {
     return { caller: p.from, callee: p.to };
 }
 
-/** Binding layer of a call across languages (`pybind11: src/ext.cpp:42`), from the stored edge. */
+/** Binding layer of a cross-language call (`pybind11: src/ext.cpp:42`), from the stored edge. */
 function viaOf(p: { from: NodeKey; to: NodeKey }): string | undefined {
     return doc?.graph.edges.find((e) => e.from === p.from && e.to === p.to)?.via;
 }
 
-/** Implicit call (construction, instance call), from the stored edge. */
+/** Implicit-call kind (construction, instance call), from the stored edge. */
 function implicitOf(p: { from: NodeKey; to: NodeKey }): string | undefined {
     return doc?.graph.edges.find((e) => e.from === p.from && e.to === p.to)?.implicit;
 }
 
-/** Path class: calls across languages dash-dot, implicit calls dotted. */
+/** Path class: cross-language dash-dot, implicit dotted. */
 const edgeClass = (p: { from: NodeKey; to: NodeKey }) => (viaOf(p) ? 'net bridge' : implicitOf(p) ? 'net implicit' : 'net');
 
 /** Tooltip line of an implicit call. */
@@ -677,28 +668,28 @@ function callTitle(p: EdgePath): string {
     return `${name(caller)}() → ${name(callee)}()${via ? `\nacross languages, via ${via}` : ''}${implicitTitle(implicitOf(p), callee)}\nclick select · double click: show only what lies below · right click: more`;
 }
 
-/** Side of a vertex: open entry, or the traversal side for a seed without one. */
+/** Open side of a vertex: its `open` entry, else a seed's traversal side. */
 function sideOf(k: NodeKey): OpenSide | undefined {
     return doc!.view.open?.[k] ?? (doc!.view.seeds.includes(k) ? seedSide(doc!.view.direction) : undefined);
 }
 
-/** Open sides of a vertex as drawn: its entry limited to the sides it may open (seeds both, others their reveal side). */
+/** Drawn open sides: `sideOf` within the allowed sides (seeds: both; others: reveal side). */
 function effSide(k: NodeKey): OpenSide {
     return within(sideOf(k), scene?.rev.allowed.get(k) ?? 'both');
 }
 
-/** Cell of the first character of a vertex's name: label start plus its `>> ` prefix. */
+/** [col, row] of a vertex name's first character: label start + `>> ` prefix. */
 function nameCell(sc: Scene, k: NodeKey): [number, number] | undefined {
     const p = sc.placement.pos.get(k);
     return p ? [p.col + (sc.decor.get(k)?.pre.length ?? 0), p.row] : undefined;
 }
 
-/** Keep `k`'s name at its screen position through the next layouts. */
+/** Pins `k`'s name to its screen position through the next layouts. */
 function anchorAt(k: NodeKey) {
     anchor = { key: k, at: scene ? nameCell(scene, k) : undefined };
 }
 
-/** Double click, one layer at a time: close both sides, or open every side that has more. */
+/** Double click (one layer at a time): close both sides, else open those with more. */
 function toggleSides(k: NodeKey) {
     why('toggleSides', { key: k });
     if (effSide(k) !== 'none') { anchorAt(k); commit((x) => { x.view.open = { ...(x.view.open ?? {}), [k]: 'none' }; }); }
@@ -706,14 +697,14 @@ function toggleSides(k: NodeKey) {
 }
 
 /**
- * Open or close one side of a vertex; opening a side without data asks the language server. `restore`
- * also brings back the hidden neighbors and cut calls of that side.
+ * Opens or closes a vertex side; missing data: language server query.
+ * `restore`: also unhides that side's neighbors and cut calls.
  */
 function setSide(k: NodeKey, side: 'up' | 'down', on: boolean, restore = false) {
-    if (!doc || !scene || doc.view.arrange !== 'grow') return;   // full views: the call depths decide
+    if (!doc || !scene || doc.view.arrange !== 'grow') return;   // full layout: call depths determine sides
     why('setSide', { key: k, side, on, restore });
     anchorAt(k);
-    // a moved function opening its callers: the caller that becomes its tree parent takes its move (afterRender)
+    // moved function opening its callers: new tree parent takes its offset (afterRender adopt)
     if (on && side === 'up' && doc.view.offset[k]) adopt = { key: k, renders: 0 };
     settleStreak = 0;
     const cur = effSide(k);
@@ -733,15 +724,14 @@ function setSide(k: NodeKey, side: 'up' | 'down', on: boolean, restore = false) 
     if (on && ex !== dir && ex !== 'both') api.postMessage({ type: 'expand', key: k, dir });
 }
 
-/** A side `k` opens one layer at a time (the direction rule allows it). */
+/** `side` of `k` opens: one layer at a time, direction rule permitting. */
 const opensHere = (k: NodeKey, side: 'up' | 'down') => doc?.view.arrange === 'grow' && opens(scene?.rev.allowed.get(k), side);
-/** Whether a marker acts: it opens its side (one layer at a time), or brings back hidden neighbors (both layouts). */
+/** Marker active: opens its side (one layer at a time) or restores hidden neighbors (both layouts). */
 const markerLive = (k: NodeKey, side: 'up' | 'down') => opensHere(k, side) || !!scene?.hiddenOn(k, side).length;
 
 /**
- * A marker (`>> ` before a label, `└─>>` row below it). One layer at a time, on a side the function opens:
- * open that side with everything removed from it. Otherwise (full layout, or a side the direction rule
- * does not open), bring back the hidden neighbors and removed calls of that side.
+ * Marker (`>> `, `└─>>` row) click: opens an allowed side with its removed content (one layer at a time),
+ * else restores the side's hidden neighbors and removed calls.
  */
 function markerClick(k: NodeKey, side: 'up' | 'down') {
     why('markerClick', { key: k, side });
@@ -750,9 +740,8 @@ function markerClick(k: NodeKey, side: 'up' | 'down') {
 }
 
 /**
- * Hidden neighbors of `k` on one side back on screen, with the hidden functions on their way from the
- * seeds (otherwise they would stay off screen); removed calls between `k` and them restored. `k` keeps its
- * place. Further hidden functions beyond them keep their marker, one layer at a time.
+ * Unhides `k`'s hidden neighbors on one side, the hidden functions on their seed paths (else unreachable),
+ * and the removed calls between; `k` stays anchored; farther hidden functions keep their marker.
  */
 function restoreHidden(k: NodeKey, side: 'up' | 'down') {
     if (!scene || !doc) return;
@@ -777,9 +766,8 @@ function markerTitle(k: NodeKey, side: 'up' | 'down'): string {
 }
 
 /**
- * The level an arrowhead into `to` closes: callers shown by `to`'s callers side (incoming level, `to`
- * keeps its place), or the calls side of the caller that showed `to` (outgoing level, that caller keeps
- * its place). Calls between two vertices shown otherwise close `to`'s callers when that side is open.
+ * Level an arrowhead into `to` closes: `to`'s callers side when it revealed the caller (`to` stays), else the
+ * calls side of the caller that revealed `to` (that caller stays); otherwise `to`'s callers side when open.
  */
 function closingOf(sc: Scene, to: NodeKey, cell: number): { run: () => void; title: string } | undefined {
     const callers = [...new Set(sc.grid.paths.filter((q) => q.to === to && q.cells.includes(cell)).map((q) => q.from))];
@@ -798,7 +786,7 @@ function closingOf(sc: Scene, to: NodeKey, cell: number): { run: () => void; tit
 
 const unkey = (k: string) => { const [from, to] = k.split('\u0000'); return { from, to }; };
 
-/** Calls through the grid cell under the pointer; the hit path alone when none matches (curved styles). */
+/** Calls through the grid cell under the pointer, else the hit path alone (curved styles). */
 function callsAt(ev: MouseEvent, p: EdgePath): EdgePath[] {
     const t = (root.node() as SVGGElement).getScreenCTM();
     if (!t) return [p];
@@ -815,7 +803,7 @@ function highlightCalls(ps: { from: NodeKey; to: NodeKey }[]) {
     for (const q of scene!.grid.paths) if (want.has(callKey(q))) ov.append('path').attr('class', 'hl').attr('d', callD(q));
 }
 
-/** Keep each call's caller and what lies below its callee in the drawn graph; hide the rest. */
+/** Keeps each call's caller and the drawn graph below its callee; hides the rest. */
 function isolateCalls(calls: { from: NodeKey; to: NodeKey }[]) {
     if (!calls.length) return;
     why('isolateCalls', { calls: calls.length });
@@ -825,7 +813,7 @@ function isolateCalls(calls: { from: NodeKey; to: NodeKey }[]) {
     isolate(keep, calls[0].from);
 }
 
-/** Vertices reachable along the drawn graph: down = what lies below, up = what lies above. */
+/** Vertices reachable in the drawn graph below (`down`) or above (`up`) `start`. */
 function reachDrawn(start: NodeKey, dir: 'up' | 'down'): Set<NodeKey> {
     const sc = scene!;
     const out = new Set([start]);
@@ -838,7 +826,7 @@ function reachDrawn(start: NodeKey, dir: 'up' | 'down'): Set<NodeKey> {
     return out;
 }
 
-/** Hide everything but `keep` (and its paths from the seeds); `pin` (else the focus, else a kept function) keeps its place on screen. */
+/** Hides all but `keep` and its seed paths; anchors `pin`, else the focus, else a kept function. */
 function isolate(keep: Set<NodeKey>, pin?: NodeKey) {
     why('isolate', { keep: keep.size, pin });
     const all = withPath(keep);
@@ -847,10 +835,7 @@ function isolate(keep: Set<NodeKey>, pin?: NodeKey) {
     hide([...scene!.vg.nodes.keys()].filter((x) => !all.has(x)));
 }
 
-/**
- * Hide functions; seeds never: they anchor the view (one layer at a time reveals everything from them).
- * Right click > Remove Seed takes a seed out.
- */
+/** Hides functions except seeds, the roots of every reveal; right click > Remove Seed drops a seed. */
 function hide(keys: NodeKey[]) {
     why('hide', { keys: keys.length });
     const seeds = new Set(doc!.view.seeds);
@@ -858,7 +843,7 @@ function hide(keys: NodeKey[]) {
     if (drop.length) commit((x) => { for (const s of drop) if (!x.view.hidden.includes(s)) x.view.hidden.push(s); });
 }
 
-/** One layer at a time: `keep` plus the functions that reveal them from the seeds, so they stay reachable. */
+/** One layer at a time: `keep` plus its opener chains from the seeds, so it stays reachable. */
 function withPath(keep: Set<NodeKey>): Set<NodeKey> {
     const out = new Set(keep);
     if (doc!.view.arrange !== 'grow') return out;
@@ -908,15 +893,12 @@ function tooltip(d: LabelSpan): string {
 }
 
 // ---- dragging units ------------------------------------------------------------------------------
-/**
- * Units a drag moves: the dragged one; a selected function dragged while others are selected moves them
- * all, each with its tree below (a function under another selected one moves with that one, not twice).
- */
-/** Unit a vertex moves and locks as: its key, or `collapsed:<key>` for a collapsed container (viewdoc `collapsedUnit`). */
+/** Move and lock unit of a vertex: its key, or `collapsed:<key>` when collapsed (viewdoc `collapsedUnit`). */
 function vertexUnit(k: NodeKey): string {
     return scene?.vg.nodes.get(k)?.collapsed ? collapsedUnit(k) : k;
 }
 
+/** Multi-selection drag units: each selected function with its tree, skipping those inside another selected tree. */
 function topUnits(sc: Scene, keys: Set<NodeKey>): string[] {
     const up = (k: NodeKey) => sc.placement.blockOf.get(k)?.L.parent.get(k) ?? null;
     return [...keys].filter((k) => {
@@ -930,7 +912,7 @@ function dragUnit(unitOf: (d: LabelSpan) => string) {
     let box: { x: number; y: number; w: number; h: number } | undefined;
     let units: string[] = [];
     return drag<SVGGElement, LabelSpan>()
-        // the default subject is the datum, which has no x, y: pointer position instead
+        // subject: pointer position (the default datum has no x, y)
         .subject((ev) => ({ x: ev.x, y: ev.y }))
         .clickDistance(4)
         .on('start', (_ev, d) => {
@@ -966,8 +948,7 @@ function dragUnit(unitOf: (d: LabelSpan) => string) {
             box = undefined;
             if (!dc && !dr) return;
             const sc = scene!;
-            // the picture stays still around what moved: the anchor goes to a function that does not move (a
-            // unit moved above or left of everything shifts the grid origin, which the anchor compensates)
+            // anchor: an unmoved function; cancels origin shifts from units moved above or left of all
             const moved = new Set(units.flatMap((u) => unitMembers(sc, u)));
             const still = [...doc!.view.seeds, ...sc.placement.pos.keys()].find((k) => !moved.has(k) && !isStub(k) && sc.placement.pos.has(k));
             if (still) anchorAt(still); else anchor = undefined;
@@ -990,9 +971,9 @@ function moveUnit(x: ViewDoc, unit: string, dc: number, dr: number) {
 }
 
 /**
- * Collisions of the labels in `keys`: a label, or the arrowhead and blank cells before it, on a box
- * border; two labels on one row closer than `name() ─> next()` needs (blank, line, arrowhead, blank).
- * Of the frames of `units` (box units and the boxes inside them): another label on their border or inside.
+ * Collision count of `keys` labels: a label or its 2 leading cells (arrowhead, blank) on a box border; two
+ * labels on one row < 4 cells apart (`name() ─> next()`: blank, line, arrowhead, blank). Frames of `units`
+ * and boxes inside: another label on the border or inside.
  */
 function collisions(sc: Scene, keys: Set<NodeKey>, units: readonly string[] = []): number {
     const border = new Set<number>();
@@ -1013,7 +994,7 @@ function collisions(sc: Scene, keys: Set<NodeKey>, units: readonly string[] = []
             if (b.col - (a.col + a.text.length) < 4) n++;
         }
     }
-    // frames that move with the unit: its own box, and boxes whose labels all belong to it
+    // frames moving with the unit: its own box, boxes holding only its labels
     const own = sc.placement.frames.filter((f) => units.includes(f.unit)
         || labels.some((l) => keys.has(l.key) && l.row > f.r0 && l.row < f.r1 && l.col > f.c0 && l.col < f.c1)
             && labels.every((l) => !(l.row > f.r0 && l.row < f.r1 && l.col > f.c0 && l.col < f.c1) || keys.has(l.key)));
@@ -1025,9 +1006,8 @@ function collisions(sc: Scene, keys: Set<NodeKey>, units: readonly string[] = []
 }
 
 /**
- * Repulsion on drop: when the dropped unit's labels collide (collisions) or a call loses its route, the
- * drop moves on in the drag direction, else sideways, one cell at a time, to the nearest clean spot
- * (at most 12 cells, 1.5 s of layouts); none found: the drop stays where it was let go.
+ * Drop repulsion: on colliding labels (`collisions`) or a lost route, tries cells along the drag, then
+ * sideways, up to 12 cells or 1.5 s; returns the first clean spot, else the drop.
  */
 function settleDrop(units: string[], dc: number, dr: number): [number, number] {
     if (!doc || !scene || !style) return [dc, dr];
@@ -1064,7 +1044,7 @@ function unlockUnit(unit: string) {
     if (!scene || !doc || !doc.view.lock[unit]) return;
     why('unlockUnit', { unit });
     const here = unitAnchor(scene, unit)!;
-    // keep the unit where it is: its offset becomes the distance to its computed place
+    // unit stays put: offset = distance from its computed place
     const probe = structuredClone(doc);
     delete probe.view.lock[unit];
     delete probe.view.offset[unit];
@@ -1088,7 +1068,7 @@ function reach(start: NodeKey, dir: 'up' | 'down'): Set<NodeKey> {
     return out;
 }
 
-/** A warning from the host (a VS Code notification): what a command lacked. */
+/** Host warning (VS Code notification) naming what a command lacked. */
 function warn(text: string) { api.postMessage({ type: 'warn', text }); }
 
 /** `ok`, or a warning naming what is missing. */
@@ -1109,14 +1089,14 @@ function runCmd(cmd: string, key?: NodeKey, unit?: string, to?: NodeKey) {
     switch (cmd) {
         case 'callSubtree': {
             if (!need(call || selCalls.size, NO_CALL)) return;
-            // the clicked call, or the whole selection when the clicked call is part of it
+            // clicked call, or the selection holding it
             const calls = call && !selCalls.has(callKey(call)) ? [call] : [...selCalls].map(unkey);
             isolateCalls(calls.length ? calls : call ? [call] : []);
             return;
         }
         case 'callPath': if (need(call, NO_CALL)) isolate(new Set([...reachDrawn(call!.from, 'up'), ...reachDrawn(call!.to, 'down')])); return;
         case 'isolateSelection': {
-            // the selected calls, else the selected functions, else the function right clicked or focused
+            // selected calls, else selected functions, else the right-clicked or focused function
             if (!need(selCalls.size || selected.size || k, NO_SEL)) return;
             if (selCalls.size) isolateCalls([...selCalls].map(unkey));
             else isolate(new Set(selected.size ? selected : [k!]));
@@ -1152,14 +1132,14 @@ function runCmd(cmd: string, key?: NodeKey, unit?: string, to?: NodeKey) {
             return;
         case 'straighten': {
             if (!need(call || selCalls.size, NO_CALL)) return;
-            // route this call (or the selected calls) before all others
+            // routes this call (or the selection) first
             const calls = call ? [callKey(call)] : [...selCalls];
             commit((x) => { x.view.straight = [...new Set([...calls, ...(x.view.straight ?? [])])]; });
             return;
         }
         case 'remove': {
-            // stable arrangement: selected calls are cut (their branch goes unless shown through another call),
-            // selected functions hidden; the caller or the opener keeps its screen position
+            // selected calls cut (branch drops unless reached through another call), else selected functions
+            // hidden; caller or opener anchored
             if (doc.view.arrange === 'grow' && selCalls.size) {
                 const calls = [...selCalls].map(unkey).filter((c) => !isStub(c.to)).map(asCall);
                 if (!calls.length) return;
@@ -1181,12 +1161,12 @@ function runCmd(cmd: string, key?: NodeKey, unit?: string, to?: NodeKey) {
         case 'unlock':
             if (need(unit ?? k, NO_FN) && need(doc.view.lock[unit ?? k!], `unlock: ${(unit ?? k)!.split('#').pop()} is not locked`)) unlockUnit(unit ?? k!);
             return;
-        // callers or callees only: the function itself stays out of the selection
+        // callers or callees only, without the function itself
         case 'upstream': if (need(k, NO_FN)) { selected = reach(k!, 'up'); selected.delete(k!); } break;
         case 'downstream': if (need(k, NO_FN)) { selected = reach(k!, 'down'); selected.delete(k!); } break;
         case 'through': if (need(k, NO_FN)) selected = new Set([...reach(k!, 'up'), ...reach(k!, 'down')]); break;
         case 'between': {
-            // every function on a call path between any two of the selected functions, in either direction
+            // functions on any call path between two selected functions, either direction
             const sel = [...selected];
             if (!need(sel.length >= 2, `between: select two or more functions (Shift+click); ${sel.length} selected`)) return;
             const down = new Map(sel.map((a) => [a, reach(a, 'down')] as const));
@@ -1211,19 +1191,18 @@ function runCmd(cmd: string, key?: NodeKey, unit?: string, to?: NodeKey) {
             return;
         }
         case 'makeSeed':
-            // a seed opens both sides; the host asks the language server for the side not asked yet
+            // seed opens both sides; the host fetches the unexplored one
             if (need(k, NO_FN) && need(!doc.view.seeds.includes(k!), `makeSeed: ${k!.split('#').pop()} is a seed already`)) { anchorAt(k!); commit((x) => { x.view.seeds.push(k!); }); }
             return;
         case 'removeSeed':
-            // the last seed stays: without one, a view shows nothing
+            // last seed stays: a view without seeds is empty
             if (need(k, NO_FN) && need(doc.view.seeds.includes(k!), `removeSeed: ${k!.split('#').pop()} is not a seed`)
                 && need(doc.view.seeds.length > 1, 'removeSeed: the last seed stays (a view without seeds shows nothing)')) {
                 anchorAt(k!); commit((x) => { x.view.seeds = x.view.seeds.filter((s0) => s0 !== k); });
             }
             return;
         case 'rearrangeSelection': {
-            // the selected functions (else the one right clicked) go back to their computed place: moves and
-            // locks dropped; the rest of the picture stays still
+            // selected (else right-clicked) functions to their computed place, moves and locks dropped; rest anchored
             const keys = new Set(selected.size ? selected : k ? [k] : []);
             if (!need(keys.size, NO_SEL)) return;
             const still = [...doc.view.seeds, ...scene.placement.pos.keys()].find((x) => !keys.has(x) && !isStub(x) && scene!.placement.pos.has(x));
@@ -1231,7 +1210,7 @@ function runCmd(cmd: string, key?: NodeKey, unit?: string, to?: NodeKey) {
             commit((x) => { for (const s0 of keys) for (const u of [s0, collapsedUnit(s0)]) { delete x.view.offset[u]; delete x.view.lock[u]; } });
             return;
         }
-        case 'rearrange': commit((x) => { x.view.offset = {}; }); return;   // every unlocked move; a selection: 'rearrangeSelection'
+        case 'rearrange': commit((x) => { x.view.offset = {}; }); return;   // every unlocked move; selection: 'rearrangeSelection'
         case 'unlockAll': commit((x) => { x.view.lock = {}; }); return;
         case 'expandAll': if (need(doc.view.collapsed.length, `${cmd}: nothing is collapsed`)) commit((x) => { x.view.collapsed = []; }); return;
     }
@@ -1273,7 +1252,7 @@ function highlight(key: NodeKey | undefined) {
     const draw = (p: EdgePath, cls: string) => ov.append('path').attr('class', cls)
         .attr('d', curve === 'orthogonal' || (doc!.view.edges ?? style!.edges.mode) === 'glyph'
             ? `M${p.pts.map(([x, y]) => `${X(x)},${Y(y)}`).join('L')}` : curvePath(p, curve));
-    // selection: calls with both ends selected, and the selected call
+    // selection: calls with both ends selected, and selected calls
     if (selected.size > 1) for (const p of scene.grid.paths) if (selected.has(p.from) && selected.has(p.to)) draw(p, 'sel');
     for (const p of scene.grid.paths) if (selCalls.has(callKey(p))) draw(p, 'call');
     if (!key) return;
@@ -1336,7 +1315,7 @@ svg.on('keydown', (ev: KeyboardEvent) => {
         case 'a': runCmd(selected.size ? 'rearrangeSelection' : 'rearrange'); break;
         case 'i': runCmd('isolateSelection'); break;
         case 'Escape':
-            // a selection first, then everything hidden or removed
+            // selection first, else everything hidden or removed
             if (selected.size || selCalls.size) runCmd('clearSelection');
             else if (doc.view.hidden.length || doc.view.cut?.length || doc.view.collapsed.length) runCmd('showAll');
             break;
@@ -1353,17 +1332,16 @@ svg.on('keydown', (ev: KeyboardEvent) => {
 });
 
 // ---- toolbar and options pulldown ----------------------------------------------------------------
-// Plain HTML built with d3-selection: buttons in the bar, a pulldown panel of checkable items.
+// d3-selection HTML: bar buttons, pulldown panel of checkable items.
 type Btn = { label: string; title: string; on?: boolean; act: () => void; disabled?: boolean; text?: boolean };
 type Section = { caption: string; items: Btn[]; radio?: boolean };
 
-/** Library roots of external paths (langs.ts `externalPath`): their folders are external code. */
+/** Library roots of external paths (langs.ts `externalPath`); their folders hold external code. */
 const LIB_ROOT = /^(site-packages|dist-packages|stdlib|python\d+(\.\d+)?|include|library|node_modules)$/;
 
 /**
- * Folders of the functions in the view, one level below their common prefix, with the view's excluded and
- * included folders. External folders only with external code included, standard library folders only with
- * the standard library included (as drawn: scene.ts `excludedKeys`).
+ * Folders one level below the common prefix of the view's functions, plus excluded and included ones;
+ * external and standard library folders only when their setting includes them (scene.ts `excludedKeys`).
  */
 function folders(): { path: string; label: string; excluded: boolean }[] {
     if (!doc) return [];
@@ -1394,9 +1372,9 @@ function levelOf(side: 'up' | 'down'): number {
 }
 
 /**
- * Switch between one layer at a time and full, keeping what is on screen: full takes the deepest caller
- * and callee levels shown as its call depths; one layer at a time opens, on each vertex shown, the side
- * that leads one level further within those depths.
+ * Switches one layer at a time ⇄ full, keeping what is on screen: full takes the deepest shown caller and
+ * callee levels as call depths; one layer at a time opens each shown vertex's sides whose next level lies
+ * within them.
  */
 function setArrange(to: 'grow' | 'auto') {
     if (!doc || !scene || doc.view.arrange === to) return;
@@ -1493,7 +1471,7 @@ function toolbar() {
             title: m === 'joint' ? 'no caller privileged: a caller right above joins the elbow (├───┴─>), several callers join one collector (┌──┘ └─>)'
                 : 'which caller a shared function hangs under', on: rule === m,
             act: () => commit((x) => { x.view.parentRule = m; }) })) },
-        // the same entries, names and order as the canvas context menu (package.json, group 3_arrange)
+        // mirrors the canvas context menu: entries, names, order (package.json, group 3_arrange)
         { caption: 'Arrange', items: [
             { label: 'Reset graph: seeds, depth, direction', title: v.arrange === 'grow'
                 ? 'back to the seeds and their first layer: close every side, drop hidden and removed, collapsed, moves, locks, grouping'
@@ -1522,7 +1500,7 @@ function toolbar() {
                 }
             }) })),
         ] },
-        // the first four as the canvas context menu (package.json, group 1_file)
+        // first four mirror the canvas context menu (package.json, group 1_file)
         { caption: 'File', items: [
             ...(settings.saveViews ? [] : [{ label: 'Save (.gaffy)', title: 'save this graph (.gaffy/views/)', act: () => api.postMessage({ type: 'save' }) }]),
             { label: 'Autosave Graphs', title: 'gaffy.saveViews: new graphs are written to .gaffy/views/ and saved after every change; off: a new graph opens unsaved, Save (.gaffy) keeps it',
@@ -1595,5 +1573,5 @@ function showError(msg: string) {
     root.append('text').attr('class', 'empty').attr('x', 0).attr('y', 16).text(msg);
 }
 
-// last statement: every module-level binding exists before the host answers
+// last statement: all module bindings exist before the host replies
 api.postMessage({ type: 'ready' });

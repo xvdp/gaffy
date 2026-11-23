@@ -1,6 +1,6 @@
 # gaffy
 
-VS Code extension: persistent, manipulable call graphs laid out on a character grid and rendered with D3. Each view is a `.gaffy` file under `<workspace>/.gaffy/views/` and opens as a tab. Call data comes from the language server's call hierarchy (LSP[^lsp]); shader languages whose servers have none get calls found in the text. See [Languages](#languages).
+VS Code extension: persistent, manipulable call graphs on a character grid, drawn with D3. View: a `.gaffy` file in `<workspace>/.gaffy/views/`, opened as a tab. Call data: the language server's call hierarchy (LSP[^lsp]); for shader languages without one, calls found in the text ([Languages](#languages)).
 
 ## Install from Source
 
@@ -14,7 +14,7 @@ npm run install:local                        # code --install-extension gaffy-<v
 ![demo](images/demo.gif)
 
 
-Development: open `gaffy/` in VS Code and press F5 (Extension Development Host). `npm run watch` rebuilds on change.
+Development: `gaffy/` in VS Code, F5 (Extension Development Host); `npm run watch` rebuilds on change.
 
 ## Test installed .vsix extension
 `Ctrl+Shift+P > **Developer: Reload Window**`
@@ -24,58 +24,60 @@ Development: open `gaffy/` in VS Code and press F5 (Extension Development Host).
 | Language | Server (VS Code extension) | Call hierarchy | gaffy |
 |---|---|---|---|
 | Python | Pylance | yes | language server |
-| TypeScript, JavaScript | built in | yes (TypeScript 5.9 LanguageService, measured) | language server; a constructor's item carries its class name; object-literal methods are qualified by their variable (`obj.run`) |
-| Rust | rust-analyzer (`rust-lang.rust-analyzer`; code under an inactive `#[cfg]`, such as a module behind a Cargo feature that is off, has no call hierarchy: set `"rust-analyzer.cargo.features"`) | yes (not measured here) | language server; `impl Foo` → `Foo`, `impl Display for Foo` → `Foo[Display]`, so `fmt` of two trait impls stay apart |
+| TypeScript, JavaScript | built in | yes (TypeScript 5.9 LanguageService, measured) | language server; constructors named by class; object-literal methods qualified by their variable (`obj.run`) |
+| Rust | rust-analyzer (`rust-lang.rust-analyzer`); none under an inactive `#[cfg]` (module behind a disabled Cargo feature): set `"rust-analyzer.cargo.features"` | yes (not measured here) | language server; `impl Foo` → `Foo`, `impl Display for Foo` → `Foo[Display]`: `fmt` of two trait impls stays distinct |
 | C, C++, CUDA, Objective-C | Microsoft C/C++ (registers a provider) or clangd | yes | language server; `ns::Foo::bar` → `ns` › `Foo` › `bar`; template arguments dropped; operators kept whole |
-| Go, Java, C#, Kotlin, Swift, Dart | gopls, and the others' servers | per server (not measured here) | language server; Go `(*T).M` → `T` › `M` |
-| GLSL | WebGL GLSL Editor (registers a provider) | yes | language server; without that extension: text |
-| Slang | Slang (slangd 1.8): no call hierarchy, no references; definitions and document symbols (measured) | no | text: call sites resolved by go to definition; callers by a scan of the workspace's Slang files |
-| HLSL, WGSL, Metal | depends on the extension | usually no | text: document symbols, else a C-like text outline; go to definition when offered, else by name |
+| Go, Java, C#, Kotlin, Swift, Dart | gopls, each language's server | per server (not measured here) | language server; Go `(*T).M` → `T` › `M` |
+| GLSL | WebGL GLSL Editor (registers a provider) | yes | language server; without it: text |
+| Slang | Slang (slangd 1.8): definitions and document symbols, no references (measured) | no | text: call sites by go to definition; callers by a scan of workspace Slang files |
+| HLSL, WGSL, Metal | per extension | usually no | text: document symbols, else a C-like outline; go to definition when offered, else by name |
 
-Text calls ([src/core/textcalls.ts](src/core/textcalls.ts)): comments, strings and preprocessor lines are masked; functions and containers (`struct`, `class`, `namespace`, `interface`, `extension`, `cbuffer`) come from the server's document symbols, else from brace matching; a call site is a name followed by `(` (with optional `<…>`), minus control keywords. Calls through function pointers or macros are missed; a constructor call of a project type counts when a function of that name exists. Name rules per language: [src/core/langs.ts](src/core/langs.ts). External code (installed packages, `target/`, `_deps/`, `/usr/include`) stays out unless `gaffy.includeExternal` is on.
+Text calls ([src/core/textcalls.ts](src/core/textcalls.ts)): comments, strings, preprocessor lines masked; functions and containers (`struct`, `class`, `namespace`, `interface`, `extension`, `cbuffer`) from document symbols, else brace matching; call site: name + `(` (optional `<…>`), control keywords excluded; constructor of a project type counted when a function of that name exists; calls through function pointers or macros missed. Name rules per language: [src/core/langs.ts](src/core/langs.ts). External code (installed packages, `target/`, `_deps/`, `/usr/include`): hidden unless `gaffy.includeExternal`.
 
 ### Across languages
 
-No language server sees both sides of a binding (Python and C++/CUDA, Python and Slang, TypeScript and Rust). The binding declarations name both sides, so gaffy links them ([src/core/bindings.ts](src/core/bindings.ts), [src/host/bridges.ts](src/host/bridges.ts); setting `gaffy.bridges`). Calls across languages draw dash-dot in vector mode; their tooltip names the binding (`via pybind11: ext.cpp:16`).
+Binding declarations link calls no language server sees across (Python ↔ C++/CUDA, Python ↔ Slang, TypeScript ↔ Rust): [src/core/bindings.ts](src/core/bindings.ts), [src/host/bridges.ts](src/host/bridges.ts); setting `gaffy.bridges`. Tooltip: the binding (`via pybind11: ext.cpp:16`).
 
 | Layer | Declarations read | Python call that links |
 |---|---|---|
 | pybind11, nanobind | `PYBIND11_MODULE(mod, m)` / `NB_MODULE(mod, m)`: `m.def("fn", &cpp_fn)`, `py::overload_cast<…>(&fn)`, `m.def_submodule("sub")`, `py::class_<T>(m, "T").def("meth", &T::meth)`, `def_static` | `mod.fn(…)`, `fn(…)` after `from mod import fn`, `mod.T.meth(…)`, through the file's imports |
-| torch extensions | `PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)`, its module named by `load(name=…, sources=[…])` or `CUDAExtension("pkg._C", […])` in setup.py | `_C.fn(…)` after `from . import _C` |
+| torch extensions | `PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)`; module name from `load(name=…, sources=[…])` or `CUDAExtension("pkg._C", […])` in setup.py | `_C.fn(…)` after `from . import _C` |
 | torch operators | `TORCH_LIBRARY(ns, m)`, `TORCH_LIBRARY_IMPL(ns, CUDA, m)`: `m.impl("op", &op_cuda)` | `torch.ops.ns.op(…)` |
-| slangpy, slangtorch | `spy.Module.load_from_file(device, "x.slang")`, `device.load_module("x")`, `slangtorch.loadModule("x.slang")` in the Python file | `….fn(…)` where x.slang defines `fn`; a function calling `getattr(h, …)` on a name that held the module (`module`, `self.module`) reaches each function of x.slang the file names in a string literal (marked "by name, getattr") |
-| wasm-bindgen (Rust ↔ TypeScript, JavaScript) | `#[wasm_bindgen]` on `pub fn` (functions, `js_name`), on `impl T`: `#[wasm_bindgen(constructor)]`, methods, statics, `js_class`; `getter`/`setter` methods are property reads, not calls; the crate is the nearest `Cargo.toml` `[package]` | `f(…)` after `import { f } from '…/pkg'` (the crate's wasm-pack folder, `pkg/<crate>.js`, or the package name, which is the crate name), `ns.f(…)` after `import * as ns`, `new T(…)`, `T.s(…)`, dynamic `import(…)`, `require(…)`; the generated glue `pkg/*.js` counts as external code, so each call shows once, from the caller to the Rust function |
+| slangpy, slangtorch | `spy.Module.load_from_file(device, "x.slang")`, `device.load_module("x")`, `slangtorch.loadModule("x.slang")` in the Python file | `….fn(…)` for `fn` defined in x.slang; a function calling `getattr(h, …)` on a name that held the module (`module`, `self.module`) links to each x.slang function named in a string literal of the file (marked "by name, getattr") |
+| wasm-bindgen (Rust ↔ TypeScript, JavaScript) | `#[wasm_bindgen]` on `pub fn` (`js_name`) and on `impl T` (`#[wasm_bindgen(constructor)]`, methods, statics, `js_class`); `getter`/`setter` methods: property reads, not calls; crate: nearest `Cargo.toml` `[package]` | `f(…)` after `import { f } from '…/pkg'` (crate's wasm-pack folder, `pkg/<crate>.js`, or package name = crate name), `ns.f(…)` after `import * as ns`, `new T(…)`, `T.s(…)`, dynamic `import(…)`, `require(…)`; generated glue `pkg/*.js` is external code, so each call shows once, caller → Rust function |
 
-The C++/CUDA end is the definition go to definition finds at the binding's target (C/C++ extension or clangd), else a workspace symbol of that name; CUDA host functions in `.cu` files link the same way, and kernel launches `k<<<grid, block>>>(…)` count as calls in text calls. Not linked: calls on instances (`obj.meth(…)`: the type is unknown in the text), lambdas in bindings, constructors (`py::init`), registrations built in loops. Also linked: torch.autograd, `X.apply(…)` on a `torch.autograd.Function` subclass → `X.forward` (the language server stops at `Function.apply` in torch; autograd dispatches at run time). Where a call site matched a binding, the language server's own edge from that site is dropped: with the compiled module unresolved, Pylance and Pyright match the callee by name, so `_C.rasterize_gaussians(…)` appears as a call of the Python wrapper `rasterize_gaussians` (measured with Pyright).
+C++/CUDA end: go to definition at the binding's target (C/C++ extension or clangd), else a workspace symbol of that name; CUDA host functions in `.cu` files alike; kernel launches `k<<<grid, block>>>(…)`: text calls. torch.autograd: `X.apply(…)` on a `torch.autograd.Function` subclass → `X.forward` (dispatched at run time; the language server stops at `Function.apply`). Not linked: calls on instances (`obj.meth(…)`, type unknown in the text), lambdas in bindings, constructors (`py::init`), registrations built in loops. A binding match replaces the language server's edge from that call site, which matches by name while the compiled module is unresolved (`_C.rasterize_gaussians(…)` taken for the Python wrapper `rasterize_gaussians`; measured with Pyright).
 
-Search scope: bindings and callers are searched in the file's project first (the nearest folder with `setup.py`, `pyproject.toml`, `setup.cfg`, `CMakeLists.txt`, `Cargo.toml` or `package.json`), then in the whole workspace; a workspace holding many projects stays fast.
+Search scope for bindings and callers: the file's project (nearest folder with `setup.py`, `pyproject.toml`, `setup.cfg`, `CMakeLists.txt`, `Cargo.toml` or `package.json`), then the workspace.
 
-Both sides must be in the workspace. For a package installed from a source repository (`site-packages` holds the Python wrapper and the compiled module, not the C++/CUDA sources): add the repository as a second workspace folder (File > Add Folder to Workspace), and make Pylance resolve the package into it, either with an editable install (`pip install -e <repo>`) or with `"python.analysis.extraPaths": ["<repo>"]` in the settings (extra paths come before `site-packages` in Pyright's import resolution). Otherwise the call ends at the installed copy, which is external code: `gaffy.includeExternal` (a VS Code setting, not style.json) shows external code, all of it.
+Requirement: both sides in the workspace. An installed package's `site-packages` holds the Python wrapper and the compiled module, no C++/CUDA source: add the source repository as a second workspace folder (File > Add Folder to Workspace), resolved by Pylance through `pip install -e <repo>` or `"python.analysis.extraPaths": ["<repo>"]` (Pyright resolves extra paths before `site-packages`). Otherwise the call ends at the installed copy: external code, shown only with `gaffy.includeExternal` (VS Code setting, not style.json).
 
-Direction: a binding call sits in the caller's outgoing calls. A function shown as a caller (opened upstream) opens only its callers, so to follow `forward → _C.rasterize_gaussians → RasterizeGaussiansCUDA`, open the calls of `forward` (make it a seed, or start a view on it with Call Hierarchy (dn)).
+Direction: binding calls are outgoing calls; a function shown as a caller opens only its callers. Path `forward → _C.rasterize_gaussians → RasterizeGaussiansCUDA`: the calls of `forward` (a seed, or a view from gaffy> Call Hierarchy (dn)).
 
 ### Implicit calls (classes)
 
-The runtime calls some methods without a call expression that names them; no language server answers them, so gaffy adds them ([src/host/implicit.ts](src/host/implicit.ts)), drawn dotted in vector mode, with a tooltip:
+Runtime method calls without a call expression naming the method, absent from language-server answers; added by [src/host/implicit.ts](src/host/implicit.ts), with a tooltip:
 
-- Construction: a class calls `__new__`, `__init__` and `__post_init__` (Python; `__init__` inherited from the nearest base class that defines one) or `constructor` (TypeScript, JavaScript). A call `Foo(…)` therefore leads `caller → Foo → Foo.__init__`, and the callers of `Foo.__init__` start with `Foo`.
-- Instance call (Python): `obj(…)` calls `type(obj).__call__`; for a torch `nn.Module` (no `__call__` up to its base class `Module`) it calls `forward`. The type of `obj` comes from the language server's type definition at the call site (`criterion(x, y)`, `self.net(x)`); sites the language server answered are skipped.
+- Construction: a class calls `__new__`, `__init__` (nearest base class defining one) and `__post_init__` (Python), or `constructor` (TypeScript, JavaScript): `Foo(…)` → `caller → Foo → Foo.__init__`; callers of `Foo.__init__` start with `Foo`.
+- Instance call (Python): `obj(…)` calls `type(obj).__call__`, or `forward` for a torch `nn.Module` (no `__call__` below `Module`). Type of `obj`: the language server's type definition at the call site (`criterion(x, y)`, `self.net(x)`); call sites with an answer skipped.
 
-Not followed (a call trace, not a call hierarchy): the methods backprop, hooks, `with` blocks, iteration, operators, properties and decorators run.
+Not followed (a call trace would see them): backprop, hooks, `with` blocks, iteration, operators, properties, decorators.
 
 ## Create a view
 
-Right click on a function name in the editor; the gaffy entries sit in the section of Find All References and Show Call Hierarchy (menu group `0_navigation`, after Show Type Hierarchy):
+Editor right click on a function name, section of Find All References (group `0_navigation`, after Show Type Hierarchy):
 
 | entry | seeds | first side opened |
 |---|---|---|
-| gaffy: Call Hierarchy (up) | the function | its callers |
-| gaffy: Call Hierarchy (dn) | the function | its calls |
-| gaffy: Add to Call Graph | appended to the open view | as the view's direction |
+| gaffy> Call Hierarchy (up) | the function | its callers |
+| gaffy> Call Hierarchy (dn) | the function | its calls |
+| gaffy> Add to Call Graph | appended to the open view | as the view's direction |
 
-`style.json` `view.traverse: "both"` starts every new view with callers and calls. `gaffy: Check Language Servers` lists the languages of the workspace, the extension that gives each call hierarchy, and what to install; after start-up gaffy shows the same as a notification once per version when a required one is missing (Install, Show Report, Don't Show Again). With `gaffy.openCallHierarchy` (default on) VS Code's own Call Hierarchy opens in the References view as well. Explorer, right click on a file, **gaffy** > New View: Callers of the Functions of File: every function of the file with its callers, one level, in the full layout. A new view opens unsaved; right click > Save writes it to `.gaffy/views/<symbol>_<short commit hash>.gaffy` (`<symbol>_<YYYYMMDD-HHMM>` outside git), and right click > Autosave Graphs (`gaffy.saveViews`) saves every new view at once. Export (key `x`) always writes `.gaffy/<symbol>_<commit>.md` and `.txt`, and names both in a notification.
+`style.json` `view.traverse: "both"`: new views start with callers and calls. Explorer right click on a file > **gaffy** > Call Hierarchies (all, up): each function of the file with one caller level, full layout. `gaffy: Check Language Servers`: workspace languages, extension providing each call hierarchy, missing installs; a notification once per version when a required extension is missing (Install, Show Report, Don't Show Again).
 
-A new view asks the language server for one layer, shows it, then in the background asks every function on screen for its callers and calls (so the open markers know what lies beyond) and prefetches `gaffy.depth` layers along the traversal direction. Reopening a view shows the stored graph at once and asks the language server only for calls that changed files made stale (see [Building, progress, cache](#building-progress-cache)).
+New view: unsaved, bound to `.gaffy/views/<symbol>_<short commit hash>.gaffy` (`<symbol>_<YYYYMMDD-HHMM>` outside git); right click > Save (.gaffy) writes it; Autosave Graphs (`gaffy.saveViews`) saves new views at once. Save as Text (key `x`): `.gaffy/<symbol>_<commit>.md` and `.txt`, named in a notification.
+
+Build: one layer, drawn at once; in the background, callers and calls of each function on screen (for the markers) and `gaffy.depth` layers prefetched along the traversal direction. Reopened view: the stored graph at once ([Building, progress, cache](#building-progress-cache)).
 
 ## One layer at a time
 
@@ -88,40 +90,38 @@ A new view asks the language server for one layer, shows it, then in the backgro
                         └─>>
 ```
 
-- `>> name()`: callers not on screen; click shows one layer of them. `└─>>` under a function (first row of its calls): calls not on screen; click shows one layer of them. A side with nothing more shows no marker and no count.
-- Direction: a seed opens both sides. A function shown as a call opens only its calls; a function shown as a caller opens only its callers. The other callers of a callee belong to a view seeded at that callee (editor right click > gaffy: Upstream callers).
-- Click an arrowhead (the arrowhead cell and the blank before the name; hovering highlights the calls it ends): closes the level it points into. Callers that the function's callers side shows: that side closes, the function keeps its place. A function that its caller's calls side shows: the caller's calls side closes, the caller keeps its place. A click on a line only selects (Shift adds); double click on a line isolates.
-- Double click a function: close both sides, or open every side that has more.
-- **Delete** (or Backspace) removes the selection: selected calls are cut (the branch below goes unless another call shows it), selected functions are hidden; click a box header to select its functions. The caller of a removed call, or the function that showed a removed function, keeps a `└─>>` or `>> ` marker; clicking it shows that side again, removed ones included. Every function with hidden or removed neighbors keeps that marker, in both layouts and on either side: where the marker does not open a side (full layout, or a side the direction rule does not open), clicking it brings back just those neighbors, with any hidden function on their way from the seeds; hidden ones beyond them keep their own marker. **Show all (n)** and Esc (with nothing selected) bring back everything removed and expand every collapsed container.
-- Layout: the tree layout (caller above callee, `A └─> B`, ordered by namespace box, left to right, top to bottom, callers to calls) runs again after every change. The name of the function last opened, closed, or removed keeps its position on screen (a `>> ` that appears or goes does not move it); dragging releases it. Closed sides stay recorded, so reopening restores the layers below.
-- The picture grows around moves: a moved function or box keeps its move while sides open and data arrives. When the picture grows into it (its labels or frame would meet other content), it is drawn at the nearest clean spot (within 12 cells in any direction, else straight up to 80; [src/core/settle.ts](src/core/settle.ts)), and the view saves that position. Locked units stay where they are locked. Opening the callers of a moved function: the caller that becomes its tree parent takes the move, so it sits right above it (`prev()`, then `└─> fun()`).
-- A label end never both receives and sends a call: a function that sends calls from its end receives from the left; when its end has to receive, its calls leave from under or over its name, else dashed.
-- Drop repulsion: a dropped function or box whose labels would sit closer to another label on their row than `name() ─> next()` needs, or whose label, arrowhead or blank before the name would sit on a box border, or that leaves a call without a route, moves on one cell at a time in the drag direction (then sideways, then back) to the nearest clean spot, at most 12 cells. A call without any route is drawn dashed, with its arrowhead.
-- Options > Arrange: **Reset Layout** drops moves, locks, sibling order, and straightened calls; **Reset graph** returns to the seeds and their first layer. Right click an arrow > **Straighten This Call** routes it before all others.
-- Options > Layout: **Full** shows every function within the call depths of the toolbar, `all` `+` `−` *n* `call depth` *m* `−` `+` `all`: *n* caller levels on the left, *m* callee levels on the right, `all` every level the data holds. Options > Call depth by: **shortest call path** (a function's level is the fewest calls from a seed) or **longest call path** (the most calls, back edges of loops not counted). Full views keep the direction rule, the layout and the markers; markers do not open sides there, but a marker of hidden functions brings them back. Switching layouts keeps the picture: Full takes the deepest caller and callee levels on screen as its depths; One layer at a time opens the sides that lead one level further within the depths. Closed sides and removed calls belong to one layer at a time only.
+- Markers: `>> name()` (callers off screen), `└─>>` (calls off screen); a click shows one more layer; no marker on a side with nothing more.
+- Direction: a seed opens both sides; a callee only its calls; a caller only its callers. Other callers of a callee: a view seeded at that callee (editor right click > gaffy> Call Hierarchy (up)).
+- Arrowhead click (arrowhead cell, blank before the name; hover highlights its calls): closes the level it points into (a function's callers, or the calls of the caller showing it); the owner of the closed side keeps its place.
+- **Delete** (or Backspace): selected calls cut (with the branch below unless another call shows it), selected functions hidden; a box header click selects its functions. Hidden or removed neighbors keep a `└─>>` or `>> ` marker, both layouts, either side; where the marker opens no side (full layout, or a side the direction rule keeps closed), a click restores those neighbors and the hidden functions on their path from the seeds. **Show all (n)** and Esc (nothing selected): everything removed back, every collapsed container expanded.
+- Layout: tree (caller above callee, `A └─> B`; by namespace box, left to right, top to bottom, callers to calls), rerun after each change. Anchor: the function last opened, closed or removed keeps its screen position. Closed sides stay recorded; reopening restores the layers below.
+- Moves: kept while sides open and data arrives; content grown onto a moved unit moves it to the nearest clear spot (12 cells around, else straight up to 80; [src/core/settle.ts](src/core/settle.ts)), saved in the view. Opening the callers of a moved function hands its move to the new tree parent right above it (`prev()`, then `└─> fun()`). Details: [.ORDERING.md](.ORDERING.md), section 5.
+- Label end: receives or sends, never both; a function sending from its end receives from the left, one receiving at its end sends from under or over its name, else dashed.
+- Drop repulsion: a drop closer to a label than `name() ─> next()` needs, onto a box border, or cutting a route steps along the drag (then sideways, then back) to the nearest clean spot, at most 12 cells. A call with no route: dashed, with its arrowhead.
+- Options > Call Expansion > Global Toolbar (**Full**): every function within the toolbar call depths `all` `+` `−` *n* `call depth` *m* `−` `+` `all` (*n* caller levels left, *m* callee levels right, `all`: every level in the data). Call depth by: **shortest call path** (fewest calls from a seed) or **longest call path** (most calls, loop back edges excluded). Switching keeps the picture: Full adopts the deepest levels on screen; one layer at a time opens the sides within those depths. Closed sides and removed calls: one layer at a time only.
 
-The editor entries were a `gaffy` submenu; the submenu stays defined in `package.json` (`contributes.submenus`, `contributes.menus["gaffy.editor"]`). To return to it, replace the three `editor/context` entries by `{ "submenu": "gaffy.editor", "group": "z_gaffy@1" }`.
+Editor submenu `gaffy` (defined, unused: `contributes.submenus`, `contributes.menus["gaffy.editor"]`): replace the three `editor/context` entries by `{ "submenu": "gaffy.editor", "group": "z_gaffy@1" }`.
 
 ## Layout
 
 ```
-┌─ gutai ─────────────────────────────────────────────────────────────────┐
-│  ┌─ render.harmonics ────────────┐         ┌─ runtime ────────────────┐ │
-│  │  sh_eval() ───────────────────┼──┬─────┬┼> interop.to_drjit() ↻    │ │
-│  │  ├─> resolve_backend() ──┐    │  │     ││  ├─> interop._shape()    │ │
-│  │  ├─> _in_type() <────────┘    │  │     ││                          │ │
-│  │  ├─> _from_tensor() ──────────┼──┘     ││                          │ │
-│  │  ├─> _from_columns() ────┐    │        ││                          │ │
-│  │  │   └─> _stacked() ─────│────┼────────┴┼> interop.to_torch()      │ │
+┌─ kazoo ─────────────────────────────────────────────────────────────────┐
+│  ┌─ moomoo.boogaloos ────────────┐         ┌─ noodles ────────────────┐ │
+│  │  scoobie() ───────────────────┼──┬─────┬┼> wibbles.to_magoo() ↻    │ │
+│  │  ├─> resolve_patatas() ──┐    │  │     ││  ├─> wibbles._zoink()    │ │
+│  │  ├─> _in_shoo() <────────┘    │  │     ││                          │ │
+│  │  ├─> _from_jinkie() ──────────┼──┘     ││                          │ │
+│  │  ├─> _from_noodles() ────┐    │        ││                          │ │
+│  │  │   └─> _stacked() ─────│────┼────────┴┼> wibbles.to_mooch()      │ │
 ```
 
-- Each caller sits above its callees; `└─>` points to the callee.
-- Namespace boxes (optional, key `b`): packages and folders; a package holding one module merges with it (`render.harmonics`); labels are relative to their box. Callee boxes sit right of their caller boxes; the top-level functions of a box take the rows of their callers outside the box, so those calls draw level. A moved box or function leaves everything else where it was: later boxes take their columns and rows from where the moved item would sit unmoved.
-- `>> name()`: callers off screen; `└─>>`, the first row under a function: calls off screen (closed, beyond the call depth, hidden, or removed).
-- `├─>`, `└─>`: tree edge from the caller's stem. `──┐ ──┤ <──┘`: lane inside a box. `──> f()`: routed call arriving from the left, crossing box borders. Calls into one function share one line (a merge); calls from one function can leave on one line (a fork); a call joins a merge only where that line carries no other call; unrelated calls never share a line.
-- Vector mode: where two calls cross, the horizontal one hops over the vertical one; where calls merge or fork, the branch curves in the direction of the call.
+- Callers above their callees; `└─>` points to the callee.
+- Namespace boxes (optional, key `b`): packages and folders; a package with one module merges with it (`moomoo.boogaloos`); labels relative to their box. Callee boxes right of caller boxes; top-level functions of a box take the rows of their outside callers (level calls). A moved box or function displaces nothing: later boxes take columns and rows from its unmoved position.
+- `>> name()`, `└─>>`: callers, calls off screen (closed, beyond the call depth, hidden, or removed).
+- `├─>`, `└─>`: tree edge from the caller's stem. `──┐ ──┤ <──┘`: lane inside a box. `──> f()`: routed call from the left, across box borders. Merge, fork: calls into, or from, one function on one line; unrelated calls never share a line.
+- Vector mode: horizontal call hops over a crossed vertical one (orthogonal, rounded); branches of a merge or fork curve in the call direction.
 - `↻`: direct recursion; `↻ f()`: call back to `f` higher in the same chain.
-- `[render.harmonics] (6)`: collapsed container with its member count. Moving or locking it applies while it is collapsed only (unit `collapsed:<key>`); expanding it returns the layout it had before the collapse.
+- `[moomoo.boogaloos] (6)`: collapsed container, member count; its move or lock applies only while collapsed (unit `collapsed:<key>`); expanding restores the layout from before the collapse.
 
 Algorithms: [src/core/layout.ts](src/core/layout.ts) (rows and lanes in a block), [src/core/boxes.ts](src/core/boxes.ts), [src/core/place.ts](src/core/place.ts) (2D placement, moves, locks), [src/core/grid.ts](src/core/grid.ts) (routing).
 
@@ -129,61 +129,61 @@ Algorithms: [src/core/layout.ts](src/core/layout.ts) (rows and lanes in a block)
 
 | input | action |
 |---|---|
-| click a function | select it and open its definition in the column next to the graph (`gaffy.openDefinitions`; off: select only) |
-| Shift+click a function | add to or remove from the selection |
-| Shift+drag on the background | selection window: adds every function whose label it touches |
-| `>> name()` / `└─>>` (one layer at a time) | open its callers / its calls, removed ones included |
+| click a function | select; definition opened next to the graph (`gaffy.openDefinitions`) |
+| Shift+click a function | selection toggle |
+| Shift+drag on the background | selection window: every label touched |
+| `>> name()` / `└─>>` (one layer at a time) | open callers / calls, removed ones included |
 | click an arrowhead (one layer at a time) | close the level it points into |
-| double click a function (one layer at a time) | close both sides, or open every side that has more |
+| double click a function (one layer at a time) | close both sides, or open every side with more |
 | double click a collapsed container; a box header | expand it; collapse the box |
-| drag a function | move it with its tree children; calls re-route; the namespace box grows to enclose it; dragging one of several selected functions moves them all; the rest of the picture stays still |
-| drag a box header | move the box with its content |
-| hover an arrow | highlight every call through the cell under the pointer, each end to end |
-| click an arrow | select every call through that cell: on a fork or merge, all of them; Shift+click adds or removes |
-| double click an arrow | isolate: keep each selected call's caller and what lies below its callee, hide the rest |
-| Enter | isolate the selected calls (or the selected functions); with a single focused function: open it |
-| Esc | clear the selection; with nothing selected: show all again |
-| right click a function | VS Code: editor context menu, peek references, call hierarchy, reveal in explorer, copy path or name (go to definition when `gaffy.openDefinitions` is off; on, a click opens it); open or close callers and calls (one layer at a time); make or remove a seed (it keeps its place; the language server is asked for the side it lacks); select upstream, downstream, through, paths between the selected (two or more), clear; isolate selection, hide selection (the selection, else the function right clicked; seeds stay), show hidden neighbors; collapse class, module, package; group its module; re-arrange selected, lock or unlock, move among siblings, tag |
-| right click the canvas | Save (.gaffy) (with Autosave Graphs off), ✓ Autosave Graphs, Save as Text (.txt, .md), Refresh Language Server; Isolate Selection, Clear Selection; ✓ Group namespaces, ✓ Tight groups and the Options > Arrange entries |
-| right click a box header | collapse, ungroup (dissolve the box; the moves inside it are dropped, its content takes computed places in the enclosing box), group the modules inside, lock or unlock, reveal, copy path |
-| right click an arrow | straighten this call (routed before the others; Reset Layout clears it), isolate this call, isolate the path through it, go to call site, go to callee |
+| drag a function | move with its tree children, or all selected; calls re-route; its namespace box grows around it |
+| drag a box header | move the box and its content |
+| hover an arrow | highlight every call through the cell, end to end |
+| click an arrow | select every call through the cell (whole fork or merge); Shift toggles |
+| double click an arrow | isolate: selected calls' callers and everything below their callees |
+| Enter | isolate selected calls or functions; one focused function: open it |
+| Esc | clear the selection; nothing selected: show all |
+| right click a function | VS Code: editor context menu, peek references, call hierarchy, reveal in explorer, copy path or name, go to definition (`gaffy.openDefinitions` off); open or close callers, calls (one layer at a time); make or remove a seed (place kept; missing side asked); select upstream, downstream, through, between two or more, clear; isolate selection, hide selection (else the function clicked; seeds stay), show hidden neighbors; collapse class, module, package; group its module; re-arrange selected, lock, unlock, move among siblings, tag |
+| right click the canvas | Options > File entries except Edit style.json and Settings; Isolate Selection, Clear Selection; ✓ Group namespaces, ✓ Tight groups; Options > Arrange entries |
+| right click a box header | collapse, ungroup (box dissolved, inner moves dropped, content at computed places in the enclosing box), group the modules inside, lock, unlock, reveal, copy path |
+| right click an arrow | **Straighten This Call (route it first)**, isolate this call, isolate the path through it, go to call site, go to callee |
 | ↑ ↓, Alt+↑ ↓ | move focus; move the focused function among its siblings |
 | e, c or ←, → | open the focused function's sides that have more (one layer at a time); collapse innermost container; expand collapsed |
 | Delete or Backspace, h, i, k | remove selection (calls cut, functions hidden; full: hide functions); hide selection; isolate selection; lock or unlock the focused function |
 | u, g, b, r, 0, x | unhide all; glyph or vector edges; group namespaces; refresh from language server; fit; export |
 
-Toolbar: **Isolate** (when nothing is hidden: isolates the selection) or **Show all (n)** (when something is hidden), the call depths (full), fit, and **☰ Options**, a pulldown with checkmarks:
+Toolbar: **Isolate** (nothing hidden) or **Show all (n)** (something hidden), call depths (full), fit, **☰ Options** (pulldown, checkmarks):
 
-- Layout: one layer at a time, full; Call depth by (full): shortest or longest call path
-- Namespaces: ✓ Group namespaces, ✓ Tight groups (on by default, style `boxes.tight`: namespace frames hug their content, functions moved right or down pull the frame edges along), reset per-box grouping (drops the moves inside the boxes it changes)
-- Edges: glyphs (UTF box drawing) or vector; curve for vector: orthogonal, rounded, sigmoid, spline. Calls across languages are dash-dot, implicit calls (construction, instance call) dotted, in every style and in the text export (`┈ ┊`, `─·─·`); a horizontal line hops over a vertical one it crosses (orthogonal, rounded)
-- Tree parent: first caller found (dfs), nearest caller above, joint (shared functions: a caller right above joins the elbow `├───┴─>`; several callers in a box join one collector that enters from the left, `┌──┘` then `└─>`; calls between boxes arrive from the left whenever the cells are free)
-- Arrange, the same entries as right click on the canvas (key `a`: re-arrange): Reset graph: seeds, depth, direction (one layer at a time: the seeds and their first layer; full: the starting call depths), Reset Layout: moves, locks, order (also straightened calls), Re-arrange (the selected functions back to their computed place, moves and locks dropped, else every unlocked move), Unlock all, Expand collapsed
-- Folders: ✓ Include external code (`gaffy.includeExternal`, written to the workspace settings; turning it on asks the language server again, turning it off hides external code at once), ✓ Include standard library (`gaffy.includeStandardLibrary`, off by default); then per top-level folder, included or excluded; external and standard library folders are listed only while included. Filters apply when drawing: calls into an excluded folder are still fetched and kept, so including it again shows them at once, without the language server.
-- File: Save (.gaffy) (with Autosave Graphs off), ✓ Autosave Graphs (`gaffy.saveViews`), Save as Text (.txt, .md), Refresh Language Server, Edit style.json, Settings (VS Code Settings filtered to gaffy)
+- Call Expansion: Individual On Graph (one layer at a time), Global Toolbar (full); Call depth by (full): shortest or longest call path
+- Namespaces: ✓ Group namespaces, ✓ Tight groups (default on, style `boxes.tight`: frames fit their content on all sides), reset per-box grouping (moves inside changed boxes dropped)
+- Edges: glyphs (UTF box drawing) or vector; vector curve: orthogonal, rounded, sigmoid, spline. Cross-language calls dash-dot, implicit calls dotted, every style and the text export (`┈ ┊`, `─·─·`)
+- Tree parent: first caller found (dfs), nearest caller above, left merge (joint: a caller right above joins the elbow `├───┴─>`; several callers in a box join one collector from the left, `┌──┘` then `└─>`; calls between boxes arrive from the left where cells are free)
+- Arrange, also on canvas right click (key `a`: re-arrange): **Reset graph**: seeds, depth, direction (one layer at a time: seeds and first layer; full: starting call depths), **Reset Layout**: moves, locks, order (sibling order, straightened calls), Re-arrange (selected functions to their computed place; no selection: every unlocked move dropped), Unlock all, Expand collapsed
+- Folders: ✓ Include external code (`gaffy.includeExternal`, workspace setting; on: language server asked again; off: hidden at once), ✓ Include standard library (`gaffy.includeStandardLibrary`), then each top-level folder, included or excluded (external and standard library folders listed only while included). Draw-time filters: calls into an excluded folder stay stored, so including it shows them without the language server.
+- File: Save (.gaffy) (Autosave Graphs off), ✓ Autosave Graphs (`gaffy.saveViews`), Save as Text (.txt, .md), Refresh Language Server, Edit style.json, Settings (filtered to gaffy)
 
-The toolbar and the pulldown are plain HTML elements in the webview, built with d3-selection and styled with VS Code's theme variables (`--vscode-menu-*`); the graph itself is SVG drawn with D3.
+Toolbar, pulldown: HTML built with d3-selection, VS Code theme variables (`--vscode-menu-*`). Graph: SVG drawn with D3.
 
-Locks: a locked function or box keeps its absolute position; re-arrange and layouts place every unlocked item around it.
+Locks: a locked function or box keeps its absolute position; unlocked items placed around it.
 
-"Editor Context Menu…" opens the definition in an editor and shows VS Code's own editor context menu at its cursor, with every installed extension's entries. VS Code exposes no command that opens the explorer context menu for a given file; "Reveal in Explorer" selects the file there, where Shift+F10 opens it.
+"Editor Context Menu…": the definition in an editor, with VS Code's editor context menu at its cursor (entries of every installed extension). Explorer context menu of a file: no VS Code command; "Reveal in Explorer" selects the file, Shift+F10 opens its menu.
 
 ## Building, progress, cache
 
-- While a view builds, a banner over the graph shows the phase, depth, definitions, language-server requests and cached answers; after 400 ms a notification with a cancel button shows the same.
-- Every answer of the language server (callers or callees of one definition) is cached in `.gaffy/cache/calls.json`. Changing depth or direction, expanding, and opening a view use cached answers and ask the language server only for the rest.
-- A saved, renamed, or externally changed source file drops the cached outgoing calls of its definitions and all cached incoming calls. Files whose extension no cached definition has (logs, bytecode, build output) drop nothing. `gaffy: Clear Call Cache` drops everything.
-- No answer differs from an empty answer. A definition the language server does not resolve (still analyzing after a window reload, renamed, removed) keeps the calls the view holds; its answer is neither cached nor recorded as explored. The view retries after 2, 4, 8, 15, 30 and 60 s and shows `language server not ready` in the status line meanwhile; after the last retry a warning names the count.
-- A language-server request without an answer after 30 s counts as no answer and is retried, so one stalled request does not hold the view's queue.
-- Opening a stable view: every explored (definition, direction) pair takes its cached answer without the language server. Pairs without a cached answer are stale: on-screen ones are asked again in the background; the others keep their calls, lose the explored mark, and are asked when a side opens onto them. Nothing changed since the last save: no language-server request.
-- **Refresh Language Server** (Options > File, `r`, `gaffy: Refresh Language Server`): asks every on-screen (definition, direction) pair from the language server and drops the cached answers of the others (asked when a side opens or a call depth reaches them).
+- Progress: banner with phase, depth, definitions, language-server requests, cached answers; after 400 ms also a notification with cancel.
+- Cache: each language-server answer (callers or callees of one definition), in `.gaffy/cache/calls.json`. Depth or direction changes, expansion and view opening ask the language server only for uncached answers.
+- Invalidation: a saved, renamed or externally changed source file drops its definitions' cached outgoing calls and all cached incoming calls; files of an extension no cached definition has (logs, bytecode, build output): none. `gaffy: Clear Call Cache`: everything.
+- No answer ≠ empty answer: a definition the language server does not resolve (analyzing after a reload, renamed, removed) keeps its stored calls, uncached, unexplored; retries after 2, 4, 8, 15, 30, 60 s (`language server not ready` in the status line), then a warning with the count.
+- Timeout: 30 s without an answer counts as no answer (retried); one stalled request never holds the queue.
+- Opening a view: explored (definition, direction) pairs take cached answers; stale pairs on screen asked again in the background, off screen kept and asked when a side opens onto them. Nothing changed since the last save: no request.
+- **Refresh Language Server** (Options > File, `r`, `gaffy: Refresh Language Server`): every on-screen (definition, direction) pair asked again; cached answers of the others dropped (asked when a side or a call depth reaches them).
 
 ## Change tracking
 
-- Saving a source file updates open views that contain a definition from that file (`gaffy.refreshOnSave`: `touched`, `all`, `off`); stable views ask only the pairs the save made stale, as on opening.
-- Renaming a file rewrites keys, paths and URIs in open views, then updates them the same way.
-- Definitions keep their identity across line moves: keys are `<lang>:<path>#<qualified name>`.
-- Views keep every definition the language server named; a closed side, a lower call depth, or a hide takes it off screen.
+- Source save: open views with a definition from that file updated (`gaffy.refreshOnSave`: `touched`, `all`, `off`), asking only the pairs made stale.
+- File rename: keys, paths, URIs rewritten in open views, then updated alike.
+- Definition identity across line moves: keys `<lang>:<path>#<qualified name>`.
+- Views keep every definition the language server named; closed sides, lower call depths, hides only take them off screen.
 
 ## Files
 
@@ -200,7 +200,7 @@ Locks: a locked function or box keeps its absolute position; re-arrange and layo
 
 ## Style
 
-`.gaffy/style.json` overrides the `gaffy.style` setting, which overrides the defaults in [src/core/style.ts](src/core/style.ts) (`DEFAULT_STYLE`). Schema: [schemas/style.schema.json](schemas/style.schema.json).
+Precedence: `.gaffy/style.json` over the `gaffy.style` setting over `DEFAULT_STYLE` ([src/core/style.ts](src/core/style.ts)); numbers clamped to the ranges of [schemas/style.schema.json](schemas/style.schema.json).
 
 ```json
 {
@@ -215,20 +215,20 @@ Locks: a locked function or box keeps its absolute position; re-arrange and layo
 }
 ```
 
-- Defaults of the Options menu. Read when a view is created, then stored in the view file: `view.arrange` (Layout: `grow` one layer at a time, `auto` full), `view.traverse` (`command`: the editor command decides the side; `both`: callers and calls). Read on every render, for views without their own choice in Options: `edges.mode` (Edges: `vector`, `glyph`), `edges.curve` (Curve), `grid.parentRule` (Tree parent: `dfs`, `nearest`, `joint`), `boxes.enabled` (Group namespaces). The `gaffy.depth` setting sets the prefetch depth (one layer at a time) and the hop limit (automatic).
-- `edges.lead`: straight lead-out and lead-in of the sigmoid, in cells; `edges.tension`: how far the S-curve's control points reach (0 sharp, 1 wide).
+- Options defaults. At view creation, stored in the view: `view.arrange` (`grow` one layer at a time, `auto` full), `view.traverse` (`command`: the editor command determines the side; `both`). Every render, unless the view has its own choice: `edges.mode` (`vector`, `glyph`), `edges.curve`, `grid.parentRule` (`dfs`, `nearest`, `joint`), `boxes.enabled`.
+- `edges.lead`: straight lead-out and lead-in of the sigmoid (cells); `edges.tension`: reach of the S-curve control points (0 sharp, 1 wide).
 - `route.adjacent`: cost of a vertical run in the column next to an unrelated vertical line; `route.cross`: cost of a crossing.
 
 ### Colors
 
-Each key of `colors` becomes the CSS custom property `--g-<key>` on the webview (`applyColors` in [src/webview/main.ts](src/webview/main.ts)); the rules in [media/webview.css](media/webview.css) read those properties. Values are CSS colors or VS Code theme variables (`var(--vscode-…)`).
+`colors` key → CSS custom property `--g-<key>` (`applyColors`, [src/webview/main.ts](src/webview/main.ts)), read by [media/webview.css](media/webview.css). Values: CSS colors or VS Code theme variables (`var(--vscode-…)`).
 
 | key | default | element |
 |---|---|---|
 | `fg` | editor foreground | function names |
 | `bg` | editor background | canvas, box header background |
 | `edge` | line-number foreground | call lines, arrowheads, glyphs |
-| `highlight` | focus border | hovered calls and the calls of the hovered function |
+| `highlight` | focus border | hovered calls, calls of the hovered function |
 | `selection` | active link foreground | selected calls (click on an arrow), outline of selected functions |
 | `selected` | selection background | background of selected functions |
 | `seed` | link foreground | seed functions |
@@ -237,7 +237,7 @@ Each key of `colors` becomes the CSS custom property `--g-<key>` on the webview 
 | `namespace` | description foreground | namespace box headers |
 | `external` | disabled foreground | definitions outside the workspace |
 
-A new UI element gets a color by a CSS rule in `media/webview.css` that reads `var(--g-<key>)`, and the key with its default in `DEFAULT_STYLE.colors` (and in the `:root` block of the CSS file, used before the style arrives).
+New UI color: a rule in `media/webview.css` reading `var(--g-<key>)`; the key with its default in `DEFAULT_STYLE.colors` and in the CSS `:root` block (used before the style arrives).
 
 ## Settings
 
@@ -245,15 +245,15 @@ A new UI element gets a color by a CSS rule in `media/webview.css` that reads `v
 |---|---|---|
 | `gaffy.depth` | 3 | one layer at a time: levels prefetched in the background; full: the starting call depths |
 | `gaffy.maxNodes` | 400 | definitions fetched per build |
-| `gaffy.openCallHierarchy` | true | also open VS Code's Call Hierarchy when creating a view |
-| `gaffy.saveViews` | false | Autosave Graphs: new views are written to `.gaffy/views/` and saved after every change. Off: a new view opens as an unsaved document bound to its `.gaffy/views/` path; right click > Save writes it there, closing without saving discards it (VS Code's hot exit keeps unsaved documents across window reloads) |
-| `gaffy.trace` | false | Record every view change to `.gaffy/trace/<view>.jsonl`: the click, key or menu entry with its target and grid cell, the functions that acted, the view fields changed, the labels and boxes that moved; undo and redo included. `node tools/gaffy-trace.mjs <file>` (in this repository) prints it as a list |
-| `gaffy.exclude` | none | globs of folders and files views leave off screen (for example `"**/tests/**"`); Options > Folders includes them again per view |
-| `gaffy.includeExternal` | false | show external code: installed packages (site-packages, node_modules), stubs, system headers, build output, wasm-pack glue; Options > Folders toggles it |
-| `gaffy.includeStandardLibrary` | false | with external code: also the builtins and standard library of each language (Python typeshed `stdlib` and `pythonX.Y`, Rust core, alloc and std, C++ standard headers, TypeScript `lib.*.d.ts`); off: installed packages show, the standard library does not. Drawn without the language server; Options > Folders toggles it |
+| `gaffy.openCallHierarchy` | true | also open VS Code's Call Hierarchy, in the References view, when creating a view |
+| `gaffy.saveViews` | false | Autosave Graphs: new views written to `.gaffy/views/`, saved after each change. Off: closing an unsaved view discards it (hot exit keeps it across window reloads) |
+| `gaffy.trace` | false | view change log, undo and redo included, in `.gaffy/trace/<view>.jsonl`: event, target, grid cell, acting functions, changed fields, moved labels and boxes; trusted workspaces only. Reader: `node tools/gaffy-trace.mjs <file>` (this repository) |
+| `gaffy.exclude` | none | globs of folders and files kept off screen (for example `"**/tests/**"`); Options > Folders includes them again per view |
+| `gaffy.includeExternal` | false | show external code: installed packages (site-packages, node_modules), stubs, system headers, build output, wasm-pack glue |
+| `gaffy.includeStandardLibrary` | false | with external code: builtins and standard library (Python typeshed `stdlib`, `pythonX.Y`; Rust core, alloc, std; C++ standard headers; TypeScript `lib.*.d.ts`); off: installed packages only; drawn without the language server |
 | `gaffy.autoSave` | true | save the view file after each graph change |
 | `gaffy.refreshOnSave` | touched | update policy after a source save |
-| `gaffy.openDefinitions` | true | Open Definitions: a view started from the editor opens beside it (the definition stays in view); a click on a function opens its definition in the column next to the graph. Off: views open in the active column, a click only selects |
+| `gaffy.openDefinitions` | true | Open Definitions: a view from the editor opens beside it; a click opens the definition next to the graph. Off: active column; a click only selects |
 
 ## Tests and preview
 
@@ -263,7 +263,7 @@ UPDATE_GOLDEN=1 npm test  # rewrite goldens after an intended layout change
 npm run preview           # dist/preview.html?doc=sh|exp4|star|grow|two[&edges=vector&curve=sigmoid&fill=hue&boxes=off&parentRule=joint]
 ```
 
-The preview loads the webview bundle in a browser with a mocked VS Code API and fixture views: `sh` (..rrequest.md addendum 1a), `exp4` (giddy experiment 4), `star` (..rrequest.md example (*)).
+Preview: the webview bundle in a browser, mocked VS Code API, fixture views (`sh`, `exp4`, `star`, `grow`, `two`) over made-up packages; `GAFFY_PREVIEW_FILE=<view.gaffy>` previews any view.
 
 ## License
 

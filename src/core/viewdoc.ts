@@ -1,11 +1,9 @@
 /** @xvdp
- * View document: the content of a `.gaffy` file. One view = seeds, traversal, user overrides, and the
- * last resolved subgraph, so a view opens without a language server.
+ * View document: `.gaffy` file content: seeds, traversal, user overrides, last resolved subgraph (opens without
+ * a language server).
  *
- * Placement units: a vertex key moves the vertex with its tree descendants; `box:<container key>`
- * moves a namespace box with its content. `offset` holds unlocked moves relative to the computed
- * placement; `lock` holds absolute positions (column, row) of locked units, which the placement of
- * every unlocked unit avoids.
+ * Placement unit: vertex key (vertex, tree descendants) or `box:<container key>` (namespace box, content).
+ * `offset`: unlocked moves from computed placement; `lock`: absolute cells of locked units, avoided by unlocked ones.
  */
 import { ancestors, emptyGraph, GEdge, GNode, NodeKey, Subgraph } from './model';
 import type { Curve } from './style';
@@ -14,23 +12,21 @@ export type Direction = 'in' | 'out' | 'both';
 export type EdgeMode = 'glyph' | 'vector';
 export type ParentRule = 'dfs' | 'nearest' | 'joint';
 export type Cell = [number, number];        // [column, row]
-export type Depth = number | 'all';         // call levels from the seeds; `all`: every level the data holds
+export type Depth = number | 'all';         // call levels from seeds; `all`: every level in the data
 export type DepthRule = 'shortest' | 'longest';
 export type OpenSide = 'up' | 'down' | 'both' | 'none';
 
 export const ROOTS = '__roots__';
 export const boxUnit = (containerKey: string) => `box:${containerKey}`;
 /**
- * Unit of a collapsed container's vertex: its moves and locks are its own, so expanding returns to the layout
- * before the collapse (a class is a vertex of its own when expanded too, under its plain key).
+ * Collapsed container's vertex unit, with own moves and locks: expanding restores the pre-collapse layout.
+ * Expanded class: plain key.
  */
 export const collapsedUnit = (containerKey: string) => `collapsed:${containerKey}`;
 
 /**
- * Drops the moves and locks of `container` and of everything inside it (its box, the boxes and functions in
- * it, collapsed ones included). Offsets count from the computed place inside the box holding them; when that
- * box dissolves or a new box forms (ungroup, group), the same offsets land at unrelated cells, so the content
- * takes computed places in its new group instead. Moves outside the container stay.
+ * Drops moves and locks of `container` and its content (boxes, functions, collapsed units). Offsets are relative
+ * to the enclosing box, so after group or ungroup the content returns to computed places. Moves outside stay.
  */
 export function dropMovesWithin(doc: ViewDoc, container: NodeKey): void {
     const inside = (k: NodeKey) => k === container || ancestors(doc.graph.nodes, k).includes(container);
@@ -44,31 +40,31 @@ export function dropMovesWithin(doc: ViewDoc, container: NodeKey): void {
 
 export interface ViewSpec {
     seeds: NodeKey[];
-    direction: Direction;                    // sides a seed opens first (one layer at a time); levels a full view starts with
-    depth: number;                           // one layer at a time: levels prefetched from the language server
+    direction: Direction;                    // grow: sides a seed opens first; auto: initial levels
+    depth: number;                           // grow: levels prefetched from the language server
     collapsed: NodeKey[];                    // collapse set K
     hidden: NodeKey[];
-    open?: Record<NodeKey, OpenSide>;        // one layer at a time: open sides per vertex
-    arrange: 'grow' | 'auto';                // grow: one layer at a time; auto: full, every vertex within depthUp, depthDown
-    depthUp: Depth;                          // full: caller levels above the seeds
-    depthDown: Depth;                        // full: callee levels below the seeds
-    depthRule: DepthRule;                    // full: a vertex's level is its shortest or its longest call path from the seeds
-    sibling: Record<NodeKey, NodeKey[]>;     // child order per tree parent; ROOTS orders the top level
+    open?: Record<NodeKey, OpenSide>;        // grow: open sides per vertex
+    arrange: 'grow' | 'auto';                // grow: one layer at a time; auto: all levels within depthUp, depthDown
+    depthUp: Depth;                          // auto: caller levels above seeds
+    depthDown: Depth;                        // auto: callee levels below seeds
+    depthRule: DepthRule;                    // auto: level = shortest or longest call path from seeds
+    sibling: Record<NodeKey, NodeKey[]>;     // child order per tree parent; ROOTS: top level
     offset: Record<string, Cell>;            // unlocked moves: [Δcolumn, Δrow] per unit
     lock: Record<string, Cell>;              // locked units: absolute [column, row]
-    exclude: string[];                       // folders (workspace-relative) left out of the build
-    include: string[];                       // folders kept although `gaffy.exclude` matches them
+    exclude: string[];                       // workspace-relative folders excluded from build
+    include: string[];                       // folders kept despite `gaffy.exclude` match
     group: NodeKey[];                        // containers boxed on demand (modules, classes)
-    ungroup: NodeKey[];                      // containers whose box is dissolved into the parent box
+    ungroup: NodeKey[];                      // containers dissolved into parent box
     boxes?: boolean;                         // overrides style.boxes.enabled
     edges?: EdgeMode;                        // overrides style.edges.mode
     curve?: Curve;                           // overrides style.edges.curve
     parentRule?: ParentRule;                 // overrides style.grid.parentRule
-    tight?: boolean;                         // namespace frames hug their content (moved content pulls the frame edges); overrides style.boxes.tight
-    static?: boolean;                        // a fixed graph (written by hand or generated): no language-server requests
+    tight?: boolean;                         // frames hug content, moved content included; overrides style.boxes.tight
+    static?: boolean;                        // fixed graph (hand-written or generated): no language-server requests
     tags: Record<NodeKey, string>;
-    straight?: string[];                     // calls routed before all others (caller\u0000callee)
-    cut?: [NodeKey, NodeKey][];              // one layer at a time: removed calls [caller, callee], not drawn, not followed
+    straight?: string[];                     // calls routed first (caller\u0000callee)
+    cut?: [NodeKey, NodeKey][];              // grow: removed calls [caller, callee], neither drawn nor followed
 }
 
 export interface ViewDoc {
@@ -76,7 +72,7 @@ export interface ViewDoc {
     name: string;
     view: ViewSpec;
     graph: Subgraph;                         // last build
-    explored?: Record<NodeKey, Direction>;   // directions the last build asked the provider for, per vertex
+    explored?: Record<NodeKey, Direction>;   // per vertex: directions requested in last build
     truncated?: boolean;                     // build stopped at maxNodes
     updated?: string;                        // ISO time of last build
 }
@@ -90,21 +86,20 @@ export function defaultView(): ViewSpec {
 
 export function emptyDoc(name: string, view: Partial<ViewSpec> = {}): ViewDoc {
     const v = { ...defaultView(), ...view };
-    // call depths not given: the sides of `direction`, to `depth`
+    // missing call depths: sides of `direction`, to `depth`
     if (view.depthUp === undefined) v.depthUp = v.direction !== 'out' ? v.depth : 0;
     if (view.depthDown === undefined) v.depthDown = v.direction !== 'in' ? v.depth : 0;
     return { gaffy: 1, name, view: v, graph: emptyGraph() };
 }
 
-/** Parses a `.gaffy` text; missing fields take defaults; unknown fields are dropped; empty text yields an empty view. */
-/** Largest offset component and lock cell (cells) a view file may hold: the grid a layout allocates grows with them. */
+/** Offset component and lock cell bounds (cells); layout grid allocation grows with them. */
 export const MAX_OFFSET = 1000, MAX_LOCK = 2000;
 
 /**
- * A view document from its JSON text. Values from the file are checked, not trusted (a view may come from a cloned
- * repository): lists keep strings, keyed records drop the keys `__proto__`, `constructor`, `prototype` and values of
- * the wrong type, offsets and locks are integer cells within ±MAX_OFFSET and [0, MAX_LOCK], enumerations keep known
- * values. Older formats migrate (per-side depths from `direction` and `depth`).
+ * `.gaffy` JSON text → view document; empty text → empty view, missing fields → defaults, unknown fields dropped.
+ * Untrusted (cloned repositories): lists keep strings; keyed records drop `__proto__`, `constructor`, `prototype`
+ * keys and wrongly typed values; offsets, locks: integer cells in ±MAX_OFFSET, [0, MAX_LOCK]; enumerations keep
+ * known values. Migration: per-side depths from `direction`, `depth`.
  */
 export function parseDoc(text: string, fallbackName = 'view'): ViewDoc {
     if (!text.trim()) return emptyDoc(fallbackName);
@@ -133,7 +128,7 @@ export function parseDoc(text: string, fallbackName = 'view'): ViewDoc {
         depth,
         collapsed: strs(v.collapsed),
         hidden: strs(v.hidden),
-        // full views before per-side depths: the old direction and depth
+        // legacy full views: depths from direction, depth
         depthUp: level(v.depthUp, direction !== 'out'),
         depthDown: level(v.depthDown, direction !== 'in'),
         depthRule: v.depthRule === 'longest' ? 'longest' : 'shortest',
@@ -164,7 +159,7 @@ export function parseDoc(text: string, fallbackName = 'view'): ViewDoc {
     if (typeof v.tight === 'boolean') view.tight = v.tight;
     if (v.static === true) view.static = true;
     const doc = emptyDoc(typeof raw.name === 'string' ? raw.name : fallbackName, view);
-    /* secure tooling: drop object behaviour altering prototype keys, `<lang>:<path>#<qual>`, e.g. `JSON __proto__`. */
+    /* secure tooling: node keys `<lang>:<path>#<qual>`; prototype keys (JSON `__proto__`) dropped. */
     const nodes = keyed(raw.graph?.nodes, (x) => (x && typeof x === 'object' && typeof (x as GNode).key === 'string' ? x as GNode : undefined));
     const edgeList = Array.isArray(raw.graph?.edges) ? raw.graph!.edges.filter((e: unknown) => !!e && typeof (e as GEdge).from === 'string' && typeof (e as GEdge).to === 'string') : [];
     doc.graph = { nodes, edges: edgeList };
@@ -181,15 +176,14 @@ export function serializeDoc(doc: ViewDoc): string {
 }
 
 /**
- * Paths of a language's own builtins and standard library, as `externalPath` (langs.ts) keys files outside
- * the workspace: Python typeshed `stdlib/` and `pythonX.Y/` (a `site-packages` inside it keys from
- * `site-packages/`), Rust `library/` (core, alloc, std), TypeScript `…/typescript/lib/lib.*.d.ts`, C++
- * `include/c++/`. Meaningful for external nodes only: a workspace folder may carry such a name.
+ * Builtin and standard-library paths, keyed by `externalPath` (langs.ts): Python typeshed `stdlib/`, `pythonX.Y/`
+ * (nested `site-packages` keys from `site-packages/`), Rust `library/` (core, alloc, std), TypeScript
+ * `…/typescript/lib/lib.*.d.ts`, C++ `include/c++/`. External nodes only: workspace folders may share these names.
  */
 const STANDARD = /^(stdlib|python\d+(\.\d+)?)\/|^library\/|(^|\/)typescript\/lib\/lib\.[^/]*\.d\.ts$|^include\/c\+\+\//;
 export const isStandard = (path: string | undefined): boolean => !!path && STANDARD.test(path);
 
-/** Workspace-relative folder filter: `view.exclude` always applies; a glob from `gaffy.exclude` applies unless `view.include` covers the path. */
+/** Workspace-relative folder filter: `view.exclude` always; `gaffy.exclude` globs unless `view.include` covers it. */
 export function excludedBy(view: ViewSpec, globs: readonly PathTest[]) {
     const under = (path: string, dir: string) => path === dir || path.startsWith(dir.endsWith('/') ? dir : dir + '/');
     return (path: string | undefined): boolean => {
@@ -200,15 +194,14 @@ export function excludedBy(view: ViewSpec, globs: readonly PathTest[]) {
     };
 }
 
-/** A test on workspace-relative paths: what `globMatcher` returns; a RegExp has the same method. */
+/** Workspace-relative path test: `globMatcher` result or a RegExp. */
 export interface PathTest { test(path: string): boolean }
 
 /**
- * Glob over `/`-separated paths → a path test: `**` any characters, `**` + `/` zero or more whole segments, `*` any
- * characters of one segment, `?` one character of a segment, other characters literal; the whole path must match.
- * Matching advances the set of reachable path positions token by token, without backtracking: O(tokens · path
- * length). The equivalent regular expression backtracks exponentially in the number of `**` on paths that nearly
- * match (41 s measured for 8 `**a` against 60 characters), and globs come from workspace settings.
+ * Glob → whole-path test, `/`-separated: `**` any characters, `**` + `/` zero or more segments, `*` within one
+ * segment, `?` one non-`/` character, others literal. Reachable-position set per token, no backtracking:
+ * O(tokens · path length). Equivalent regex: exponential backtracking in `**` count on near-matches (41 s measured,
+ * 8 `**a`, 60 characters); globs come from workspace settings.
  */
 export function globMatcher(glob: string): PathTest {
     type Tok = { k: 'lit'; c: string } | { k: 'one' | 'seg' | 'any' | 'dirs' };
@@ -232,7 +225,7 @@ export function globMatcher(glob: string): PathTest {
                 if (t.k === 'lit' || t.k === 'one') {
                     for (let i = 0; i < n; i++) if (at[i] && (t.k === 'lit' ? path[i] === t.c : path[i] !== '/')) nx[i + 1] = 1;
                 } else {
-                    // seg: extend within the segment; any: extend over everything; dirs: stay, or end right after a '/'
+                    // seg: extend within segment; any: extend anywhere; dirs: stay, or end right after '/'
                     let seen = 0;
                     for (let j = 0; j <= n; j++) {
                         if (t.k === 'seg') nx[j] = at[j] || (j > 0 && nx[j - 1] && path[j - 1] !== '/') ? 1 : 0;

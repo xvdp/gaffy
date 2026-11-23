@@ -1,8 +1,8 @@
 /** @xvdp
- * Entry point. Registers the `.gaffy` custom editor, commands, and change adaptation:
- * - save of a source file: provider caches for the file drop; open views rebuild per
- *   `gaffy.refreshOnSave` (views containing the file, all views, or none), debounced 800 ms;
- * - file rename: keys, paths and URIs inside open views are rewritten, then the views rebuild.
+ * Entry point: registers the `.gaffy` custom editor, commands and change handlers.
+ * - source save: drops the file's caches; open views rebuild per `gaffy.refreshOnSave` (views containing the
+ *   file, all, none), debounced 800 ms;
+ * - file rename: rewrites keys, paths and URIs in open views, then rebuilds them.
  */
 import * as path from 'node:path';
 import * as vscode from 'vscode';
@@ -25,7 +25,7 @@ export function activate(ctx: vscode.ExtensionContext): void {
     );
     registerCommands(ctx, editor);
     ctx.subscriptions.push(vscode.commands.registerCommand('gaffy.checkServers', () => showReport()));
-    // language servers for this workspace's languages: a notification when one is missing (once per version)
+    // notification of missing language servers for the workspace's languages (once per version)
     setTimeout(() => void checkOnStart(ctx).catch(() => undefined), 4000);
 
     const isGaffy = (u: vscode.Uri) => u.path.endsWith('.gaffy') || u.path.includes('/.gaffy/');
@@ -47,7 +47,7 @@ export function activate(ctx: vscode.ExtensionContext): void {
             }
         }
     };
-    // files changed outside the editor (git checkout, generators): cached calls of those files are stale
+    // files changed outside the editor (git checkout, generators): their cached calls are stale
     const watcher = vscode.workspace.createFileSystemWatcher('**/*', true, false, true);
     ctx.subscriptions.push(watcher, watcher.onDidChange((u) => {
         if (isGaffy(u)) return;

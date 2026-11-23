@@ -1,7 +1,6 @@
-// Generates .ORDERING.md: every function that changes which functions are shown or where they sit, in three
-// kinds (user triggers, the functions interpreting them, the layout that places a given state), and the decision
-// tree of one call's drawing. Lines are found by searching each anchor's text (after an optional earlier anchor),
-// so the links follow the code: `npm run heuristics` regenerates this file with .HEURISTICS.md.
+// Generates .ORDERING.md: triggers, interpreters and layout functions that change what shows and where, plus
+// the drawing decision tree of one call. Code lines: first match of each anchor (after an optional earlier
+// anchor), so links follow the code; `npm run heuristics` regenerates it with .HEURISTICS.md.
 import { readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
@@ -12,7 +11,7 @@ const MAIN = 'src/webview/main.ts', CMDS = 'src/host/commands.ts', EDIT = 'src/h
 // ---- lines ------------------------------------------------------------------------------------------
 const files = new Map<string, string[]>();
 const linesOf = (f: string) => { if (!files.has(f)) files.set(f, readFileSync(resolve(ROOT, f), 'utf8').split('\n')); return files.get(f)!; };
-/** 1-based line of the first line holding `text`, after the line holding `after` when given. */
+/** 1-based line of the first line holding `text`, after the `after` line when given. */
 function line(file: string, text: string, after?: string): number {
     const ls = linesOf(file);
     const from = after ? line(file, after) : 0;
@@ -21,7 +20,7 @@ function line(file: string, text: string, after?: string): number {
 }
 /** Markdown link to a code line: [file:line](path#Lline). */
 const at = (file: string, text: string, after?: string) => { const n = line(file, text, after); return `[${file.split('/').pop()}:${n}](${file}#L${n})`; };
-/** The same as an HTML anchor, for the <pre> tree. */
+/** `at` as an HTML anchor, for the <pre> tree. */
 const href = (file: string, text: string, after?: string) => { const n = line(file, text, after); return `<a href="${file}#L${n}">${file.split('/').pop()}:${n}</a>`; };
 const menu = (id: string) => at(PKG, `"command": "${id}"`, '"webview/context"');
 const reg = (id: string) => at(CMDS, `reg('${id}'`);
@@ -191,14 +190,14 @@ drop: pointer delta in whole cells; zero cells: nothing   ${href(MAIN, 'const dc
 ├── 3. stored: a locked unit moves its lock, any other its offset   ${href(MAIN, 'function moveUnit(')}
 ├── 4. placement: what was not moved keeps its computed place
 │   ├── a moved function lands at its computed place + offset, with its tree   ${href(PL, '} else if (off) shift.set(k,')}
-│   │   └── labels within 2 cells of another label of its group on the row ─────► slides down until clear   ${href(PL, '// shifted unlocked subtrees descend')}
+│   │   └── labels within 2 cells of another label of its group on the row ─────► slides down until clear   ${href(PL, 'const mine = new Set(descendants(k));')}
 │   ├── a moved group lands at the row it would take unmoved + offset; a locked one at its cell   ${href(PL, 'const home = Math.max(cr, top - 1);')}
 │   ├── a sibling placed later (order: locked first, then calling order)   ${href(PL, 'const order = [...topo.filter(')}
 │   │   ├── after a group moved by an offset: counts it at its unmoved place ───► stays   ${href(PL, 'const avoid = [...placed.map(')}
 │   │   └── after a locked group, or one stretched by moves inside it ─────────► slides below it   ${href(PL, 'rr += Math.max(1, hit.r1 + 1 - r.r0);')}
 │   ├── frames grow to hold moved content (Tight groups: fit it on all sides) ────► later siblings of the
 │   │   enclosing group may slide below it   ${href(PL, 'const frame = (x: Rect): Rect =>')}
-│   └── content above row 0 or left of column 0 ──────────────────────────────► whole picture shifts back   ${href(PL, '// normalize: nothing at negative coordinates')}
+│   └── content above row 0 or left of column 0 ──────────────────────────────► whole picture shifts back   ${href(PL, 'let minC = 0, minR = 0;')}
 ├── 5. settle, up to 3 rounds in every redraw: moved, unlocked units that collide move to the nearest clear
 │      offset, the least displacement (distance × labels) first; unmoved and locked units never move here   ${href(ST, 'export function settleMoved(')}
 └── 6. the view saves the settled offsets (at most 3 saves in a row) and pans so the still function keeps its spot   ${href(MAIN, 'function afterRender() {')}
@@ -211,7 +210,7 @@ const DRAG: Row[] = [
     ['drop search', at(MAIN, 'for (let k = 1; k <= 12 && performance.now() - t0 < 1500; k++)'), 'k cells further along the drag, then sideways either way, then back; k ≤ 12'],
     ['lock or offset', at(MAIN, 'function moveUnit('), '`lock[unit]` when locked, else `offset[unit]` += (Δcolumn, Δrow)'],
     ['function offset', at(PL, '} else if (off) shift.set(k,'), 'the shift of a function: its lock, else its parent\'s shift + its offset; the tree below inherits it'],
-    ['moved function descent', at(PL, '// shifted unlocked subtrees descend'), 'labels on one row closer than 2 cells to another label of the group: down one row, at most 500'],
+    ['moved function descent', at(PL, 'const mine = new Set(descendants(k));'), 'labels on one row closer than 2 cells to another label of the group: down one row, at most 500'],
     ['sibling order', at(PL, 'const order = [...topo.filter('), 'locked items first, then the topological order of calls between items; "earlier" in the rows below'],
     ['stacking', at(PL, 'const below = stack.length ?'), 'rows and columns of later siblings from earlier siblings\' unmoved extents'],
     ['what later items avoid', at(PL, 'const avoid = [...placed.map('), 'an earlier box moved by an offset at its unmoved place; a locked box, or one stretched by moves inside it, where drawn'],
@@ -219,7 +218,7 @@ const DRAG: Row[] = [
     ['moved group', at(PL, 'const home = Math.max(cr, top - 1);'), 'the row it would take unmoved + offset'],
     ['unmoved group descent', at(PL, 'rr += Math.max(1, hit.r1 + 1 - r.r0);'), 'trial placement, then below the overlapped earlier sibling, by the distance from its top'],
     ['frame extent', at(PL, 'const frame = (x: Rect): Rect =>'), 'Tight groups: the content\'s bounding box; otherwise the computed corner, growing to hold content moved up or left'],
-    ['picture origin', at(PL, '// normalize: nothing at negative coordinates'), 'everything shifts so nothing lies above row 0 or left of column 0; the pan cancels it on screen'],
+    ['picture origin', at(PL, 'let minC = 0, minR = 0;'), 'everything shifts so nothing lies above row 0 or left of column 0; the pan cancels it on screen'],
     ['settle rounds', at('src/core/scene.ts', 'for (let round = 0; round < 3; round++) {'), 'at most 3 rounds of settle per redraw'],
     ['settle candidates', at(ST, 'const moved = Object.keys(doc.view.offset).filter('), 'units with an offset, unlocked, on screen'],
     ['collision', at(ST, 'const hits = (x: Unit, a: number, d: number) =>'), 'a label on another frame\'s border; closer than 4 cells to a label of its row; another label inside its frame; its frame partly over another'],
