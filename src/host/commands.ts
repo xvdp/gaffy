@@ -55,9 +55,26 @@ function besideGraph(s: Session): vscode.ViewColumn {
     return c && c > 1 ? c - 1 : vscode.ViewColumn.Beside;
 }
 
-async function openNode(n: GNode | undefined, focus: boolean, column: vscode.ViewColumn): Promise<vscode.TextEditor | undefined> {
-    if (!n?.uri) return undefined;
-    const uri = vscode.Uri.parse(n.uri);
+/**
+ * Location of a node: its URI; else its workspace-relative path, tried against the view's folder and each parent up
+ * to the workspace folder (views written without URIs, e.g. docs/heuristics.gaffy, path relative to the repository).
+ */
+async function nodeUri(n: GNode | undefined, s: Session): Promise<vscode.Uri | undefined> {
+    if (n?.uri) return vscode.Uri.parse(n.uri);
+    if (!n?.path || n.external) return undefined;
+    const view = s.document.uri.scheme === 'untitled' ? vscode.Uri.file(s.document.uri.path) : s.document.uri;
+    const top = s.folder.path;
+    for (let dir = vscode.Uri.joinPath(view, '..'); dir.path.startsWith(top); dir = vscode.Uri.joinPath(dir, '..')) {
+        const u = vscode.Uri.joinPath(dir, n.path);
+        if (u.path.startsWith(`${dir.path}/`)) { try { await vscode.workspace.fs.stat(u); return u; } catch { /* next folder up */ } }
+        if (dir.path === top) break;
+    }
+    return undefined;
+}
+
+async function openNode(n: GNode | undefined, s: Session, focus: boolean, column: vscode.ViewColumn): Promise<vscode.TextEditor | undefined> {
+    const uri = await nodeUri(n, s);
+    if (!n || !uri) return undefined;
     /*security tooling: reject arbitrary URI schemes.*/
     if (!readable(uri)) return undefined;
     if (n.kind === 'package' || n.kind === 'folder') {
@@ -341,15 +358,15 @@ export function registerCommands(ctx: vscode.ExtensionContext, editor: GaffyEdit
         await fn(s, s.doc(), arg.key);
     };
 
-    reg('gaffy.node.open', node((s, d, k) => openNode(nodeOf(d, k), true, besideGraph(s))));
+    reg('gaffy.node.open', node((s, d, k) => openNode(nodeOf(d, k), s, true, besideGraph(s))));
     reg('gaffy.node.editorMenu', node(async (s, d, k) => {
-        if (await openNode(nodeOf(d, k), true, besideGraph(s))) await vscode.commands.executeCommand('editor.action.showContextMenu');
+        if (await openNode(nodeOf(d, k), s, true, besideGraph(s))) await vscode.commands.executeCommand('editor.action.showContextMenu');
     }));
     reg('gaffy.node.references', node(async (s, d, k) => {
-        if (await openNode(nodeOf(d, k), true, besideGraph(s))) await vscode.commands.executeCommand('editor.action.referenceSearch.trigger');
+        if (await openNode(nodeOf(d, k), s, true, besideGraph(s))) await vscode.commands.executeCommand('editor.action.referenceSearch.trigger');
     }));
     reg('gaffy.node.callHierarchy', node(async (s, d, k) => {
-        if (await openNode(nodeOf(d, k), true, besideGraph(s))) await vscode.commands.executeCommand('references-view.showCallHierarchy');
+        if (await openNode(nodeOf(d, k), s, true, besideGraph(s))) await vscode.commands.executeCommand('references-view.showCallHierarchy');
     }));
 
 
@@ -401,9 +418,8 @@ export function registerCommands(ctx: vscode.ExtensionContext, editor: GaffyEdit
     reg('gaffy.node.moveUp', move(-1));
     reg('gaffy.node.moveDown', move(1));
 
-    reg('gaffy.node.revealInExplorer', node(async (_s, d, k) => {
-        const n = nodeOf(d, k);
-        const u = n?.uri ? vscode.Uri.parse(n.uri) : undefined;
+    reg('gaffy.node.revealInExplorer', node(async (s, d, k) => {
+        const u = await nodeUri(nodeOf(d, k), s);
         if (u && readable(u)) await vscode.commands.executeCommand('revealInExplorer', u);
     }));
     reg('gaffy.node.copyPath', node(async (_s, d, k) => {
@@ -420,11 +436,11 @@ export function registerCommands(ctx: vscode.ExtensionContext, editor: GaffyEdit
         const key = typeof m.key === 'string' ? m.key as NodeKey : undefined;
         switch (m.type) {
             // function click: definition beside the graph (gaffy.openDefinitions)
-            case 'open': if (cfg().get<boolean>('openDefinitions') ?? true) await openNode(key ? nodeOf(s.doc(), key) : undefined, false, besideGraph(s)); break;
+            case 'open': if (cfg().get<boolean>('openDefinitions') ?? true) await openNode(key ? nodeOf(s.doc(), key) : undefined, s, false, besideGraph(s)); break;
             case 'openAt': {
                 const n = key ? nodeOf(s.doc(), key) : undefined;
                 const line = Number.isInteger(m.line) && (m.line as number) >= 0 ? m.line as number : undefined;
-                await openNode(n && line !== undefined ? { ...n, line, character: 0 } : n, false, besideGraph(s));
+                await openNode(n && line !== undefined ? { ...n, line, character: 0 } : n, s, false, besideGraph(s));
                 break;
             }
             case 'expand': if (key && Object.hasOwn(s.doc().graph.nodes, key)) await s.expand(key, m.dir === 'in' ? 'in' : 'out'); break;

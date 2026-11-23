@@ -17,6 +17,7 @@ import { callSites, mask, outline, TextSym } from '../core/textcalls';
 import { Bridges } from './bridges';
 import { Implicit } from './implicit';
 import { readable } from './scope';
+import { SeedSpec } from './seedspec';
 
 // symbols enclosing a qualified name: types, functions, namespaces, impl blocks (Object), object literals
 // and their variables (TypeScript `const foo = { run() {} }` → `foo.run`)
@@ -423,6 +424,29 @@ export class LspProvider {
             hash, detail: item.detail, external };
         this.items.set(key, item);
         return key;
+    }
+
+    /**
+     * Key of the definition a seed names (seedspec.ts): by qualified name through document symbols, or by line
+     * (innermost symbol containing it); `acc` gains its record and containers. Undefined while the file has no
+     * symbols (language server loading) or no call hierarchy item there.
+     */
+    async seedAt(uri: vscode.Uri, spec: SeedSpec, acc: Record<NodeKey, GNode>): Promise<NodeKey | undefined> {
+        const syms = await this.symbolsOf(uri);
+        if (!syms.length) this.symbols.delete(uri.toString());   // a loading server answers none: ask again on retry
+        let sym: Sym | undefined;
+        if (spec.qual) sym = findQual(syms, spec.qual.split('.'));
+        else if (spec.line) {
+            const l = spec.line - 1;
+            const inside = (list: readonly Sym[]): Sym | undefined => {
+                const s = list.find((x) => x.range.start.line <= l && l <= x.range.end.line);
+                return s ? inside(s.children ?? []) ?? s : undefined;
+            };
+            sym = inside(syms);
+        }
+        if (!sym) return undefined;
+        const items = await this.prepare(uri, sym.selectionRange.start);
+        return items.length ? this.describe(items[0], acc) : undefined;
     }
 
     /** Call hierarchy item of a node: cached, else by qualified name (tolerates line moves). */

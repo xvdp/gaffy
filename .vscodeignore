@@ -12,6 +12,7 @@ vitest.config.*
 images/**
 scripts/**
 tools/**
+docs/**
 
 dist/preview*
 dist/*.png

@@ -2,7 +2,7 @@
   "name": "gaffy",
   "displayName": "gaffy",
   "description": "Persistent, manipulable call graphs on a character grid, rendered with D3",
-  "version": "0.9.23",
+  "version": "0.9.24",
   "publisher": "xvdp",
   "license": "Apache-2.0",
   "repository": {
@@ -913,6 +913,7 @@
     "test": "vitest run",
     "package": "npm run typecheck && npm test && npm run build && vsce package --no-dependencies",
     "install:local": "code --install-extension gaffy-$npm_package_version.vsix",
+    "docs:check": "npm run heuristics && git diff --exit-code -- docs",
     "preview": "npm run build && node scripts/preview.mjs",
     "heuristics": "node scripts/heuristics.mjs"
   },

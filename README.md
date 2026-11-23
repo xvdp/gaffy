@@ -95,7 +95,7 @@ Build: one layer, drawn at once; in the background, callers and calls of each fu
 - Arrowhead click (arrowhead cell, blank before the name; hover highlights its calls): closes the level it points into (a function's callers, or the calls of the caller showing it); the owner of the closed side keeps its place.
 - **Delete** (or Backspace): selected calls cut (with the branch below unless another call shows it), selected functions hidden; a box header click selects its functions. Hidden or removed neighbors keep a `└─>>` or `>> ` marker, both layouts, either side; where the marker opens no side (full layout, or a side the direction rule keeps closed), a click restores those neighbors and the hidden functions on their path from the seeds. **Show all (n)** and Esc (nothing selected): everything removed back, every collapsed container expanded.
 - Layout: tree (caller above callee, `A └─> B`; by namespace box, left to right, top to bottom, callers to calls), rerun after each change. Anchor: the function last opened, closed or removed keeps its screen position. Closed sides stay recorded; reopening restores the layers below.
-- Moves: kept while sides open and data arrives; content grown onto a moved unit moves it to the nearest clear spot (12 cells around, else straight up to 80; [src/core/settle.ts](src/core/settle.ts)), saved in the view. Opening the callers of a moved function hands its move to the new tree parent right above it (`prev()`, then `└─> fun()`). Details: [.ORDERING.md](.ORDERING.md), section 5.
+- Moves: kept while sides open and data arrives; content grown onto a moved unit moves it to the nearest clear spot (12 cells around, else straight up to 80; [src/core/settle.ts](src/core/settle.ts)), saved in the view. Opening the callers of a moved function hands its move to the new tree parent right above it (`prev()`, then `└─> fun()`). Details: [docs/ordering.md](docs/ordering.md), section 5.
 - Label end: receives or sends, never both; a function sending from its end receives from the left, one receiving at its end sends from under or over its name, else dashed.
 - Drop repulsion: a drop closer to a label than `name() ─> next()` needs, onto a box border, or cutting a route steps along the drag (then sideways, then back) to the nearest clean spot, at most 12 cells. A call with no route: dashed, with its arrowhead.
 - Options > Call Expansion > Global Toolbar (**Full**): every function within the toolbar call depths `all` `+` `−` *n* `call depth` *m* `−` `+` `all` (*n* caller levels left, *m* callee levels right, `all`: every level in the data). Call depth by: **shortest call path** (fewest calls from a seed) or **longest call path** (most calls, loop back edges excluded). Switching keeps the picture: Full adopts the deepest levels on screen; one layer at a time opens the sides within those depths. Closed sides and removed calls: one layer at a time only.
@@ -123,7 +123,7 @@ Editor submenu `gaffy` (defined, unused: `contributes.submenus`, `contributes.me
 - `↻`: direct recursion; `↻ f()`: call back to `f` higher in the same chain.
 - `[moomoo.boogaloos] (6)`: collapsed container, member count; its move or lock applies only while collapsed (unit `collapsed:<key>`); expanding restores the layout from before the collapse.
 
-Algorithms: [src/core/layout.ts](src/core/layout.ts) (rows and lanes in a block), [src/core/boxes.ts](src/core/boxes.ts), [src/core/place.ts](src/core/place.ts) (2D placement, moves, locks), [src/core/grid.ts](src/core/grid.ts) (routing).
+Algorithms: [src/core/layout.ts](src/core/layout.ts) (rows and lanes in a block), [src/core/boxes.ts](src/core/boxes.ts), [src/core/place.ts](src/core/place.ts) (2D placement, moves, locks), [src/core/grid.ts](src/core/grid.ts) (routing). Rules with code links: [docs/heuristics.md](docs/heuristics.md) (layout heuristics; the same graph as a gaffy view: [docs/heuristics.gaffy](docs/heuristics.gaffy)), [docs/ordering.md](docs/ordering.md) (triggers, interpreters, layout functions, drawing of one call, what a drag moves).
 
 ## Interaction
 
@@ -167,6 +167,24 @@ Toolbar, pulldown: HTML built with d3-selection, VS Code theme variables (`--vsc
 Locks: a locked function or box keeps its absolute position; unlocked items placed around it.
 
 "Editor Context Menu…": the definition in an editor, with VS Code's editor context menu at its cursor (entries of every installed extension). Explorer context menu of a file: no VS Code command; "Reveal in Explorer" selects the file, Shift+F10 opens its menu.
+
+## Views from scripts
+
+A script writes a view file with seeds by name and opens it; gaffy resolves each seed (document symbols, call hierarchy) and asks the language server within the view's depths. Seeds: `<path>#<qualified name>` or `<path>:<line>` (1-based, inside the definition), path relative to the workspace folder; a seed not found is reported in a warning.
+
+```python
+import json, pathlib, subprocess
+
+view = {"gaffy": 1, "name": "batch", "view": {
+    "seeds": ["src/pkg/mod.py#Scoobie.do", "src/pkg/other.py#magoo", "src/pkg/other.py:120"],
+    "arrange": "auto", "direction": "both", "depthUp": 2, "depthDown": 3}}
+p = pathlib.Path(".gaffy/views/batch.gaffy")
+p.parent.mkdir(parents=True, exist_ok=True)
+p.write_text(json.dumps(view))
+subprocess.run(["code", str(p)])
+```
+
+`depthUp`: caller levels, `depthDown`: callee levels (`"all"`: every level); `"arrange": "grow"` instead starts one layer at a time. The resolved view replaces the names with gaffy keys and stores the graph.
 
 ## Building, progress, cache
 
@@ -260,6 +278,8 @@ New UI color: a rule in `media/webview.css` reading `var(--g-<key>)`; the key wi
 ```bash
 npm test                  # core: quotient, layout, boxes, placement, routing invariants, golden text pictures in test/golden/
 UPDATE_GOLDEN=1 npm test  # rewrite goldens after an intended layout change
+npm run heuristics        # regenerate docs/heuristics.md, docs/heuristics.gaffy, docs/ordering.md
+npm run docs:check        # regenerate, then fail when docs/ differs from the commit
 npm run preview           # dist/preview.html?doc=sh|exp4|star|grow|two[&edges=vector&curve=sigmoid&fill=hue&boxes=off&parentRule=joint]
 ```
 

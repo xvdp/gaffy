@@ -1,11 +1,11 @@
-// Generates .ORDERING.md: triggers, interpreters and layout functions that change what shows and where, plus
+// Generates docs/ordering.md: triggers, interpreters and layout functions that change what shows and where, plus
 // the drawing decision tree of one call. Code lines: first match of each anchor (after an optional earlier
-// anchor), so links follow the code; `npm run heuristics` regenerates it with .HEURISTICS.md.
+// anchor), so links follow the code; `npm run heuristics` regenerates it with docs/heuristics.md.
 import { readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 const ROOT = process.cwd();
-const OUT = '.ORDERING.md';
+const OUT = 'docs/ordering.md';
 const MAIN = 'src/webview/main.ts', CMDS = 'src/host/commands.ts', EDIT = 'src/host/editor.ts', PKG = 'package.json';
 
 // ---- lines ------------------------------------------------------------------------------------------
@@ -19,12 +19,12 @@ function line(file: string, text: string, after?: string): number {
     throw new Error(`${file}: not found${after ? ` after "${after}"` : ''}: ${text}`);
 }
 /** Markdown link to a code line: [file:line](path#Lline). */
-const at = (file: string, text: string, after?: string) => { const n = line(file, text, after); return `[${file.split('/').pop()}:${n}](${file}#L${n})`; };
+const at = (file: string, text: string, after?: string) => { const n = line(file, text, after); return `[${file.split('/').pop()}:${n}](../${file}#L${n})`; };
 /** `at` as an HTML anchor, for the <pre> tree. */
-const href = (file: string, text: string, after?: string) => { const n = line(file, text, after); return `<a href="${file}#L${n}">${file.split('/').pop()}:${n}</a>`; };
+const href = (file: string, text: string, after?: string) => { const n = line(file, text, after); return `<a href="../${file}#L${n}">${file.split('/').pop()}:${n}</a>`; };
 const menu = (id: string) => at(PKG, `"command": "${id}"`, '"webview/context"');
 const reg = (id: string) => at(CMDS, `reg('${id}'`);
-const rule = (id: string) => `[${id.slice(0, 3)}](.HEURISTICS.md#${id})`;
+const rule = (id: string) => `[${id.slice(0, 3)}](heuristics.md#${id})`;
 
 // ---- 1. triggers --------------------------------------------------------------------------------------
 type Row = string[];
@@ -298,7 +298,7 @@ Consequences:
 
 ## Trace
 
-Setting \`gaffy.trace\` records every view change to \`.gaffy/trace/<view>.jsonl\` (${at('src/host/trace.ts', 'export class Trace')}): the event, its target and grid cell, the functions above that acted, the view fields changed, the labels and boxes that moved; undo and redo included. \`node tools/gaffy-trace.mjs <file>\` prints it as a list ([tools/gaffy-trace.mjs](tools/gaffy-trace.mjs)).
+Setting \`gaffy.trace\` records every view change to \`.gaffy/trace/<view>.jsonl\` (${at('src/host/trace.ts', 'export class Trace')}): the event, its target and grid cell, the functions above that acted, the view fields changed, the labels and boxes that moved; undo and redo included. \`node tools/gaffy-trace.mjs <file>\` prints it as a list ([tools/gaffy-trace.mjs](../tools/gaffy-trace.mjs)).
 `;
 writeFileSync(resolve(ROOT, OUT), doc);
 console.log(`${OUT}: ${T_MOUSE.length + T_KEYS.length + T_BAR.length + T_MENU.length + T_OUT.length} triggers, ${I.length} interpreters, ${P.length} layout functions`);

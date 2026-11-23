@@ -5,12 +5,14 @@
 import { randomBytes } from 'node:crypto';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
-import { isContainer, NodeKey, plain } from '../core/model';
+import { GNode, isContainer, NodeKey, plain } from '../core/model';
 import { globMatcher, parseDoc, serializeDoc, ViewDoc } from '../core/viewdoc';
 import { BuildMode, extendGraph, Extension, Pair } from './build';
 import { frontierOf, visibleOf } from '../core/scene';
 import { CallCache } from './cache';
 import { LspProvider, MAX_CALLS } from './lsp';
+import { readable } from './scope';
+import { seedSpec } from './seedspec';
 import { folderOf, gaffyDir, StyleService } from './style';
 import { Trace } from './trace';
 
@@ -229,6 +231,57 @@ export class Session {
         } finally { bg.end(); }
     }
 
+    /**
+     * Seeds written by name (seedspec.ts, a view a script wrote) become the keys of their definitions, with their
+     * records and containers in the graph; then the usual build asks the language server within the view's depths.
+     * Paths resolve inside the view's workspace folder only. Names the language server does not resolve yet
+     * (loading) are retried after 2, 5 and 10 s; the rest are reported once.
+     */
+    async open(): Promise<void> {
+        if (this.fixed) return;
+        for (const wait of [0, 2, 5, 10]) {
+            if (wait) await new Promise((r) => setTimeout(r, wait * 1000));
+            const left = await this.resolveSeeds();
+            if (!left.retry.length) {
+                if (left.bad.length) this.badSeeds(left.bad);
+                break;
+            }
+            if (wait === 10) this.badSeeds([...left.bad, ...left.retry]);
+        }
+        await this.revalidate();
+    }
+
+    private async resolveSeeds(): Promise<{ bad: string[]; retry: string[] }> {
+        const doc = this.doc();
+        const named = doc.view.seeds.filter((k) => !Object.hasOwn(doc.graph.nodes, k));
+        const bad: string[] = [], retry: string[] = [];
+        if (!named.length) return { bad, retry };
+        const base = this.folder;
+        const acc: Record<NodeKey, GNode> = {};
+        const found = new Map<string, NodeKey>();
+        for (const seed of named) {
+            const spec = seedSpec(seed);
+            const uri = spec ? vscode.Uri.joinPath(base, spec.path) : undefined;
+            if (!spec || !uri || !uri.path.startsWith(`${base.path.replace(/\/$/, '')}/`) || !readable(uri)) { bad.push(seed); continue; }
+            try { await vscode.workspace.fs.stat(uri); } catch { bad.push(seed); continue; }
+            const key = await this.host.provider.seedAt(uri, spec, acc);
+            if (key) found.set(seed, key); else retry.push(seed);
+        }
+        if (found.size) {
+            const now = this.doc();
+            now.view.seeds = [...new Set(now.view.seeds.map((k) => found.get(k) ?? k))];
+            for (const [k, n] of Object.entries(acc)) if (!Object.hasOwn(now.graph.nodes, k)) now.graph.nodes[k] = n;
+            await this.write(now);
+        }
+        return { bad, retry };
+    }
+
+    private badSeeds(seeds: string[]): void {
+        void vscode.window.showWarningMessage(plain(`gaffy: ${this.name}: ${seeds.length} seed${seeds.length > 1 ? 's' : ''} not found: `
+            + `${seeds.slice(0, 5).join(', ')}${seeds.length > 5 ? ', …' : ''} (write <path>#<qualified name> or <path>:<line>, `
+            + 'path relative to the workspace folder)'));
+    }
+
     /** Static view (`view.static`): fixed graph, no language-server requests. */
     private get fixed(): boolean { return !!this.doc().view.static; }
 
@@ -433,8 +486,8 @@ export class GaffyEditor implements vscode.CustomTextEditorProvider {
                     if (m.type === 'ready') {
                         await s.post();
                         const doc = s.doc();
-                        // stored data first, then changes only (no language server when none)
-                        if (doc.view.seeds.length) void s.revalidate();
+                        // seeds written by name resolve first; stored data, then changes only (no language server when none)
+                        if (doc.view.seeds.length) void s.open();
                     } else if (m.type === 'edit') {
                         if (m.text !== document.getText()) this.trace.edit(document, m.cause, m.moved);
                         await s.write(parseDoc(m.text, s.name));

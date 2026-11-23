@@ -1,0 +1,1168 @@
+{
+ "gaffy": 1,
+ "name": "heuristics",
+ "view": {
+  "seeds": [
+   "ts:src/webview/main.ts#render",
+   "ts:src/webview/main.ts#setSide",
+   "ts:src/webview/main.ts#dragUnit",
+   "ts:src/webview/main.ts#runCmd"
+  ],
+  "direction": "out",
+  "depth": 4,
+  "collapsed": [],
+  "hidden": [],
+  "depthUp": 0,
+  "depthDown": "all",
+  "depthRule": "shortest",
+  "sibling": {},
+  "offset": {},
+  "lock": {},
+  "exclude": [],
+  "include": [],
+  "group": [],
+  "ungroup": [],
+  "tags": {},
+  "arrange": "auto",
+  "static": true
+ },
+ "graph": {
+  "nodes": {
+   "ts:src/webview/main.ts": {
+    "key": "ts:src/webview/main.ts",
+    "kind": "file",
+    "name": "main",
+    "qual": "",
+    "module": "src/webview/main",
+    "parent": "dir:src/webview",
+    "path": "src/webview/main.ts",
+    "line": 0
+   },
+   "ts:src/core/scene.ts": {
+    "key": "ts:src/core/scene.ts",
+    "kind": "file",
+    "name": "scene",
+    "qual": "",
+    "module": "src/core/scene",
+    "parent": "dir:src/core",
+    "path": "src/core/scene.ts",
+    "line": 0
+   },
+   "ts:src/core/reveal.ts": {
+    "key": "ts:src/core/reveal.ts",
+    "kind": "file",
+    "name": "reveal",
+    "qual": "",
+    "module": "src/core/reveal",
+    "parent": "dir:src/core",
+    "path": "src/core/reveal.ts",
+    "line": 0
+   },
+   "ts:src/core/boxes.ts": {
+    "key": "ts:src/core/boxes.ts",
+    "kind": "file",
+    "name": "boxes",
+    "qual": "",
+    "module": "src/core/boxes",
+    "parent": "dir:src/core",
+    "path": "src/core/boxes.ts",
+    "line": 0
+   },
+   "ts:src/core/place.ts": {
+    "key": "ts:src/core/place.ts",
+    "kind": "file",
+    "name": "place",
+    "qual": "",
+    "module": "src/core/place",
+    "parent": "dir:src/core",
+    "path": "src/core/place.ts",
+    "line": 0
+   },
+   "ts:src/core/layout.ts": {
+    "key": "ts:src/core/layout.ts",
+    "kind": "file",
+    "name": "layout",
+    "qual": "",
+    "module": "src/core/layout",
+    "parent": "dir:src/core",
+    "path": "src/core/layout.ts",
+    "line": 0
+   },
+   "ts:src/core/settle.ts": {
+    "key": "ts:src/core/settle.ts",
+    "kind": "file",
+    "name": "settle",
+    "qual": "",
+    "module": "src/core/settle",
+    "parent": "dir:src/core",
+    "path": "src/core/settle.ts",
+    "line": 0
+   },
+   "ts:src/core/grid.ts": {
+    "key": "ts:src/core/grid.ts",
+    "kind": "file",
+    "name": "grid",
+    "qual": "",
+    "module": "src/core/grid",
+    "parent": "dir:src/core",
+    "path": "src/core/grid.ts",
+    "line": 0
+   },
+   "dir:src": {
+    "key": "dir:src",
+    "kind": "folder",
+    "name": "src",
+    "qual": "",
+    "module": "src",
+    "parent": null,
+    "path": "src"
+   },
+   "dir:src/webview": {
+    "key": "dir:src/webview",
+    "kind": "folder",
+    "name": "webview",
+    "qual": "",
+    "module": "src/webview",
+    "parent": "dir:src",
+    "path": "src/webview"
+   },
+   "dir:src/core": {
+    "key": "dir:src/core",
+    "kind": "folder",
+    "name": "core",
+    "qual": "",
+    "module": "src/core",
+    "parent": "dir:src",
+    "path": "src/core"
+   },
+   "ts:src/webview/main.ts#render": {
+    "key": "ts:src/webview/main.ts#render",
+    "kind": "function",
+    "name": "render",
+    "qual": "render",
+    "module": "src/webview/main",
+    "parent": "ts:src/webview/main.ts",
+    "path": "src/webview/main.ts",
+    "line": 366,
+    "detail": "code"
+   },
+   "ts:src/webview/main.ts#afterRender": {
+    "key": "ts:src/webview/main.ts#afterRender",
+    "kind": "function",
+    "name": "afterRender",
+    "qual": "afterRender",
+    "module": "src/webview/main",
+    "parent": "ts:src/webview/main.ts",
+    "path": "src/webview/main.ts",
+    "line": 601,
+    "detail": "code"
+   },
+   "ts:src/webview/main.ts#setSide": {
+    "key": "ts:src/webview/main.ts#setSide",
+    "kind": "function",
+    "name": "setSide",
+    "qual": "setSide",
+    "module": "src/webview/main",
+    "parent": "ts:src/webview/main.ts",
+    "path": "src/webview/main.ts",
+    "line": 702,
+    "detail": "code"
+   },
+   "ts:src/webview/main.ts#anchorAt": {
+    "key": "ts:src/webview/main.ts#anchorAt",
+    "kind": "function",
+    "name": "anchorAt",
+    "qual": "anchorAt",
+    "module": "src/webview/main",
+    "parent": "ts:src/webview/main.ts",
+    "path": "src/webview/main.ts",
+    "line": 687,
+    "detail": "code"
+   },
+   "ts:src/webview/main.ts#dragUnit": {
+    "key": "ts:src/webview/main.ts#dragUnit",
+    "kind": "function",
+    "name": "dragUnit",
+    "qual": "dragUnit",
+    "module": "src/webview/main",
+    "parent": "ts:src/webview/main.ts",
+    "path": "src/webview/main.ts",
+    "line": 910,
+    "detail": "code"
+   },
+   "ts:src/webview/main.ts#topUnits": {
+    "key": "ts:src/webview/main.ts#topUnits",
+    "kind": "function",
+    "name": "topUnits",
+    "qual": "topUnits",
+    "module": "src/webview/main",
+    "parent": "ts:src/webview/main.ts",
+    "path": "src/webview/main.ts",
+    "line": 901,
+    "detail": "code"
+   },
+   "ts:src/webview/main.ts#settleDrop": {
+    "key": "ts:src/webview/main.ts#settleDrop",
+    "kind": "function",
+    "name": "settleDrop",
+    "qual": "settleDrop",
+    "module": "src/webview/main",
+    "parent": "ts:src/webview/main.ts",
+    "path": "src/webview/main.ts",
+    "line": 1011,
+    "detail": "code"
+   },
+   "ts:src/webview/main.ts#runCmd": {
+    "key": "ts:src/webview/main.ts#runCmd",
+    "kind": "function",
+    "name": "runCmd",
+    "qual": "runCmd",
+    "module": "src/webview/main",
+    "parent": "ts:src/webview/main.ts",
+    "path": "src/webview/main.ts",
+    "line": 1079,
+    "detail": "code"
+   },
+   "ts:src/core/scene.ts#buildScene": {
+    "key": "ts:src/core/scene.ts#buildScene",
+    "kind": "function",
+    "name": "buildScene",
+    "qual": "buildScene",
+    "module": "src/core/scene",
+    "parent": "ts:src/core/scene.ts",
+    "path": "src/core/scene.ts",
+    "line": 102,
+    "detail": "code"
+   },
+   "ts:src/core/scene.ts#sortKeyOf": {
+    "key": "ts:src/core/scene.ts#sortKeyOf",
+    "kind": "function",
+    "name": "sortKeyOf",
+    "qual": "sortKeyOf",
+    "module": "src/core/scene",
+    "parent": "ts:src/core/scene.ts",
+    "path": "src/core/scene.ts",
+    "line": 75,
+    "detail": "code"
+   },
+   "ts:src/core/scene.ts#revealView": {
+    "key": "ts:src/core/scene.ts#revealView",
+    "kind": "function",
+    "name": "revealView",
+    "qual": "revealView",
+    "module": "src/core/scene",
+    "parent": "ts:src/core/scene.ts",
+    "path": "src/core/scene.ts",
+    "line": 280,
+    "detail": "code"
+   },
+   "ts:src/core/reveal.ts#reveal": {
+    "key": "ts:src/core/reveal.ts#reveal",
+    "kind": "function",
+    "name": "reveal",
+    "qual": "reveal",
+    "module": "src/core/reveal",
+    "parent": "ts:src/core/reveal.ts",
+    "path": "src/core/reveal.ts",
+    "line": 39,
+    "detail": "code"
+   },
+   "ts:src/core/reveal.ts#revealDepth": {
+    "key": "ts:src/core/reveal.ts#revealDepth",
+    "kind": "function",
+    "name": "revealDepth",
+    "qual": "revealDepth",
+    "module": "src/core/reveal",
+    "parent": "ts:src/core/reveal.ts",
+    "path": "src/core/reveal.ts",
+    "line": 73,
+    "detail": "code"
+   },
+   "ts:src/core/boxes.ts#boxTree": {
+    "key": "ts:src/core/boxes.ts#boxTree",
+    "kind": "function",
+    "name": "boxTree",
+    "qual": "boxTree",
+    "module": "src/core/boxes",
+    "parent": "ts:src/core/boxes.ts",
+    "path": "src/core/boxes.ts",
+    "line": 44,
+    "detail": "code"
+   },
+   "ts:src/core/place.ts#place": {
+    "key": "ts:src/core/place.ts#place",
+    "kind": "function",
+    "name": "place",
+    "qual": "place",
+    "module": "src/core/place",
+    "parent": "ts:src/core/place.ts",
+    "path": "src/core/place.ts",
+    "line": 71,
+    "detail": "code"
+   },
+   "ts:src/core/place.ts#placeBox": {
+    "key": "ts:src/core/place.ts#placeBox",
+    "kind": "function",
+    "name": "placeBox",
+    "qual": "placeBox",
+    "module": "src/core/place",
+    "parent": "ts:src/core/place.ts",
+    "path": "src/core/place.ts",
+    "line": 219,
+    "detail": "code"
+   },
+   "ts:src/core/place.ts#placeBlock": {
+    "key": "ts:src/core/place.ts#placeBlock",
+    "kind": "function",
+    "name": "placeBlock",
+    "qual": "placeBlock",
+    "module": "src/core/place",
+    "parent": "ts:src/core/place.ts",
+    "path": "src/core/place.ts",
+    "line": 90,
+    "detail": "code"
+   },
+   "ts:src/core/layout.ts#layout": {
+    "key": "ts:src/core/layout.ts#layout",
+    "kind": "function",
+    "name": "layout",
+    "qual": "layout",
+    "module": "src/core/layout",
+    "parent": "ts:src/core/layout.ts",
+    "path": "src/core/layout.ts",
+    "line": 77,
+    "detail": "code"
+   },
+   "ts:src/core/settle.ts#settleMoved": {
+    "key": "ts:src/core/settle.ts#settleMoved",
+    "kind": "function",
+    "name": "settleMoved",
+    "qual": "settleMoved",
+    "module": "src/core/settle",
+    "parent": "ts:src/core/settle.ts",
+    "path": "src/core/settle.ts",
+    "line": 42,
+    "detail": "code"
+   },
+   "ts:src/core/grid.ts#buildGrid": {
+    "key": "ts:src/core/grid.ts#buildGrid",
+    "kind": "function",
+    "name": "buildGrid",
+    "qual": "buildGrid",
+    "module": "src/core/grid",
+    "parent": "ts:src/core/grid.ts",
+    "path": "src/core/grid.ts",
+    "line": 106,
+    "detail": "code"
+   },
+   "ts:src/core/reveal.ts#h01_first_revealer": {
+    "key": "ts:src/core/reveal.ts#h01_first_revealer",
+    "kind": "function",
+    "name": "h01_first_revealer",
+    "qual": "h01_first_revealer",
+    "module": "src/core/reveal",
+    "parent": "ts:src/core/reveal.ts",
+    "path": "docs/heuristics.md",
+    "line": 70,
+    "detail": "First revealer: code src/core/reveal.ts:65"
+   },
+   "ts:src/core/reveal.ts#h02_call_depth_by_path": {
+    "key": "ts:src/core/reveal.ts#h02_call_depth_by_path",
+    "kind": "function",
+    "name": "h02_call_depth_by_path",
+    "qual": "h02_call_depth_by_path",
+    "module": "src/core/reveal",
+    "parent": "ts:src/core/reveal.ts",
+    "path": "docs/heuristics.md",
+    "line": 76,
+    "detail": "Call depth by path: code src/core/reveal.ts:84"
+   },
+   "ts:src/core/boxes.ts#h03_box_order": {
+    "key": "ts:src/core/boxes.ts#h03_box_order",
+    "kind": "function",
+    "name": "h03_box_order",
+    "qual": "h03_box_order",
+    "module": "src/core/boxes",
+    "parent": "ts:src/core/boxes.ts",
+    "path": "docs/heuristics.md",
+    "line": 84,
+    "detail": "Box first-appearance order: code src/core/boxes.ts:53"
+   },
+   "ts:src/core/scene.ts#h04_sort_key": {
+    "key": "ts:src/core/scene.ts#h04_sort_key",
+    "kind": "function",
+    "name": "h04_sort_key",
+    "qual": "h04_sort_key",
+    "module": "src/core/scene",
+    "parent": "ts:src/core/scene.ts",
+    "path": "docs/heuristics.md",
+    "line": 92,
+    "detail": "Sort key: code src/core/scene.ts:77"
+   },
+   "ts:src/core/scene.ts#h05_marker_row_first": {
+    "key": "ts:src/core/scene.ts#h05_marker_row_first",
+    "kind": "function",
+    "name": "h05_marker_row_first",
+    "qual": "h05_marker_row_first",
+    "module": "src/core/scene",
+    "parent": "ts:src/core/scene.ts",
+    "path": "docs/heuristics.md",
+    "line": 98,
+    "detail": "Marker row first: code src/core/scene.ts:183"
+   },
+   "ts:src/core/layout.ts#h06_root_order": {
+    "key": "ts:src/core/layout.ts#h06_root_order",
+    "kind": "function",
+    "name": "h06_root_order",
+    "qual": "h06_root_order",
+    "module": "src/core/layout",
+    "parent": "ts:src/core/layout.ts",
+    "path": "docs/heuristics.md",
+    "line": 104,
+    "detail": "Root order: code src/core/layout.ts:91"
+   },
+   "ts:src/core/layout.ts#h07_child_order": {
+    "key": "ts:src/core/layout.ts#h07_child_order",
+    "kind": "function",
+    "name": "h07_child_order",
+    "qual": "h07_child_order",
+    "module": "src/core/layout",
+    "parent": "ts:src/core/layout.ts",
+    "path": "docs/heuristics.md",
+    "line": 110,
+    "detail": "Child order: code src/core/layout.ts:98"
+   },
+   "ts:src/core/layout.ts#h08_row_order": {
+    "key": "ts:src/core/layout.ts#h08_row_order",
+    "kind": "function",
+    "name": "h08_row_order",
+    "qual": "h08_row_order",
+    "module": "src/core/layout",
+    "parent": "ts:src/core/layout.ts",
+    "path": "docs/heuristics.md",
+    "line": 116,
+    "detail": "Row order: code src/core/layout.ts:148"
+   },
+   "ts:src/core/layout.ts#tree_parent_rule": {
+    "key": "ts:src/core/layout.ts#tree_parent_rule",
+    "kind": "function",
+    "name": "tree_parent_rule",
+    "qual": "tree_parent_rule",
+    "module": "src/core/layout",
+    "parent": "ts:src/core/layout.ts",
+    "path": "docs/heuristics.md",
+    "line": 122,
+    "detail": "Decision: tree parent rule: code src/core/layout.ts:169"
+   },
+   "ts:src/core/layout.ts#h09_joint_parent": {
+    "key": "ts:src/core/layout.ts#h09_joint_parent",
+    "kind": "function",
+    "name": "h09_joint_parent",
+    "qual": "h09_joint_parent",
+    "module": "src/core/layout",
+    "parent": "ts:src/core/layout.ts",
+    "path": "docs/heuristics.md",
+    "line": 128,
+    "detail": "Joint parent: code src/core/layout.ts:169"
+   },
+   "ts:src/core/layout.ts#h10_dfs_nearest_parent": {
+    "key": "ts:src/core/layout.ts#h10_dfs_nearest_parent",
+    "kind": "function",
+    "name": "h10_dfs_nearest_parent",
+    "qual": "h10_dfs_nearest_parent",
+    "module": "src/core/layout",
+    "parent": "ts:src/core/layout.ts",
+    "path": "docs/heuristics.md",
+    "line": 134,
+    "detail": "dfs / nearest parent: code src/core/layout.ts:186"
+   },
+   "ts:src/core/layout.ts#h11_port_row": {
+    "key": "ts:src/core/layout.ts#h11_port_row",
+    "kind": "function",
+    "name": "h11_port_row",
+    "qual": "h11_port_row",
+    "module": "src/core/layout",
+    "parent": "ts:src/core/layout.ts",
+    "path": "docs/heuristics.md",
+    "line": 140,
+    "detail": "Port row: code src/core/layout.ts:230"
+   },
+   "ts:src/core/layout.ts#h12_lane_packing": {
+    "key": "ts:src/core/layout.ts#h12_lane_packing",
+    "kind": "function",
+    "name": "h12_lane_packing",
+    "qual": "h12_lane_packing",
+    "module": "src/core/layout",
+    "parent": "ts:src/core/layout.ts",
+    "path": "docs/heuristics.md",
+    "line": 146,
+    "detail": "Lane packing: code src/core/layout.ts:255"
+   },
+   "ts:src/core/place.ts#h13_caller_alignment": {
+    "key": "ts:src/core/place.ts#h13_caller_alignment",
+    "kind": "function",
+    "name": "h13_caller_alignment",
+    "qual": "h13_caller_alignment",
+    "module": "src/core/place",
+    "parent": "ts:src/core/place.ts",
+    "path": "docs/heuristics.md",
+    "line": 154,
+    "detail": "Caller alignment: code src/core/place.ts:107"
+   },
+   "ts:src/core/place.ts#h14_monotone_rows": {
+    "key": "ts:src/core/place.ts#h14_monotone_rows",
+    "kind": "function",
+    "name": "h14_monotone_rows",
+    "qual": "h14_monotone_rows",
+    "module": "src/core/place",
+    "parent": "ts:src/core/place.ts",
+    "path": "docs/heuristics.md",
+    "line": 160,
+    "detail": "Monotone rows: code src/core/place.ts:113"
+   },
+   "ts:src/core/place.ts#h15_block_descent": {
+    "key": "ts:src/core/place.ts#h15_block_descent",
+    "kind": "function",
+    "name": "h15_block_descent",
+    "qual": "h15_block_descent",
+    "module": "src/core/place",
+    "parent": "ts:src/core/place.ts",
+    "path": "docs/heuristics.md",
+    "line": 166,
+    "detail": "Block descent: code src/core/place.ts:131"
+   },
+   "ts:src/core/place.ts#h21_moved_function_descent": {
+    "key": "ts:src/core/place.ts#h21_moved_function_descent",
+    "kind": "function",
+    "name": "h21_moved_function_descent",
+    "qual": "h21_moved_function_descent",
+    "module": "src/core/place",
+    "parent": "ts:src/core/place.ts",
+    "path": "docs/heuristics.md",
+    "line": 172,
+    "detail": "Moved function descent: code src/core/place.ts:177"
+   },
+   "ts:src/core/place.ts#h16_item_order": {
+    "key": "ts:src/core/place.ts#h16_item_order",
+    "kind": "function",
+    "name": "h16_item_order",
+    "qual": "h16_item_order",
+    "module": "src/core/place",
+    "parent": "ts:src/core/place.ts",
+    "path": "docs/heuristics.md",
+    "line": 178,
+    "detail": "Item order: code src/core/place.ts:250"
+   },
+   "ts:src/core/place.ts#h17_item_column": {
+    "key": "ts:src/core/place.ts#h17_item_column",
+    "kind": "function",
+    "name": "h17_item_column",
+    "qual": "h17_item_column",
+    "module": "src/core/place",
+    "parent": "ts:src/core/place.ts",
+    "path": "docs/heuristics.md",
+    "line": 184,
+    "detail": "Item column: code src/core/place.ts:268"
+   },
+   "ts:src/core/place.ts#h18_item_row": {
+    "key": "ts:src/core/place.ts#h18_item_row",
+    "kind": "function",
+    "name": "h18_item_row",
+    "qual": "h18_item_row",
+    "module": "src/core/place",
+    "parent": "ts:src/core/place.ts",
+    "path": "docs/heuristics.md",
+    "line": 190,
+    "detail": "Item row: code src/core/place.ts:272"
+   },
+   "ts:src/core/place.ts#item_state": {
+    "key": "ts:src/core/place.ts#item_state",
+    "kind": "function",
+    "name": "item_state",
+    "qual": "item_state",
+    "module": "src/core/place",
+    "parent": "ts:src/core/place.ts",
+    "path": "docs/heuristics.md",
+    "line": 196,
+    "detail": "Decision: locked, moved or unmoved item: code src/core/place.ts:281"
+   },
+   "ts:src/core/place.ts#h19_lock_and_box_offset": {
+    "key": "ts:src/core/place.ts#h19_lock_and_box_offset",
+    "kind": "function",
+    "name": "h19_lock_and_box_offset",
+    "qual": "h19_lock_and_box_offset",
+    "module": "src/core/place",
+    "parent": "ts:src/core/place.ts",
+    "path": "docs/heuristics.md",
+    "line": 202,
+    "detail": "Lock and box offset: code src/core/place.ts:283"
+   },
+   "ts:src/core/place.ts#h20_unmoved_box_descent": {
+    "key": "ts:src/core/place.ts#h20_unmoved_box_descent",
+    "kind": "function",
+    "name": "h20_unmoved_box_descent",
+    "qual": "h20_unmoved_box_descent",
+    "module": "src/core/place",
+    "parent": "ts:src/core/place.ts",
+    "path": "docs/heuristics.md",
+    "line": 208,
+    "detail": "Unmoved box descent: code src/core/place.ts:294"
+   },
+   "ts:src/core/place.ts#h22_frame_extent": {
+    "key": "ts:src/core/place.ts#h22_frame_extent",
+    "kind": "function",
+    "name": "h22_frame_extent",
+    "qual": "h22_frame_extent",
+    "module": "src/core/place",
+    "parent": "ts:src/core/place.ts",
+    "path": "docs/heuristics.md",
+    "line": 214,
+    "detail": "Frame extent: code src/core/place.ts:312"
+   },
+   "ts:src/core/settle.ts#h23_settle": {
+    "key": "ts:src/core/settle.ts#h23_settle",
+    "kind": "function",
+    "name": "h23_settle",
+    "qual": "h23_settle",
+    "module": "src/core/settle",
+    "parent": "ts:src/core/settle.ts",
+    "path": "docs/heuristics.md",
+    "line": 220,
+    "detail": "Settle: code src/core/settle.ts:92"
+   },
+   "ts:src/core/grid.ts#h24_tree_lines_first": {
+    "key": "ts:src/core/grid.ts#h24_tree_lines_first",
+    "kind": "function",
+    "name": "h24_tree_lines_first",
+    "qual": "h24_tree_lines_first",
+    "module": "src/core/grid",
+    "parent": "ts:src/core/grid.ts",
+    "path": "docs/heuristics.md",
+    "line": 228,
+    "detail": "Tree lines first: code src/core/grid.ts:260"
+   },
+   "ts:src/core/grid.ts#h25_routing_order": {
+    "key": "ts:src/core/grid.ts#h25_routing_order",
+    "kind": "function",
+    "name": "h25_routing_order",
+    "qual": "h25_routing_order",
+    "module": "src/core/grid",
+    "parent": "ts:src/core/grid.ts",
+    "path": "docs/heuristics.md",
+    "line": 234,
+    "detail": "Routing order: code src/core/grid.ts:327"
+   },
+   "ts:src/core/grid.ts#h26_arrival_side": {
+    "key": "ts:src/core/grid.ts#h26_arrival_side",
+    "kind": "function",
+    "name": "h26_arrival_side",
+    "qual": "h26_arrival_side",
+    "module": "src/core/grid",
+    "parent": "ts:src/core/grid.ts",
+    "path": "docs/heuristics.md",
+    "line": 240,
+    "detail": "Arrival side: code src/core/grid.ts:348"
+   },
+   "ts:src/core/grid.ts#h27_departure_reservation": {
+    "key": "ts:src/core/grid.ts#h27_departure_reservation",
+    "kind": "function",
+    "name": "h27_departure_reservation",
+    "qual": "h27_departure_reservation",
+    "module": "src/core/grid",
+    "parent": "ts:src/core/grid.ts",
+    "path": "docs/heuristics.md",
+    "line": 246,
+    "detail": "Departure reservation: code src/core/grid.ts:358"
+   },
+   "ts:src/core/grid.ts#h28_departure_point": {
+    "key": "ts:src/core/grid.ts#h28_departure_point",
+    "kind": "function",
+    "name": "h28_departure_point",
+    "qual": "h28_departure_point",
+    "module": "src/core/grid",
+    "parent": "ts:src/core/grid.ts",
+    "path": "docs/heuristics.md",
+    "line": 252,
+    "detail": "Departure point: code src/core/grid.ts:446"
+   },
+   "ts:src/core/grid.ts#h29_route_cost": {
+    "key": "ts:src/core/grid.ts#h29_route_cost",
+    "kind": "function",
+    "name": "h29_route_cost",
+    "qual": "h29_route_cost",
+    "module": "src/core/grid",
+    "parent": "ts:src/core/grid.ts",
+    "path": "docs/heuristics.md",
+    "line": 258,
+    "detail": "Route cost: code src/core/grid.ts:518"
+   },
+   "ts:src/core/grid.ts#h36_call_kind_style": {
+    "key": "ts:src/core/grid.ts#h36_call_kind_style",
+    "kind": "function",
+    "name": "h36_call_kind_style",
+    "qual": "h36_call_kind_style",
+    "module": "src/core/grid",
+    "parent": "ts:src/core/grid.ts",
+    "path": "docs/heuristics.md",
+    "line": 264,
+    "detail": "Call kind style: code src/core/grid.ts:606"
+   },
+   "ts:src/webview/main.ts#h37_hops": {
+    "key": "ts:src/webview/main.ts#h37_hops",
+    "kind": "function",
+    "name": "h37_hops",
+    "qual": "h37_hops",
+    "module": "src/webview/main",
+    "parent": "ts:src/webview/main.ts",
+    "path": "docs/heuristics.md",
+    "line": 272,
+    "detail": "Hops: code src/webview/main.ts:432"
+   },
+   "ts:src/webview/main.ts#h30_action_anchor": {
+    "key": "ts:src/webview/main.ts#h30_action_anchor",
+    "kind": "function",
+    "name": "h30_action_anchor",
+    "qual": "h30_action_anchor",
+    "module": "src/webview/main",
+    "parent": "ts:src/webview/main.ts",
+    "path": "docs/heuristics.md",
+    "line": 278,
+    "detail": "Action anchor: code src/webview/main.ts:383"
+   },
+   "ts:src/webview/main.ts#h31_still_anchor": {
+    "key": "ts:src/webview/main.ts#h31_still_anchor",
+    "kind": "function",
+    "name": "h31_still_anchor",
+    "qual": "h31_still_anchor",
+    "module": "src/webview/main",
+    "parent": "ts:src/webview/main.ts",
+    "path": "docs/heuristics.md",
+    "line": 284,
+    "detail": "Still anchor: code src/webview/main.ts:953"
+   },
+   "ts:src/webview/main.ts#h32_multi_unit_drag": {
+    "key": "ts:src/webview/main.ts#h32_multi_unit_drag",
+    "kind": "function",
+    "name": "h32_multi_unit_drag",
+    "qual": "h32_multi_unit_drag",
+    "module": "src/webview/main",
+    "parent": "ts:src/webview/main.ts",
+    "path": "docs/heuristics.md",
+    "line": 290,
+    "detail": "Multi-unit drag: code src/webview/main.ts:904"
+   },
+   "ts:src/webview/main.ts#h33_drop_repulsion": {
+    "key": "ts:src/webview/main.ts#h33_drop_repulsion",
+    "kind": "function",
+    "name": "h33_drop_repulsion",
+    "qual": "h33_drop_repulsion",
+    "module": "src/webview/main",
+    "parent": "ts:src/webview/main.ts",
+    "path": "docs/heuristics.md",
+    "line": 296,
+    "detail": "Drop repulsion: code src/webview/main.ts:1025"
+   },
+   "ts:src/webview/main.ts#h34_offset_handover": {
+    "key": "ts:src/webview/main.ts#h34_offset_handover",
+    "kind": "function",
+    "name": "h34_offset_handover",
+    "qual": "h34_offset_handover",
+    "module": "src/webview/main",
+    "parent": "ts:src/webview/main.ts",
+    "path": "docs/heuristics.md",
+    "line": 302,
+    "detail": "Offset handover: code src/webview/main.ts:612"
+   },
+   "ts:src/webview/main.ts#h35_save_what_is_drawn": {
+    "key": "ts:src/webview/main.ts#h35_save_what_is_drawn",
+    "kind": "function",
+    "name": "h35_save_what_is_drawn",
+    "qual": "h35_save_what_is_drawn",
+    "module": "src/webview/main",
+    "parent": "ts:src/webview/main.ts",
+    "path": "docs/heuristics.md",
+    "line": 308,
+    "detail": "Save what is drawn: code src/webview/main.ts:619"
+   }
+  },
+  "edges": [
+   {
+    "from": "ts:src/webview/main.ts#render",
+    "to": "ts:src/core/scene.ts#buildScene",
+    "line": 372
+   },
+   {
+    "from": "ts:src/webview/main.ts#render",
+    "to": "ts:src/webview/main.ts#afterRender",
+    "line": 588
+   },
+   {
+    "from": "ts:src/core/scene.ts#buildScene",
+    "to": "ts:src/core/scene.ts#sortKeyOf",
+    "line": 182
+   },
+   {
+    "from": "ts:src/core/scene.ts#buildScene",
+    "to": "ts:src/core/scene.ts#revealView",
+    "line": 111
+   },
+   {
+    "from": "ts:src/core/scene.ts#revealView",
+    "to": "ts:src/core/reveal.ts#reveal",
+    "line": 284
+   },
+   {
+    "from": "ts:src/core/scene.ts#revealView",
+    "to": "ts:src/core/reveal.ts#revealDepth",
+    "line": 283
+   },
+   {
+    "from": "ts:src/core/scene.ts#buildScene",
+    "to": "ts:src/core/boxes.ts#boxTree",
+    "line": 150
+   },
+   {
+    "from": "ts:src/core/scene.ts#buildScene",
+    "to": "ts:src/core/place.ts#place",
+    "line": 173
+   },
+   {
+    "from": "ts:src/core/scene.ts#buildScene",
+    "to": "ts:src/core/settle.ts#settleMoved",
+    "line": 196
+   },
+   {
+    "from": "ts:src/core/scene.ts#buildScene",
+    "to": "ts:src/core/grid.ts#buildGrid",
+    "line": 211
+   },
+   {
+    "from": "ts:src/core/place.ts#place",
+    "to": "ts:src/core/place.ts#placeBox",
+    "line": 336
+   },
+   {
+    "from": "ts:src/core/place.ts#placeBox",
+    "to": "ts:src/core/place.ts#placeBlock",
+    "line": 277
+   },
+   {
+    "from": "ts:src/core/place.ts#placeBox",
+    "to": "ts:src/core/place.ts#placeBox",
+    "line": 294
+   },
+   {
+    "from": "ts:src/core/place.ts#placeBlock",
+    "to": "ts:src/core/layout.ts#layout",
+    "line": 110
+   },
+   {
+    "from": "ts:src/webview/main.ts#setSide",
+    "to": "ts:src/webview/main.ts#anchorAt",
+    "line": 705
+   },
+   {
+    "from": "ts:src/webview/main.ts#dragUnit",
+    "to": "ts:src/webview/main.ts#topUnits",
+    "line": 921
+   },
+   {
+    "from": "ts:src/webview/main.ts#dragUnit",
+    "to": "ts:src/webview/main.ts#settleDrop",
+    "line": 954
+   },
+   {
+    "from": "ts:src/webview/main.ts#dragUnit",
+    "to": "ts:src/webview/main.ts#anchorAt",
+    "line": 953
+   },
+   {
+    "from": "ts:src/webview/main.ts#runCmd",
+    "to": "ts:src/webview/main.ts#anchorAt",
+    "line": 1208
+   },
+   {
+    "from": "ts:src/core/reveal.ts#reveal",
+    "to": "ts:src/core/reveal.ts#h01_first_revealer",
+    "line": 64
+   },
+   {
+    "from": "ts:src/core/reveal.ts#revealDepth",
+    "to": "ts:src/core/reveal.ts#h02_call_depth_by_path",
+    "line": 83
+   },
+   {
+    "from": "ts:src/core/boxes.ts#boxTree",
+    "to": "ts:src/core/boxes.ts#h03_box_order",
+    "line": 52
+   },
+   {
+    "from": "ts:src/core/scene.ts#sortKeyOf",
+    "to": "ts:src/core/scene.ts#h04_sort_key",
+    "line": 76
+   },
+   {
+    "from": "ts:src/core/scene.ts#buildScene",
+    "to": "ts:src/core/scene.ts#h05_marker_row_first",
+    "line": 182
+   },
+   {
+    "from": "ts:src/core/layout.ts#layout",
+    "to": "ts:src/core/layout.ts#h06_root_order",
+    "line": 90
+   },
+   {
+    "from": "ts:src/core/layout.ts#layout",
+    "to": "ts:src/core/layout.ts#h07_child_order",
+    "line": 97
+   },
+   {
+    "from": "ts:src/core/layout.ts#layout",
+    "to": "ts:src/core/layout.ts#h08_row_order",
+    "line": 147
+   },
+   {
+    "from": "ts:src/core/layout.ts#layout",
+    "to": "ts:src/core/layout.ts#tree_parent_rule",
+    "line": 168
+   },
+   {
+    "from": "ts:src/core/layout.ts#tree_parent_rule",
+    "to": "ts:src/core/layout.ts#h09_joint_parent",
+    "line": 168
+   },
+   {
+    "from": "ts:src/core/layout.ts#tree_parent_rule",
+    "to": "ts:src/core/layout.ts#h10_dfs_nearest_parent",
+    "line": 185
+   },
+   {
+    "from": "ts:src/core/layout.ts#layout",
+    "to": "ts:src/core/layout.ts#h11_port_row",
+    "line": 229
+   },
+   {
+    "from": "ts:src/core/layout.ts#layout",
+    "to": "ts:src/core/layout.ts#h12_lane_packing",
+    "line": 254
+   },
+   {
+    "from": "ts:src/core/place.ts#placeBlock",
+    "to": "ts:src/core/place.ts#h13_caller_alignment",
+    "line": 106
+   },
+   {
+    "from": "ts:src/core/place.ts#placeBlock",
+    "to": "ts:src/core/place.ts#h14_monotone_rows",
+    "line": 112
+   },
+   {
+    "from": "ts:src/core/place.ts#placeBlock",
+    "to": "ts:src/core/place.ts#h15_block_descent",
+    "line": 130
+   },
+   {
+    "from": "ts:src/core/place.ts#placeBlock",
+    "to": "ts:src/core/place.ts#h21_moved_function_descent",
+    "line": 176
+   },
+   {
+    "from": "ts:src/core/place.ts#placeBox",
+    "to": "ts:src/core/place.ts#h16_item_order",
+    "line": 249
+   },
+   {
+    "from": "ts:src/core/place.ts#placeBox",
+    "to": "ts:src/core/place.ts#h17_item_column",
+    "line": 267
+   },
+   {
+    "from": "ts:src/core/place.ts#placeBox",
+    "to": "ts:src/core/place.ts#h18_item_row",
+    "line": 271
+   },
+   {
+    "from": "ts:src/core/place.ts#placeBox",
+    "to": "ts:src/core/place.ts#item_state",
+    "line": 280
+   },
+   {
+    "from": "ts:src/core/place.ts#item_state",
+    "to": "ts:src/core/place.ts#h19_lock_and_box_offset",
+    "line": 282
+   },
+   {
+    "from": "ts:src/core/place.ts#item_state",
+    "to": "ts:src/core/place.ts#h20_unmoved_box_descent",
+    "line": 293
+   },
+   {
+    "from": "ts:src/core/place.ts#placeBox",
+    "to": "ts:src/core/place.ts#h22_frame_extent",
+    "line": 311
+   },
+   {
+    "from": "ts:src/core/settle.ts#settleMoved",
+    "to": "ts:src/core/settle.ts#h23_settle",
+    "line": 91
+   },
+   {
+    "from": "ts:src/core/grid.ts#buildGrid",
+    "to": "ts:src/core/grid.ts#h24_tree_lines_first",
+    "line": 259
+   },
+   {
+    "from": "ts:src/core/grid.ts#buildGrid",
+    "to": "ts:src/core/grid.ts#h25_routing_order",
+    "line": 326
+   },
+   {
+    "from": "ts:src/core/grid.ts#buildGrid",
+    "to": "ts:src/core/grid.ts#h26_arrival_side",
+    "line": 347
+   },
+   {
+    "from": "ts:src/core/grid.ts#buildGrid",
+    "to": "ts:src/core/grid.ts#h27_departure_reservation",
+    "line": 357
+   },
+   {
+    "from": "ts:src/core/grid.ts#buildGrid",
+    "to": "ts:src/core/grid.ts#h28_departure_point",
+    "line": 445
+   },
+   {
+    "from": "ts:src/core/grid.ts#buildGrid",
+    "to": "ts:src/core/grid.ts#h29_route_cost",
+    "line": 517
+   },
+   {
+    "from": "ts:src/core/grid.ts#buildGrid",
+    "to": "ts:src/core/grid.ts#h36_call_kind_style",
+    "line": 605
+   },
+   {
+    "from": "ts:src/webview/main.ts#render",
+    "to": "ts:src/webview/main.ts#h37_hops",
+    "line": 431
+   },
+   {
+    "from": "ts:src/webview/main.ts#render",
+    "to": "ts:src/webview/main.ts#h30_action_anchor",
+    "line": 382
+   },
+   {
+    "from": "ts:src/webview/main.ts#anchorAt",
+    "to": "ts:src/webview/main.ts#h30_action_anchor",
+    "line": 688
+   },
+   {
+    "from": "ts:src/webview/main.ts#dragUnit",
+    "to": "ts:src/webview/main.ts#h31_still_anchor",
+    "line": 952
+   },
+   {
+    "from": "ts:src/webview/main.ts#runCmd",
+    "to": "ts:src/webview/main.ts#h31_still_anchor",
+    "line": 1207
+   },
+   {
+    "from": "ts:src/webview/main.ts#topUnits",
+    "to": "ts:src/webview/main.ts#h32_multi_unit_drag",
+    "line": 903
+   },
+   {
+    "from": "ts:src/webview/main.ts#settleDrop",
+    "to": "ts:src/webview/main.ts#h33_drop_repulsion",
+    "line": 1024
+   },
+   {
+    "from": "ts:src/webview/main.ts#afterRender",
+    "to": "ts:src/webview/main.ts#h34_offset_handover",
+    "line": 611
+   },
+   {
+    "from": "ts:src/webview/main.ts#setSide",
+    "to": "ts:src/webview/main.ts#h34_offset_handover",
+    "line": 707
+   },
+   {
+    "from": "ts:src/webview/main.ts#afterRender",
+    "to": "ts:src/webview/main.ts#h35_save_what_is_drawn",
+    "line": 618
+   }
+  ]
+ },
+ "explored": {
+  "ts:src/webview/main.ts": "both",
+  "ts:src/core/scene.ts": "both",
+  "ts:src/core/reveal.ts": "both",
+  "ts:src/core/boxes.ts": "both",
+  "ts:src/core/place.ts": "both",
+  "ts:src/core/layout.ts": "both",
+  "ts:src/core/settle.ts": "both",
+  "ts:src/core/grid.ts": "both",
+  "dir:src": "both",
+  "dir:src/webview": "both",
+  "dir:src/core": "both",
+  "ts:src/webview/main.ts#render": "both",
+  "ts:src/webview/main.ts#afterRender": "both",
+  "ts:src/webview/main.ts#setSide": "both",
+  "ts:src/webview/main.ts#anchorAt": "both",
+  "ts:src/webview/main.ts#dragUnit": "both",
+  "ts:src/webview/main.ts#topUnits": "both",
+  "ts:src/webview/main.ts#settleDrop": "both",
+  "ts:src/webview/main.ts#runCmd": "both",
+  "ts:src/core/scene.ts#buildScene": "both",
+  "ts:src/core/scene.ts#sortKeyOf": "both",
+  "ts:src/core/scene.ts#revealView": "both",
+  "ts:src/core/reveal.ts#reveal": "both",
+  "ts:src/core/reveal.ts#revealDepth": "both",
+  "ts:src/core/boxes.ts#boxTree": "both",
+  "ts:src/core/place.ts#place": "both",
+  "ts:src/core/place.ts#placeBox": "both",
+  "ts:src/core/place.ts#placeBlock": "both",
+  "ts:src/core/layout.ts#layout": "both",
+  "ts:src/core/settle.ts#settleMoved": "both",
+  "ts:src/core/grid.ts#buildGrid": "both",
+  "ts:src/core/reveal.ts#h01_first_revealer": "both",
+  "ts:src/core/reveal.ts#h02_call_depth_by_path": "both",
+  "ts:src/core/boxes.ts#h03_box_order": "both",
+  "ts:src/core/scene.ts#h04_sort_key": "both",
+  "ts:src/core/scene.ts#h05_marker_row_first": "both",
+  "ts:src/core/layout.ts#h06_root_order": "both",
+  "ts:src/core/layout.ts#h07_child_order": "both",
+  "ts:src/core/layout.ts#h08_row_order": "both",
+  "ts:src/core/layout.ts#tree_parent_rule": "both",
+  "ts:src/core/layout.ts#h09_joint_parent": "both",
+  "ts:src/core/layout.ts#h10_dfs_nearest_parent": "both",
+  "ts:src/core/layout.ts#h11_port_row": "both",
+  "ts:src/core/layout.ts#h12_lane_packing": "both",
+  "ts:src/core/place.ts#h13_caller_alignment": "both",
+  "ts:src/core/place.ts#h14_monotone_rows": "both",
+  "ts:src/core/place.ts#h15_block_descent": "both",
+  "ts:src/core/place.ts#h21_moved_function_descent": "both",
+  "ts:src/core/place.ts#h16_item_order": "both",
+  "ts:src/core/place.ts#h17_item_column": "both",
+  "ts:src/core/place.ts#h18_item_row": "both",
+  "ts:src/core/place.ts#item_state": "both",
+  "ts:src/core/place.ts#h19_lock_and_box_offset": "both",
+  "ts:src/core/place.ts#h20_unmoved_box_descent": "both",
+  "ts:src/core/place.ts#h22_frame_extent": "both",
+  "ts:src/core/settle.ts#h23_settle": "both",
+  "ts:src/core/grid.ts#h24_tree_lines_first": "both",
+  "ts:src/core/grid.ts#h25_routing_order": "both",
+  "ts:src/core/grid.ts#h26_arrival_side": "both",
+  "ts:src/core/grid.ts#h27_departure_reservation": "both",
+  "ts:src/core/grid.ts#h28_departure_point": "both",
+  "ts:src/core/grid.ts#h29_route_cost": "both",
+  "ts:src/core/grid.ts#h36_call_kind_style": "both",
+  "ts:src/webview/main.ts#h37_hops": "both",
+  "ts:src/webview/main.ts#h30_action_anchor": "both",
+  "ts:src/webview/main.ts#h31_still_anchor": "both",
+  "ts:src/webview/main.ts#h32_multi_unit_drag": "both",
+  "ts:src/webview/main.ts#h33_drop_repulsion": "both",
+  "ts:src/webview/main.ts#h34_offset_handover": "both",
+  "ts:src/webview/main.ts#h35_save_what_is_drawn": "both"
+ }
+}
