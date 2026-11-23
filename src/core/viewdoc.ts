@@ -62,6 +62,8 @@ export interface ViewSpec {
     parentRule?: ParentRule;                 // overrides style.grid.parentRule
     tight?: boolean;                         // frames hug content, moved content included; overrides style.boxes.tight
     static?: boolean;                        // fixed graph (hand-written or generated): no language-server requests
+    frozen?: { commit?: string; at: string }; // graph frozen at a commit (short hash) and time: no language-server requests
+    save?: boolean;                          // file saved after every change, whatever gaffy.autoSave says (script views)
     tags: Record<NodeKey, string>;
     straight?: string[];                     // calls routed first (caller\u0000callee)
     cut?: [NodeKey, NodeKey][];              // grow: removed calls [caller, callee], neither drawn nor followed
@@ -158,6 +160,11 @@ export function parseDoc(text: string, fallbackName = 'view'): ViewDoc {
     if (parentRule) view.parentRule = parentRule;
     if (typeof v.tight === 'boolean') view.tight = v.tight;
     if (v.static === true) view.static = true;
+    if (v.save === true) view.save = true;
+    const fz = v.frozen as { commit?: unknown; at?: unknown } | undefined;
+    if (fz && typeof fz === 'object' && typeof fz.at === 'string') {
+        view.frozen = { at: fz.at.slice(0, 40), ...(typeof fz.commit === 'string' && /^[0-9a-f]{4,40}$/.test(fz.commit) ? { commit: fz.commit } : {}) };
+    }
     const doc = emptyDoc(typeof raw.name === 'string' ? raw.name : fallbackName, view);
     /* secure tooling: node keys `<lang>:<path>#<qual>`; prototype keys (JSON `__proto__`) dropped. */
     const nodes = keyed(raw.graph?.nodes, (x) => (x && typeof x === 'object' && typeof (x as GNode).key === 'string' ? x as GNode : undefined));

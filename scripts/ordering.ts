@@ -58,6 +58,7 @@ const T_KEYS: Row[] = [
 const T_BAR: Row[] = [
     ['call depth `all` `+` `−` (full layout)', at(MAIN, "const all: Btn = { label: 'all'"), '`setDepth(side, …)`'],
     ['**Show all (n)**', at(MAIN, 'label: `Show all (${removed})`'), "`runCmd('showAll')`"],
+    ['**Expand mode >>**, **Expand mode -+**', at(MAIN, "label: 'Expand mode -+'"), "`setArrange('auto' | 'grow')`: switches to the mode it names"],
     ['**Isolate**', at(MAIN, "{ label: 'Isolate', title:"), "`runCmd('isolateSelection')`"],
     ['Options > Call Expansion: Individual On Graph, Global Toolbar', at(MAIN, "label: 'Individual On Graph: >>'"), "`setArrange('grow' | 'auto')`"],
     ['Options > Call depth by: shortest, longest path', at(MAIN, "label: r === 'shortest' ? 'Shortest call path'"), '`depthRule`'],
@@ -73,6 +74,7 @@ const T_BAR: Row[] = [
     ['Options > Folders > Include external code, Include standard library', at(MAIN, "label: 'Include external code'"), 'host setting; the webview redraws; their folders leave the list when off'],
     ['Options > Folders > a folder', at(MAIN, "label: f.label, title: `${f.path}: ${f.excluded"), '`exclude`, `include`'],
     ['Options > File > Save (.gaffy), Autosave Graphs, Save as Text, Refresh Language Server', at(MAIN, "label: 'Save (.gaffy)'"), 'host: save, setting `gaffy.saveViews`, export, `refresh` (new data)'],
+    ['Options > File > Freeze at commit', at(MAIN, "act: () => api.postMessage({ type: 'freeze', on: !v.frozen })"), 'host `freeze`: `frozen` = commit and time (no language-server updates), or removed'],
 ];
 const T_MENU: Row[] = [
     ['Make Seed, Remove Seed', `${menu('gaffy.node.makeSeed')}, ${reg('gaffy.node.makeSeed')}`, "forwarded: `runCmd('makeSeed' | 'removeSeed')`"],

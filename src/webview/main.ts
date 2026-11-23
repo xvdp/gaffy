@@ -1430,6 +1430,7 @@ function toolbar() {
         return side === 'up' ? [all, plus, minus, num] : [num, minus, plus, all];
     };
     const bar: Btn[] = [
+        ...(v.frozen ? [{ label: `Frozen at ${v.frozen.commit ? `commit ${v.frozen.commit} · ` : ''}${v.frozen.at}`, title: 'no language-server updates (Options > File)', text: true, act: () => {} }] : []),
         isolated
             ? { label: `Show all (${removed})`, title: 'show every hidden function, removed call and collapsed container (Esc)', on: true, act: () => runCmd('showAll') }
             : { label: 'Isolate', title: 'show only the selected calls or functions (Enter)', disabled: !canIsolate, act: () => runCmd('isolateSelection') },
@@ -1438,7 +1439,11 @@ function toolbar() {
             { label: 'call depth', title: 'caller levels (left), callee levels (right)', text: true, act: () => {} },
             ...depthBtns('down'),
         ]),
-        { label: 'fit', title: 'fit to window (0)', act: fit },
+        { label: 'zoom fit', title: 'fit to window (0)', act: fit },
+        // the expansion mode a click switches to (Options > Call Expansion)
+        v.arrange === 'grow'
+            ? { label: 'Expand mode -+', title: 'switch to Global Toolbar: caller and callee levels from the toolbar (+ - call depth - +)', act: () => setArrange('auto') }
+            : { label: 'Expand mode >>', title: 'switch to Individual On Graph: >> and └─>> open one side, one layer at a time', act: () => setArrange('grow') },
     ];
     const fl = folders();
     const sections: Section[] = [
@@ -1503,6 +1508,9 @@ function toolbar() {
         // first four mirror the canvas context menu (package.json, group 1_file)
         { caption: 'File', items: [
             ...(settings.saveViews ? [] : [{ label: 'Save (.gaffy)', title: 'save this graph (.gaffy/views/)', act: () => api.postMessage({ type: 'save' }) }]),
+            { label: v.frozen ? `Frozen at ${v.frozen.commit ?? v.frozen.at}` : 'Freeze at commit', on: !!v.frozen,
+                title: v.frozen ? 'click to unfreeze: the language server updates the graph again' : 'keep the graph as it is: no language-server updates; the commit and time are recorded and shown',
+                act: () => api.postMessage({ type: 'freeze', on: !v.frozen }) },
             { label: 'Autosave Graphs', title: 'gaffy.saveViews: new graphs are written to .gaffy/views/ and saved after every change; off: a new graph opens unsaved, Save (.gaffy) keeps it',
                 on: settings.saveViews, act: () => api.postMessage({ type: 'setting', key: 'saveViews', value: !settings.saveViews }) },
             { label: 'Save as Text (.txt, .md)', title: '.gaffy/<symbol>_<commit>.md and .txt, then _2, _3 (x)', act: () => api.postMessage({ type: 'export' }) },

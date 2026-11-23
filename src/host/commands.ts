@@ -327,6 +327,14 @@ export function registerCommands(ctx: vscode.ExtensionContext, editor: GaffyEdit
     reg('gaffy.export', () => exportView(active()));
 
     // unsaved view: saved to its bound .gaffy/views/ path
+    // frozen view: no language-server requests; the commit (trusted workspace folder) and time are recorded and shown
+    const freeze = async (s: Session, on: boolean) => {
+        const commit = on ? await gitShort(s.folder.fsPath) : undefined;
+        const at = new Date().toISOString().slice(0, 16).replace('T', ' ');
+        await s.update((d) => { if (on) d.view.frozen = { at, ...(commit ? { commit } : {}) }; else delete d.view.frozen; });
+        if (!on) await s.revalidate();
+    };
+    reg('gaffy.view.freeze', () => { const s = active(); return freeze(s, !s.doc().view.frozen); });
     reg('gaffy.view.save', async () => {
         const s = active();
         if (!(await vscode.workspace.save(s.document.uri))) throw new Error(`${s.name} was not saved`);
@@ -447,6 +455,7 @@ export function registerCommands(ctx: vscode.ExtensionContext, editor: GaffyEdit
             case 'refresh': await s.refresh(undefined, 'revalidate'); break;
             case 'export': await exportView(s); break;
             case 'save': await vscode.commands.executeCommand('gaffy.view.save'); break;
+            case 'freeze': await freeze(s, m.on === true); break;
             // webview command missing its operand (selection, call, function): warning
             case 'warn': void vscode.window.showWarningMessage(plain(`gaffy: ${String(m.text ?? '').slice(0, 300)}`)); break;
             case 'editStyle': await vscode.commands.executeCommand('gaffy.editStyle'); break;

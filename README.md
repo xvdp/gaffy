@@ -16,6 +16,31 @@ npm run install:local                        # code --install-extension gaffy-<v
 
 Development: `gaffy/` in VS Code, F5 (Extension Development Host); `npm run watch` rebuilds on change.
 
+## Scripts
+
+| command | effect |
+|---|---|
+| `npm install` | dependencies, after cloning or a `package.json` change |
+| `npm run typecheck` | `tsc --noEmit` over `src/` and `test/` |
+| `npm test` | vitest: core, routing invariants, golden text pictures in `test/golden/` |
+| `UPDATE_GOLDEN=1 npm test` | goldens rewritten after an intended layout change |
+| `npm run build` | esbuild bundles: `dist/extension.js` (host), `dist/webview.js` (webview) |
+| `npm run watch` | build on every save |
+| `npm run package` | typecheck, test, build, `vsce package` → `gaffy-<version>.vsix` |
+| `npm run install:local` | `code --install-extension gaffy-<version>.vsix`, version from `package.json` |
+| `npm run preview` | `dist/preview.html`: the webview in a browser with fixture views; `GAFFY_PREVIEW_FILE=<view.gaffy> npm run preview` for any view |
+| `npm run heuristics` | `docs/heuristics.md`, `docs/heuristics.gaffy`, `docs/ordering.md` regenerated from the code |
+| `npm run docs:check` | `npm run heuristics`, then a failure when `docs/` differs from the commit |
+| `node tools/gaffy-trace.mjs <trace.jsonl>` | view change log (setting `gaffy.trace`) as a list |
+
+Release and publishing commands (`npm version`, `vsce publish`, `ovsx publish`): [docs/development.md](docs/development.md).
+
+## Documentation
+
+- [docs/development.md](docs/development.md): tooling, release, publishing, project parts, security measures.
+- [docs/heuristics.md](docs/heuristics.md): layout rules with code links, as a pipeline graph; [docs/heuristics.gaffy](docs/heuristics.gaffy): the same graph as a gaffy view.
+- [docs/ordering.md](docs/ordering.md): functions that change what a view shows and where (triggers, interpreters, layout), drawing of one call, what a drag moves.
+
 ## Test installed .vsix extension
 `Ctrl+Shift+P > **Developer: Reload Window**`
 
@@ -150,9 +175,9 @@ Algorithms: [src/core/layout.ts](src/core/layout.ts) (rows and lanes in a block)
 | ↑ ↓, Alt+↑ ↓ | move focus; move the focused function among its siblings |
 | e, c or ←, → | open the focused function's sides that have more (one layer at a time); collapse innermost container; expand collapsed |
 | Delete or Backspace, h, i, k | remove selection (calls cut, functions hidden; full: hide functions); hide selection; isolate selection; lock or unlock the focused function |
-| u, g, b, r, 0, x | unhide all; glyph or vector edges; group namespaces; refresh from language server; fit; export |
+| u, g, b, r, 0, x | unhide all; glyph or vector edges; group namespaces; refresh from language server; zoom fit; export |
 
-Toolbar: **Isolate** (nothing hidden) or **Show all (n)** (something hidden), call depths (full), fit, **☰ Options** (pulldown, checkmarks):
+Toolbar: **Isolate** (nothing hidden) or **Show all (n)** (something hidden), call depths (full), **zoom fit**, **Expand mode >>** / **Expand mode -+** (switch to that call expansion), **☰ Options** (pulldown, checkmarks):
 
 - Call Expansion: Individual On Graph (one layer at a time), Global Toolbar (full); Call depth by (full): shortest or longest call path
 - Namespaces: ✓ Group namespaces, ✓ Tight groups (default on, style `boxes.tight`: frames fit their content on all sides), reset per-box grouping (moves inside changed boxes dropped)
@@ -160,7 +185,7 @@ Toolbar: **Isolate** (nothing hidden) or **Show all (n)** (something hidden), ca
 - Tree parent: first caller found (dfs), nearest caller above, left merge (joint: a caller right above joins the elbow `├───┴─>`; several callers in a box join one collector from the left, `┌──┘` then `└─>`; calls between boxes arrive from the left where cells are free)
 - Arrange, also on canvas right click (key `a`: re-arrange): **Reset graph**: seeds, depth, direction (one layer at a time: seeds and first layer; full: starting call depths), **Reset Layout**: moves, locks, order (sibling order, straightened calls), Re-arrange (selected functions to their computed place; no selection: every unlocked move dropped), Unlock all, Expand collapsed
 - Folders: ✓ Include external code (`gaffy.includeExternal`, workspace setting; on: language server asked again; off: hidden at once), ✓ Include standard library (`gaffy.includeStandardLibrary`), then each top-level folder, included or excluded (external and standard library folders listed only while included). Draw-time filters: calls into an excluded folder stay stored, so including it shows them without the language server.
-- File: Save (.gaffy) (Autosave Graphs off), ✓ Autosave Graphs (`gaffy.saveViews`), Save as Text (.txt, .md), Refresh Language Server, Edit style.json, Settings (filtered to gaffy)
+- File: Save (.gaffy) (Autosave Graphs off), ✓ Freeze at commit (no language-server updates; commit and time recorded in the view and shown in the toolbar: Frozen at commit … ; also `gaffy: Freeze or Unfreeze View at Commit`), ✓ Autosave Graphs (`gaffy.saveViews`), Save as Text (.txt, .md), Refresh Language Server, Edit style.json, Settings (filtered to gaffy)
 
 Toolbar, pulldown: HTML built with d3-selection, VS Code theme variables (`--vscode-menu-*`). Graph: SVG drawn with D3.
 
@@ -170,14 +195,14 @@ Locks: a locked function or box keeps its absolute position; unlocked items plac
 
 ## Views from scripts
 
-A script writes a view file with seeds by name and opens it; gaffy resolves each seed (document symbols, call hierarchy) and asks the language server within the view's depths. Seeds: `<path>#<qualified name>` or `<path>:<line>` (1-based, inside the definition), path relative to the workspace folder; a seed not found is reported in a warning.
+A script writes a view file with seeds by name and opens it; gaffy resolves each seed (document symbols, call hierarchy) and asks the language server within the view's depths. Seeds: `<path>#<qualified name>` or `<path>:<line>` (1-based, inside the definition), path relative to the folder holding `.gaffy/` (the repository), else to the workspace folder; a seed not found is reported in a warning. `"save": true`: the file is saved after every change, whatever `gaffy.autoSave` says.
 
 ```python
 import json, pathlib, subprocess
 
 view = {"gaffy": 1, "name": "batch", "view": {
     "seeds": ["src/pkg/mod.py#Scoobie.do", "src/pkg/other.py#magoo", "src/pkg/other.py:120"],
-    "arrange": "auto", "direction": "both", "depthUp": 2, "depthDown": 3}}
+    "arrange": "auto", "direction": "both", "depthUp": 2, "depthDown": 3, "save": True}}
 p = pathlib.Path(".gaffy/views/batch.gaffy")
 p.parent.mkdir(parents=True, exist_ok=True)
 p.write_text(json.dumps(view))
@@ -275,13 +300,7 @@ New UI color: a rule in `media/webview.css` reading `var(--g-<key>)`; the key wi
 
 ## Tests and preview
 
-```bash
-npm test                  # core: quotient, layout, boxes, placement, routing invariants, golden text pictures in test/golden/
-UPDATE_GOLDEN=1 npm test  # rewrite goldens after an intended layout change
-npm run heuristics        # regenerate docs/heuristics.md, docs/heuristics.gaffy, docs/ordering.md
-npm run docs:check        # regenerate, then fail when docs/ differs from the commit
-npm run preview           # dist/preview.html?doc=sh|exp4|star|grow|two[&edges=vector&curve=sigmoid&fill=hue&boxes=off&parentRule=joint]
-```
+Commands: [Scripts](#scripts). Preview page parameters: `dist/preview.html?doc=sh|exp4|star|grow|two[&edges=vector&curve=sigmoid&fill=hue&boxes=off&parentRule=joint]`.
 
 Preview: the webview bundle in a browser, mocked VS Code API, fixture views (`sh`, `exp4`, `star`, `grow`, `two`) over made-up packages; `GAFFY_PREVIEW_FILE=<view.gaffy>` previews any view.
 

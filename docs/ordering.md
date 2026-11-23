@@ -53,50 +53,52 @@ Toolbar and Options:
 | entry | code | calls |
 |---|---|---|
 | call depth `all` `+` `−` (full layout) | [main.ts:1426](../src/webview/main.ts#L1426) | `setDepth(side, …)` |
-| **Show all (n)** | [main.ts:1434](../src/webview/main.ts#L1434) | `runCmd('showAll')` |
-| **Isolate** | [main.ts:1435](../src/webview/main.ts#L1435) | `runCmd('isolateSelection')` |
-| Options > Call Expansion: Individual On Graph, Global Toolbar | [main.ts:1446](../src/webview/main.ts#L1446) | `setArrange('grow' | 'auto')` |
-| Options > Call depth by: shortest, longest path | [main.ts:1452](../src/webview/main.ts#L1452) | `depthRule` |
-| Options > Namespaces > Group namespaces | [main.ts:1456](../src/webview/main.ts#L1456) | `boxes` |
-| Options > Namespaces > Tight groups | [main.ts:1458](../src/webview/main.ts#L1458) | `tight` |
-| Options > Namespaces > Reset grouping | [main.ts:1460](../src/webview/main.ts#L1460) | `group`, `ungroup` = [], `dropMovesWithin` for each |
-| Options > Tree parent: first caller found, nearest caller above, left merge | [main.ts:1470](../src/webview/main.ts#L1470) | `parentRule` |
-| Options > Arrange > Reset graph: seeds, depth, direction | [main.ts:1476](../src/webview/main.ts#L1476) | `runCmd('resetView')` |
-| Options > Arrange > Reset Layout: moves, locks, order | [main.ts:1479](../src/webview/main.ts#L1479) | `runCmd('resetLayout')` |
-| Options > Arrange > Re-arrange | [main.ts:1480](../src/webview/main.ts#L1480) | `runCmd('rearrangeSelection' | 'rearrange')` |
-| Options > Arrange > Unlock all | [main.ts:1483](../src/webview/main.ts#L1483) | `runCmd('unlockAll')` |
-| Options > Arrange > Expand collapsed | [main.ts:1484](../src/webview/main.ts#L1484) | `runCmd('expandAll')` |
-| Options > Folders > Include external code, Include standard library | [main.ts:1487](../src/webview/main.ts#L1487) | host setting; the webview redraws; their folders leave the list when off |
-| Options > Folders > a folder | [main.ts:1492](../src/webview/main.ts#L1492) | `exclude`, `include` |
-| Options > File > Save (.gaffy), Autosave Graphs, Save as Text, Refresh Language Server | [main.ts:1505](../src/webview/main.ts#L1505) | host: save, setting `gaffy.saveViews`, export, `refresh` (new data) |
+| **Show all (n)** | [main.ts:1435](../src/webview/main.ts#L1435) | `runCmd('showAll')` |
+| **Expand mode >>**, **Expand mode -+** | [main.ts:1445](../src/webview/main.ts#L1445) | `setArrange('auto' | 'grow')`: switches to the mode it names |
+| **Isolate** | [main.ts:1436](../src/webview/main.ts#L1436) | `runCmd('isolateSelection')` |
+| Options > Call Expansion: Individual On Graph, Global Toolbar | [main.ts:1451](../src/webview/main.ts#L1451) | `setArrange('grow' | 'auto')` |
+| Options > Call depth by: shortest, longest path | [main.ts:1457](../src/webview/main.ts#L1457) | `depthRule` |
+| Options > Namespaces > Group namespaces | [main.ts:1461](../src/webview/main.ts#L1461) | `boxes` |
+| Options > Namespaces > Tight groups | [main.ts:1463](../src/webview/main.ts#L1463) | `tight` |
+| Options > Namespaces > Reset grouping | [main.ts:1465](../src/webview/main.ts#L1465) | `group`, `ungroup` = [], `dropMovesWithin` for each |
+| Options > Tree parent: first caller found, nearest caller above, left merge | [main.ts:1475](../src/webview/main.ts#L1475) | `parentRule` |
+| Options > Arrange > Reset graph: seeds, depth, direction | [main.ts:1481](../src/webview/main.ts#L1481) | `runCmd('resetView')` |
+| Options > Arrange > Reset Layout: moves, locks, order | [main.ts:1484](../src/webview/main.ts#L1484) | `runCmd('resetLayout')` |
+| Options > Arrange > Re-arrange | [main.ts:1485](../src/webview/main.ts#L1485) | `runCmd('rearrangeSelection' | 'rearrange')` |
+| Options > Arrange > Unlock all | [main.ts:1488](../src/webview/main.ts#L1488) | `runCmd('unlockAll')` |
+| Options > Arrange > Expand collapsed | [main.ts:1489](../src/webview/main.ts#L1489) | `runCmd('expandAll')` |
+| Options > Folders > Include external code, Include standard library | [main.ts:1492](../src/webview/main.ts#L1492) | host setting; the webview redraws; their folders leave the list when off |
+| Options > Folders > a folder | [main.ts:1497](../src/webview/main.ts#L1497) | `exclude`, `include` |
+| Options > File > Save (.gaffy), Autosave Graphs, Save as Text, Refresh Language Server | [main.ts:1510](../src/webview/main.ts#L1510) | host: save, setting `gaffy.saveViews`, export, `refresh` (new data) |
+| Options > File > Freeze at commit | [main.ts:1513](../src/webview/main.ts#L1513) | host `freeze`: `frozen` = commit and time (no language-server updates), or removed |
 
 Context menu (`webview/context` entry, host registration; *forwarded* entries post `cmd` to the webview):
 
 | entry | code | calls |
 |---|---|---|
-| Make Seed, Remove Seed | [package.json:587](../package.json#L587), [commands.ts:383](../src/host/commands.ts#L383) | forwarded: `runCmd('makeSeed' | 'removeSeed')` |
-| Open Callers / Open Called / Close Callers / Close Called (one layer) | [package.json:567](../package.json#L567), [commands.ts:237](../src/host/commands.ts#L237) | forwarded: `runCmd('openUp' …)` → `setSide` |
-| Isolate Selection, Hide Selection | [package.json:622](../package.json#L622), [commands.ts:260](../src/host/commands.ts#L260) | forwarded: `runCmd('isolateSelection' | 'hideSelection')` (the selection, else the function right clicked; seeds stay) |
-| Show Hidden Neighbors… | [package.json:632](../package.json#L632), [commands.ts:255](../src/host/commands.ts#L255) | host quick pick: `hidden` minus the picked |
-| Collapse Class / Module / Package | [package.json:637](../package.json#L637), [commands.ts:361](../src/host/commands.ts#L361) | host `collapse(kinds)`: `collapsed` push |
-| Expand Container | [package.json:652](../package.json#L652), [commands.ts:380](../src/host/commands.ts#L380) | host: `collapsed` filter |
-| Group Module, Ungroup Module, Group Submodules | [package.json:657](../package.json#L657), [commands.ts:365](../src/host/commands.ts#L365) | host: `group`, `ungroup`; `dropMovesWithin` the container |
-| Re-arrange selected | [package.json:517](../package.json#L517), [commands.ts:261](../src/host/commands.ts#L261) | forwarded: `runCmd('rearrangeSelection')` |
-| Lock Position, Unlock Position | [package.json:677](../package.json#L677), [commands.ts:253](../src/host/commands.ts#L253) | forwarded: `runCmd('lock' | 'unlock')` |
-| Move Up One, Move Down One | [package.json:687](../package.json#L687), [commands.ts:401](../src/host/commands.ts#L401) | host `move(±1)`: `sibling` |
-| Tag… | [package.json:697](../package.json#L697), [commands.ts:385](../src/host/commands.ts#L385) | host: `tags` (a longer label widens its column) |
-| Straighten This Call | [package.json:702](../package.json#L702), [commands.ts:241](../src/host/commands.ts#L241) | forwarded: `runCmd('straighten')` (routing order only) |
-| Isolate This Call, Isolate the Path Through This Call | [package.json:707](../package.json#L707), [commands.ts:242](../src/host/commands.ts#L242) | forwarded: `runCmd('callSubtree' | 'callPath')` |
-| canvas: Save (.gaffy), Autosave Graphs, Save as Text (.txt, .md), Refresh Language Server | [package.json:447](../package.json#L447), [commands.ts:313](../src/host/commands.ts#L313) | host: save, setting, export, `refresh` |
-| canvas: Group namespaces, Tight groups, Reset graph, Reset Layout, Re-arrange, Unlock all, Expand collapsed | [package.json:482](../package.json#L482), [commands.ts:229](../src/host/commands.ts#L229) | host `boxes`, `tight`; the rest forwarded to `runCmd` (the Options Arrange entries) |
+| Make Seed, Remove Seed | [package.json:592](../package.json#L592), [commands.ts:408](../src/host/commands.ts#L408) | forwarded: `runCmd('makeSeed' | 'removeSeed')` |
+| Open Callers / Open Called / Close Callers / Close Called (one layer) | [package.json:572](../package.json#L572), [commands.ts:254](../src/host/commands.ts#L254) | forwarded: `runCmd('openUp' …)` → `setSide` |
+| Isolate Selection, Hide Selection | [package.json:627](../package.json#L627), [commands.ts:277](../src/host/commands.ts#L277) | forwarded: `runCmd('isolateSelection' | 'hideSelection')` (the selection, else the function right clicked; seeds stay) |
+| Show Hidden Neighbors… | [package.json:637](../package.json#L637), [commands.ts:272](../src/host/commands.ts#L272) | host quick pick: `hidden` minus the picked |
+| Collapse Class / Module / Package | [package.json:642](../package.json#L642), [commands.ts:386](../src/host/commands.ts#L386) | host `collapse(kinds)`: `collapsed` push |
+| Expand Container | [package.json:657](../package.json#L657), [commands.ts:405](../src/host/commands.ts#L405) | host: `collapsed` filter |
+| Group Module, Ungroup Module, Group Submodules | [package.json:662](../package.json#L662), [commands.ts:390](../src/host/commands.ts#L390) | host: `group`, `ungroup`; `dropMovesWithin` the container |
+| Re-arrange selected | [package.json:522](../package.json#L522), [commands.ts:278](../src/host/commands.ts#L278) | forwarded: `runCmd('rearrangeSelection')` |
+| Lock Position, Unlock Position | [package.json:682](../package.json#L682), [commands.ts:270](../src/host/commands.ts#L270) | forwarded: `runCmd('lock' | 'unlock')` |
+| Move Up One, Move Down One | [package.json:692](../package.json#L692), [commands.ts:426](../src/host/commands.ts#L426) | host `move(±1)`: `sibling` |
+| Tag… | [package.json:702](../package.json#L702), [commands.ts:410](../src/host/commands.ts#L410) | host: `tags` (a longer label widens its column) |
+| Straighten This Call | [package.json:707](../package.json#L707), [commands.ts:258](../src/host/commands.ts#L258) | forwarded: `runCmd('straighten')` (routing order only) |
+| Isolate This Call, Isolate the Path Through This Call | [package.json:712](../package.json#L712), [commands.ts:259](../src/host/commands.ts#L259) | forwarded: `runCmd('callSubtree' | 'callPath')` |
+| canvas: Save (.gaffy), Autosave Graphs, Save as Text (.txt, .md), Refresh Language Server | [package.json:452](../package.json#L452), [commands.ts:338](../src/host/commands.ts#L338) | host: save, setting, export, `refresh` |
+| canvas: Group namespaces, Tight groups, Reset graph, Reset Layout, Re-arrange, Unlock all, Expand collapsed | [package.json:487](../package.json#L487), [commands.ts:246](../src/host/commands.ts#L246) | host `boxes`, `tight`; the rest forwarded to `runCmd` (the Options Arrange entries) |
 
 Outside the view:
 
 | event | code | calls |
 |---|---|---|
-| editor: gaffy> Call Hierarchy (up, dn); explorer: Call Hierarchies | [commands.ts:169](../src/host/commands.ts#L169), [commands.ts:182](../src/host/commands.ts#L182) | `createView`: a new view |
-| editor: gaffy> Add to Call Graph | [commands.ts:172](../src/host/commands.ts#L172) | seed added, `Session.refresh` |
-| VS Code undo, redo; an edit of the .gaffy text | [editor.ts:480](../src/host/editor.ts#L480) | the webview receives the text (`state`) and redraws |
+| editor: gaffy> Call Hierarchy (up, dn); explorer: Call Hierarchies | [commands.ts:186](../src/host/commands.ts#L186), [commands.ts:199](../src/host/commands.ts#L199) | `createView`: a new view |
+| editor: gaffy> Add to Call Graph | [commands.ts:189](../src/host/commands.ts#L189) | seed added, `Session.refresh` |
+| VS Code undo, redo; an edit of the .gaffy text | [editor.ts:493](../src/host/editor.ts#L493) | the webview receives the text (`state`) and redraws |
 | saving a source file; renaming a file | [extension.ts:58](../src/host/extension.ts#L58) | refresh of the views that show it |
 
 ## 2. Interpreters
@@ -131,8 +133,8 @@ Outside the view:
 | `afterRender`: settle | [main.ts:622](../src/webview/main.ts#L622) | `offset` | saves the offsets settle drew with, ≤ 3 saves in a row (h35) |
 | `anchorAt`, `render` | [main.ts:688](../src/webview/main.ts#L688) | - | no view change: pans so the function acted on keeps its screen spot (h30, h31) |
 | host `Session.update`, `write` | [editor.ts:39](../src/host/editor.ts#L39) | any | replaces the document text (host commands, language server data) |
-| host `collapse`, `expandContainer`, `move`, group commands | [commands.ts:356](../src/host/commands.ts#L356) | `collapsed`, `sibling`, `group`, `ungroup` | context menu changes made on the host |
-| host `Session.revalidate`, `expand`, `ask` | [editor.ts:343](../src/host/editor.ts#L343) | `graph`, `explored` | new calls from the language server: new functions appear where their sides are open |
+| host `collapse`, `expandContainer`, `move`, group commands | [commands.ts:381](../src/host/commands.ts#L381) | `collapsed`, `sibling`, `group`, `ungroup` | context menu changes made on the host |
+| host `Session.revalidate`, `expand`, `ask` | [editor.ts:356](../src/host/editor.ts#L356) | `graph`, `explored` | new calls from the language server: new functions appear where their sides are open |
 
 ## 3. Layout
 

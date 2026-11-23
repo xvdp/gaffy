@@ -43,8 +43,8 @@ export class Session {
         const end = this.document.lineAt(Math.max(0, this.document.lineCount - 1)).range.end;
         edit.replace(this.document.uri, new vscode.Range(new vscode.Position(0, 0), end), text);
         await vscode.workspace.applyEdit(edit);
-        // untitled views skip autoSave
-        if (!this.document.isUntitled && vscode.workspace.getConfiguration('gaffy').get<boolean>('autoSave')) await this.document.save();
+        // untitled views skip autoSave; `view.save` (a script's view) saves whatever the setting
+        if (!this.document.isUntitled && (doc.view.save || vscode.workspace.getConfiguration('gaffy').get<boolean>('autoSave'))) await this.document.save();
     }
 
     async post(): Promise<void> {
@@ -234,7 +234,8 @@ export class Session {
     /**
      * Seeds written by name (seedspec.ts, a view a script wrote) become the keys of their definitions, with their
      * records and containers in the graph; then the usual build asks the language server within the view's depths.
-     * Paths resolve inside the view's workspace folder only. Names the language server does not resolve yet
+     * Paths resolve inside the folder holding the view's `.gaffy` directory, else the workspace folder. Names the
+     * language server does not resolve yet
      * (loading) are retried after 2, 5 and 10 s; the rest are reported once.
      */
     async open(): Promise<void> {
@@ -256,14 +257,26 @@ export class Session {
         const named = doc.view.seeds.filter((k) => !Object.hasOwn(doc.graph.nodes, k));
         const bad: string[] = [], retry: string[] = [];
         if (!named.length) return { bad, retry };
-        const base = this.folder;
+        // path bases: the folder holding the view's `.gaffy` directory (a repository a script wrote into), then the
+        // workspace folder; a path must stay inside its base
+        const view = this.document.uri.scheme === 'untitled' ? vscode.Uri.file(this.document.uri.path) : this.document.uri;
+        const parts = view.path.split('/');
+        const g = parts.lastIndexOf('.gaffy');
+        const bases = [...(g > 0 ? [view.with({ path: parts.slice(0, g).join('/') })] : []), this.folder];
         const acc: Record<NodeKey, GNode> = {};
         const found = new Map<string, NodeKey>();
+        const fileOf = async (path: string) => {
+            for (const base of bases) {
+                const uri = vscode.Uri.joinPath(base, path);
+                if (!uri.path.startsWith(`${base.path.replace(/\/$/, '')}/`) || !readable(uri)) continue;
+                try { await vscode.workspace.fs.stat(uri); return uri; } catch { /* next base */ }
+            }
+            return undefined;
+        };
         for (const seed of named) {
             const spec = seedSpec(seed);
-            const uri = spec ? vscode.Uri.joinPath(base, spec.path) : undefined;
-            if (!spec || !uri || !uri.path.startsWith(`${base.path.replace(/\/$/, '')}/`) || !readable(uri)) { bad.push(seed); continue; }
-            try { await vscode.workspace.fs.stat(uri); } catch { bad.push(seed); continue; }
+            const uri = spec ? await fileOf(spec.path) : undefined;
+            if (!spec || !uri) { bad.push(seed); continue; }
             const key = await this.host.provider.seedAt(uri, spec, acc);
             if (key) found.set(seed, key); else retry.push(seed);
         }
@@ -279,11 +292,11 @@ export class Session {
     private badSeeds(seeds: string[]): void {
         void vscode.window.showWarningMessage(plain(`gaffy: ${this.name}: ${seeds.length} seed${seeds.length > 1 ? 's' : ''} not found: `
             + `${seeds.slice(0, 5).join(', ')}${seeds.length > 5 ? ', …' : ''} (write <path>#<qualified name> or <path>:<line>, `
-            + 'path relative to the workspace folder)'));
+            + 'path relative to the folder holding .gaffy/ or the workspace folder)'));
     }
 
-    /** Static view (`view.static`): fixed graph, no language-server requests. */
-    private get fixed(): boolean { return !!this.doc().view.static; }
+    /** Static or frozen view (`view.static`, `view.frozen`): fixed graph, no language-server requests. */
+    private get fixed(): boolean { const v = this.doc().view; return !!v.static || !!v.frozen; }
 
     ensure(): Promise<void> {
         if (this.fixed) return Promise.resolve();

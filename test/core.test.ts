@@ -760,6 +760,15 @@ describe('view files are data', () => {
         expect(d.graph.edges).toEqual([{ from: 'a', to: 'b' }]);
     });
 
+    it('frozen and save: kept when well formed', () => {
+        const d = parseDoc(JSON.stringify({ gaffy: 1, view: { save: true, frozen: { commit: 'abc1234', at: '2026-11-23 10:00' } } }));
+        expect(d.view.save).toBe(true);
+        expect(d.view.frozen).toEqual({ commit: 'abc1234', at: '2026-11-23 10:00' });
+        const e = parseDoc(JSON.stringify({ gaffy: 1, view: { save: 'yes', frozen: { commit: '$(rm -rf /)', at: '2026-11-23' } } }));
+        expect(e.view.save).toBeUndefined();
+        expect(e.view.frozen).toEqual({ at: '2026-11-23' });
+    });
+
     it('a lock at the bound lays out without routing a huge grid', () => {
         const doc = fixtureDoc(MOO, { seeds: [k('moomoo.yo_blinkers:flibbity_jibbity_jabby')], direction: 'in' });
         doc.view.lock = { [k('moomoo.yo_blinkers:flibbity_jibbity_jabby')]: [2000, 2000] };
