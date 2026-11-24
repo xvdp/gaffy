@@ -143,7 +143,7 @@
     "module": "src/webview/main",
     "parent": "ts:src/webview/main.ts",
     "path": "src/webview/main.ts",
-    "line": 370,
+    "line": 371,
     "detail": "code"
    },
    "ts:src/webview/main.ts#afterRender": {
@@ -154,7 +154,7 @@
     "module": "src/webview/main",
     "parent": "ts:src/webview/main.ts",
     "path": "src/webview/main.ts",
-    "line": 608,
+    "line": 610,
     "detail": "code"
    },
    "ts:src/webview/main.ts#setSide": {
@@ -165,7 +165,7 @@
     "module": "src/webview/main",
     "parent": "ts:src/webview/main.ts",
     "path": "src/webview/main.ts",
-    "line": 709,
+    "line": 711,
     "detail": "code"
    },
    "ts:src/webview/main.ts#anchorAt": {
@@ -176,7 +176,7 @@
     "module": "src/webview/main",
     "parent": "ts:src/webview/main.ts",
     "path": "src/webview/main.ts",
-    "line": 694,
+    "line": 696,
     "detail": "code"
    },
    "ts:src/webview/main.ts#dragUnit": {
@@ -187,7 +187,7 @@
     "module": "src/webview/main",
     "parent": "ts:src/webview/main.ts",
     "path": "src/webview/main.ts",
-    "line": 1034,
+    "line": 1036,
     "detail": "code"
    },
    "ts:src/webview/main.ts#topUnits": {
@@ -198,7 +198,7 @@
     "module": "src/webview/main",
     "parent": "ts:src/webview/main.ts",
     "path": "src/webview/main.ts",
-    "line": 1025,
+    "line": 1027,
     "detail": "code"
    },
    "ts:src/webview/main.ts#settleDrop": {
@@ -209,7 +209,7 @@
     "module": "src/webview/main",
     "parent": "ts:src/webview/main.ts",
     "path": "src/webview/main.ts",
-    "line": 1135,
+    "line": 1137,
     "detail": "code"
    },
    "ts:src/webview/main.ts#runCmd": {
@@ -220,7 +220,7 @@
     "module": "src/webview/main",
     "parent": "ts:src/webview/main.ts",
     "path": "src/webview/main.ts",
-    "line": 1203,
+    "line": 1205,
     "detail": "code"
    },
    "ts:src/core/scene.ts#buildScene": {
@@ -716,7 +716,7 @@
     "parent": "ts:src/webview/main.ts",
     "path": "docs/heuristics.md",
     "line": 272,
-    "detail": "Hops: code src/webview/main.ts:436"
+    "detail": "Hops: code src/webview/main.ts:437"
    },
    "ts:src/webview/main.ts#h30_action_anchor": {
     "key": "ts:src/webview/main.ts#h30_action_anchor",
@@ -727,7 +727,7 @@
     "parent": "ts:src/webview/main.ts",
     "path": "docs/heuristics.md",
     "line": 278,
-    "detail": "Action anchor: code src/webview/main.ts:387"
+    "detail": "Action anchor: code src/webview/main.ts:388"
    },
    "ts:src/webview/main.ts#h31_still_anchor": {
     "key": "ts:src/webview/main.ts#h31_still_anchor",
@@ -738,7 +738,7 @@
     "parent": "ts:src/webview/main.ts",
     "path": "docs/heuristics.md",
     "line": 284,
-    "detail": "Still anchor: code src/webview/main.ts:1077"
+    "detail": "Still anchor: code src/webview/main.ts:1079"
    },
    "ts:src/webview/main.ts#h32_multi_unit_drag": {
     "key": "ts:src/webview/main.ts#h32_multi_unit_drag",
@@ -749,7 +749,7 @@
     "parent": "ts:src/webview/main.ts",
     "path": "docs/heuristics.md",
     "line": 290,
-    "detail": "Multi-unit drag: code src/webview/main.ts:1028"
+    "detail": "Multi-unit drag: code src/webview/main.ts:1030"
    },
    "ts:src/webview/main.ts#h33_drop_repulsion": {
     "key": "ts:src/webview/main.ts#h33_drop_repulsion",
@@ -760,7 +760,7 @@
     "parent": "ts:src/webview/main.ts",
     "path": "docs/heuristics.md",
     "line": 296,
-    "detail": "Drop repulsion: code src/webview/main.ts:1149"
+    "detail": "Drop repulsion: code src/webview/main.ts:1151"
    },
    "ts:src/webview/main.ts#h34_offset_handover": {
     "key": "ts:src/webview/main.ts#h34_offset_handover",
@@ -771,7 +771,7 @@
     "parent": "ts:src/webview/main.ts",
     "path": "docs/heuristics.md",
     "line": 302,
-    "detail": "Offset handover: code src/webview/main.ts:619"
+    "detail": "Offset handover: code src/webview/main.ts:621"
    },
    "ts:src/webview/main.ts#h35_save_what_is_drawn": {
     "key": "ts:src/webview/main.ts#h35_save_what_is_drawn",
@@ -782,19 +782,19 @@
     "parent": "ts:src/webview/main.ts",
     "path": "docs/heuristics.md",
     "line": 308,
-    "detail": "Save what is drawn: code src/webview/main.ts:626"
+    "detail": "Save what is drawn: code src/webview/main.ts:628"
    }
   },
   "edges": [
    {
     "from": "ts:src/webview/main.ts#render",
     "to": "ts:src/core/scene.ts#buildScene",
-    "line": 376
+    "line": 377
    },
    {
     "from": "ts:src/webview/main.ts#render",
     "to": "ts:src/webview/main.ts#afterRender",
-    "line": 595
+    "line": 596
    },
    {
     "from": "ts:src/core/scene.ts#buildScene",
@@ -859,27 +859,27 @@
    {
     "from": "ts:src/webview/main.ts#setSide",
     "to": "ts:src/webview/main.ts#anchorAt",
-    "line": 712
+    "line": 714
    },
    {
     "from": "ts:src/webview/main.ts#dragUnit",
     "to": "ts:src/webview/main.ts#topUnits",
-    "line": 1045
+    "line": 1047
    },
    {
     "from": "ts:src/webview/main.ts#dragUnit",
     "to": "ts:src/webview/main.ts#settleDrop",
-    "line": 1078
+    "line": 1080
    },
    {
     "from": "ts:src/webview/main.ts#dragUnit",
     "to": "ts:src/webview/main.ts#anchorAt",
-    "line": 1077
+    "line": 1079
    },
    {
     "from": "ts:src/webview/main.ts#runCmd",
     "to": "ts:src/webview/main.ts#anchorAt",
-    "line": 1332
+    "line": 1334
    },
    {
     "from": "ts:src/core/reveal.ts#reveal",
@@ -1044,52 +1044,52 @@
    {
     "from": "ts:src/webview/main.ts#render",
     "to": "ts:src/webview/main.ts#h37_hops",
-    "line": 435
+    "line": 436
    },
    {
     "from": "ts:src/webview/main.ts#render",
     "to": "ts:src/webview/main.ts#h30_action_anchor",
-    "line": 386
+    "line": 387
    },
    {
     "from": "ts:src/webview/main.ts#anchorAt",
     "to": "ts:src/webview/main.ts#h30_action_anchor",
-    "line": 695
+    "line": 697
    },
    {
     "from": "ts:src/webview/main.ts#dragUnit",
     "to": "ts:src/webview/main.ts#h31_still_anchor",
-    "line": 1076
+    "line": 1078
    },
    {
     "from": "ts:src/webview/main.ts#runCmd",
     "to": "ts:src/webview/main.ts#h31_still_anchor",
-    "line": 1331
+    "line": 1333
    },
    {
     "from": "ts:src/webview/main.ts#topUnits",
     "to": "ts:src/webview/main.ts#h32_multi_unit_drag",
-    "line": 1027
+    "line": 1029
    },
    {
     "from": "ts:src/webview/main.ts#settleDrop",
     "to": "ts:src/webview/main.ts#h33_drop_repulsion",
-    "line": 1148
+    "line": 1150
    },
    {
     "from": "ts:src/webview/main.ts#afterRender",
     "to": "ts:src/webview/main.ts#h34_offset_handover",
-    "line": 618
+    "line": 620
    },
    {
     "from": "ts:src/webview/main.ts#setSide",
     "to": "ts:src/webview/main.ts#h34_offset_handover",
-    "line": 714
+    "line": 716
    },
    {
     "from": "ts:src/webview/main.ts#afterRender",
     "to": "ts:src/webview/main.ts#h35_save_what_is_drawn",
-    "line": 625
+    "line": 627
    }
   ]
  },

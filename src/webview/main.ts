@@ -30,9 +30,10 @@ let style: Style | undefined;
 let styleText = '';
 let excludeGlobs: string[] = [];
 let excludes: PathTest[] = [];        // `gaffy.exclude` path tests for buildScene
-let settings = { includeExternal: false, includeStandardLibrary: false, saveViews: false, untitled: false, trace: false };   // VS Code settings (Options; `trace`: gaffy.trace)
-/** External code drawn (scene.ts `Outside`), from `settings`. */
-const outside = () => ({ external: settings.includeExternal, standard: settings.includeStandardLibrary });
+// VS Code settings (`trace`: gaffy.trace); `held`: the view is frozen (editor.ts, freeze on open)
+let settings = { includeExternal: false, includeStandardLibrary: false, saveViews: false, untitled: false, trace: false, held: false };
+/** External code drawn (scene.ts `Outside`): the view's values, else the settings. */
+const outside = () => ({ external: doc?.view.external ?? settings.includeExternal, standard: doc?.view.stdlib ?? settings.includeStandardLibrary });
 let scene: Scene | undefined;
 let focusKey: NodeKey | undefined = api.getState()?.focus;
 let selected = new Set<NodeKey>();
@@ -602,12 +603,13 @@ function render() {
  *    lands right above `└─> fun()`).
  * 2. settle: saves the drawn offsets (`Scene.offsets`) once per document text, ≤ 3 times in a row; other
  *    changes reset the count.
+ * Frozen view (`settings.held`): neither; the drawn picture still settles.
  */
 let settledFor = '';
 let settleStreak = 0;
 let adopt: { key: NodeKey; renders: number } | undefined;
 function afterRender() {
-    if (!doc || !scene || !style || dragging) return;
+    if (!doc || !scene || !style || dragging || settings.held) return;
     const sc = scene;
     if (adopt) {
         const k = adopt.key;
@@ -1470,13 +1472,14 @@ const LIB_ROOT = /^(site-packages|dist-packages|stdlib|python\d+(\.\d+)?|include
 function folders(): { path: string; label: string; excluded: boolean }[] {
     if (!doc) return [];
     const ex = excludedBy(doc.view, excludes);
-    const shown = (n: GNode) => !n.external || (settings.includeExternal && (settings.includeStandardLibrary || !isStandard(n.path)));
+    const o = outside();
+    const shown = (n: GNode) => !n.external || (o.external && (o.standard || !isStandard(n.path)));
     const all = Object.values(doc.graph.nodes).filter((n) => n.path && !isContainer(n));
     const extTop = new Set(all.filter((n) => n.external).map((n) => n.path!.split('/')[0]));
     const hiddenDir = (p: string) => {
         const top = p.split('/')[0];
         if (!extTop.has(top) && !LIB_ROOT.test(top)) return false;
-        return !settings.includeExternal || (!settings.includeStandardLibrary && isStandard(`${p}/x`));
+        return !o.external || (!o.standard && isStandard(`${p}/x`));
     };
     const dirs = all.filter(shown).map((n) => n.path!.split('/').slice(0, -1));
     if (!dirs.length && !doc.view.exclude.length && !doc.view.include.length) return [];
@@ -1554,7 +1557,8 @@ function toolbar() {
         return side === 'up' ? [all, plus, minus, num] : [num, minus, plus, all];
     };
     const bar: Btn[] = [
-        ...(v.frozen ? [{ label: `Frozen at ${v.frozen.commit ? `commit ${v.frozen.commit} · ` : ''}${v.frozen.at}`, title: 'no language-server updates (Options > File)', text: true, act: () => {} }] : []),
+        ...(settings.held ? [{ label: 'Unfreeze', on: true, title: `opened frozen: no language-server updates, settled moves not written${doc.updated ? `; built ${new Date(doc.updated).toLocaleString()}${doc.commit ? ` at commit ${doc.commit}` : ''}` : ''}. Click to unfreeze (Ctrl+Z freezes again)`,
+            act: () => api.postMessage({ type: 'hold', on: false }) }] : []),
         isolated
             ? { label: `Show all (${removed})`, title: 'show every hidden function, removed call and collapsed container (Esc)', on: true, act: () => runCmd('showAll') }
             : { label: 'Isolate', title: 'show only the selected calls or functions (Enter)', disabled: !canIsolate, act: () => runCmd('isolateSelection') },
@@ -1617,10 +1621,10 @@ function toolbar() {
             { label: `Expand collapsed (${v.collapsed.length})`, title: 'expand every collapsed container', act: () => runCmd('expandAll') },
         ] },
         { caption: 'Folders', items: [
-            { label: 'Include external code', title: 'installed packages, system headers, build output (gaffy.includeExternal, workspace settings); turning it on asks the language server again',
-                on: settings.includeExternal, act: () => api.postMessage({ type: 'setting', key: 'includeExternal', value: !settings.includeExternal }) },
-            { label: 'Include standard library', title: 'gaffy.includeStandardLibrary: with external code, also the builtins and standard library of each language (Python builtins, Rust std, C++ std, TypeScript lib); drawn without the language server',
-                on: settings.includeStandardLibrary, act: () => api.postMessage({ type: 'setting', key: 'includeStandardLibrary', value: !settings.includeStandardLibrary }) },
+            { label: 'Include external code', title: 'this view: installed packages, system headers, build output (new views: gaffy.includeExternal); turning it on asks the language server again',
+                on: outside().external, act: () => commit((x) => { x.view.external = !outside().external; }) },
+            { label: 'Include standard library', title: 'this view: with external code, also the builtins and standard library of each language (Python builtins, Rust std, C++ std, TypeScript lib; new views: gaffy.includeStandardLibrary); drawn without the language server',
+                on: outside().standard, act: () => commit((x) => { x.view.stdlib = !outside().standard; }) },
             ...fl.map((f) => ({
             label: f.label, title: `${f.path}: ${f.excluded ? 'excluded, click to include' : 'included, click to exclude'}`, on: !f.excluded,
             act: () => commit((x) => {
@@ -1635,18 +1639,19 @@ function toolbar() {
         ] },
         // first four mirror the canvas context menu (package.json, group 1_file)
         { caption: 'File', items: [
-            ...(settings.saveViews ? [] : [{ label: 'Save (.gaffy)', title: 'save this graph (.gaffy/views/)', act: () => api.postMessage({ type: 'save' }) }]),
-            { label: v.frozen ? `Frozen at ${v.frozen.commit ?? v.frozen.at}` : 'Freeze at commit', on: !!v.frozen,
-                title: v.frozen ? 'click to unfreeze: the language server updates the graph again' : 'keep the graph as it is: no language-server updates; the commit and time are recorded and shown',
-                act: () => api.postMessage({ type: 'freeze', on: !v.frozen }) },
-            { label: 'Autosave Graphs', title: 'gaffy.saveViews: new graphs are written to .gaffy/views/ and saved after every change; off: a new graph opens unsaved, Save (.gaffy) keeps it',
+            ...(settings.saveViews ? [] : [{ label: 'Save (.gaffy)', title: 'save this graph (.baggy/gaffy/)', act: () => api.postMessage({ type: 'save' }) }]),
+            { label: 'Frozen', on: settings.held, title: settings.held
+                ? 'opened frozen: no language-server updates, settled moves not written; click to unfreeze (Ctrl+Z freezes again)'
+                : 'freeze: no language-server updates, settled moves not written (Ctrl+Z unfreezes)',
+            act: () => api.postMessage({ type: 'hold', on: !settings.held }) },
+            { label: 'Autosave Graphs', title: 'gaffy.saveViews: new graphs are written to .baggy/gaffy/ and saved after every change; off: a new graph opens unsaved, Save (.gaffy) keeps it',
                 on: settings.saveViews, act: () => api.postMessage({ type: 'setting', key: 'saveViews', value: !settings.saveViews }) },
-            { label: 'Save as Text (.txt, .md)', title: '.gaffy/<symbol>_<commit>.md and .txt, then _2, _3 (x)', act: () => api.postMessage({ type: 'export' }) },
-            { label: 'Refresh Language Server', title: v.arrange === 'grow'
+            { label: 'Save as Text (.txt, .md)', title: '.baggy/gaffy/<symbol>_<commit>.md and .txt, then _2, _3 (x)', act: () => api.postMessage({ type: 'export' }) },
+            { label: 'Refresh Language Server', disabled: settings.held, title: settings.held ? 'frozen: unfreeze first' : v.arrange === 'grow'
                 ? 'calls of the functions on screen from the language server; the others when a side opens onto them. Unanswered functions keep their calls (r)'
                 : 'calls of the functions on screen from the language server, then the levels within the call depths. Unanswered functions keep their calls (r)',
             act: () => api.postMessage({ type: 'refresh' }) },
-            { label: 'Edit style.json', title: '.gaffy/style.json', act: () => api.postMessage({ type: 'editStyle' }) },
+            { label: 'Edit style.json', title: '.baggy/gaffy/style.json: defaults for new views (edge style, curve, grouping), colors, font, spacing', act: () => api.postMessage({ type: 'editStyle' }) },
             { label: 'Settings', title: 'VS Code Settings, filtered to gaffy', act: () => api.postMessage({ type: 'openSettings' }) },
         ] },
     ];
@@ -1689,9 +1694,10 @@ function status() {
     if (doc.truncated) parts.push('truncated at gaffy.maxNodes');
     if (settings.untitled) parts.push('unsaved view: right click > Save keeps it');
     if (doc.view.static) parts.push('static view: no language server');
+    else if (settings.held) parts.push('frozen: Unfreeze in the toolbar');
     if (note) parts.push(note);
     if (busy) parts.push('building…');
-    else if (doc.updated) parts.push(`built ${new Date(doc.updated).toLocaleString()}`);
+    else if (doc.updated) parts.push(`built ${new Date(doc.updated).toLocaleString()}${doc.commit ? ` at ${doc.commit}` : ''}`);
     parts.push(doc.view.arrange === 'grow'
         ? '>> └─>> open · arrowhead: close its level · click a line: select · Delete remove · dblclick toggle · drag move · right-click menu'
         : 'full: call depth in the toolbar · click open · ctrl/shift+click select · Delete hide · drag move · right-click menu');

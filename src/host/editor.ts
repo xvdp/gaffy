@@ -1,20 +1,46 @@
 /** @xvdp
  * Custom text editor for `*.gaffy` views: the TextDocument holds the view JSON (VS Code tabs, dirty state, undo,
  * redo, save, hot exit); the webview renders it and posts whole-document edits.
+ *
+ * Freeze on open: a view holding a graph when its document opens is frozen (no language-server requests, settle
+ * results not written) until Unfreeze, a document edit `view.live = <id of this opening>`; Ctrl+Z freezes again.
+ * The id is new at every opening of the document, so a saved `live` from an earlier opening does not count. A view
+ * built during this opening carries the id with its first data.
  */
 import { randomBytes } from 'node:crypto';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { GNode, isContainer, NodeKey, plain } from '../core/model';
-import { globMatcher, parseDoc, serializeDoc, ViewDoc } from '../core/viewdoc';
+import { Style } from '../core/style';
+import { globMatcher, parseDoc, serializeDoc, ViewDoc, ViewSpec } from '../core/viewdoc';
 import { BuildMode, extendGraph, Extension, Pair } from './build';
 import { frontierOf, visibleOf } from '../core/scene';
 import { CallCache } from './cache';
+import { viewScope } from './context';
+import { gitShort } from './git';
 import { LspProvider, MAX_CALLS } from './lsp';
 import { readable } from './scope';
 import { seedSpec } from './seedspec';
-import { folderOf, gaffyDir, StyleService } from './style';
+import { folderOf, gaffyDir, homeOf, StyleService } from './style';
 import { Trace } from './trace';
+
+/** One opening of a view document (all its panels): id written by Unfreeze; graph present at opening. */
+export interface Opening { id: string; built: boolean; panels: number }
+
+/**
+ * Options values stored in the view (Options menu: edge style, curve, parent rule, grouping, tight groups,
+ * external code, standard library) where absent: `style` (style.json, gaffy.style) and settings give the defaults.
+ */
+export function localOptions(doc: ViewDoc, style: Style, cfg: vscode.WorkspaceConfiguration): void {
+    const v = doc.view;
+    v.edges ??= style.edges.mode;
+    v.curve ??= style.edges.curve;
+    v.parentRule ??= style.grid.parentRule;
+    v.boxes ??= style.boxes.enabled;
+    v.tight ??= style.boxes.tight;
+    v.external ??= cfg.get<boolean>('includeExternal') ?? false;
+    v.stdlib ??= cfg.get<boolean>('includeStandardLibrary') ?? false;
+}
 
 export class Session {
     private busy = false;
@@ -23,9 +49,46 @@ export class Session {
         readonly document: vscode.TextDocument,
         readonly panel: vscode.WebviewPanel,
         private readonly host: GaffyEditor,
+        private readonly opening: Opening,
     ) {}
 
+    /**
+     * Frozen: the view held a graph at opening, still holds one (a file rewritten without a graph, e.g. by giddy,
+     * builds), and no Unfreeze of this opening is in the document.
+     */
+    get held(): boolean {
+        if (!this.opening.built) return false;
+        try {
+            const d = this.doc();
+            return Object.keys(d.graph.nodes).length > 0 && d.view.live !== this.opening.id;
+        } catch { return true; }
+    }
+
+    /** Unfreeze (`on` false): language-server updates, Options values stored in the view; freeze: undoes that. */
+    async hold(on: boolean): Promise<void> {
+        if (on) {
+            this.opening.built = true;
+            await this.update((d) => { delete d.view.live; });
+            return;
+        }
+        const style = await this.host.styles.get(this.folder);
+        const cfg = vscode.workspace.getConfiguration('gaffy', this.document.uri);
+        await this.update((d) => { d.view.live = this.opening.id; localOptions(d, style, cfg); });
+        void this.open();
+    }
+
+    /** External code and standard library drawn and asked: the view's values, else the settings. */
+    outside(): { external: boolean; standard: boolean } {
+        const cfg = vscode.workspace.getConfiguration('gaffy', this.document.uri);
+        let v: ViewSpec | undefined;
+        try { v = this.doc().view; } catch { /* invalid JSON: settings */ }
+        return { external: v?.external ?? cfg.get<boolean>('includeExternal') ?? false,
+            standard: v?.stdlib ?? cfg.get<boolean>('includeStandardLibrary') ?? false };
+    }
+
     get folder(): vscode.Uri { return folderOf(this.document.uri); }
+    /** Project of the view (style.ts `homeOf`): seed paths, exports, trace. */
+    get home(): vscode.Uri { return homeOf(this.document.uri); }
     get name(): string { return path.basename(this.document.uri.path, '.gaffy'); }
 
     doc(): ViewDoc {
@@ -53,7 +116,8 @@ export class Session {
         const exclude = cfg.get<string[]>('exclude') ?? [];
         // Options panel settings
         const settings = { includeExternal: cfg.get<boolean>('includeExternal') ?? false, includeStandardLibrary: cfg.get<boolean>('includeStandardLibrary') ?? false,
-            saveViews: cfg.get<boolean>('saveViews') ?? false, untitled: this.document.isUntitled, trace: cfg.get<boolean>('trace') ?? false };
+            saveViews: cfg.get<boolean>('saveViews') ?? false, untitled: this.document.isUntitled, trace: cfg.get<boolean>('trace') ?? false,
+            held: this.held };
         void this.panel.webview.postMessage({ type: 'state', text: this.document.getText(), name: this.name, style, exclude, settings, busy: this.busy });
     }
 
@@ -123,13 +187,14 @@ export class Session {
 
     private opts() {
         const cfg = vscode.workspace.getConfiguration('gaffy', this.document.uri);
+        // drawn external code and standard library (scene.ts `Outside`)
+        const outside = this.outside();
         return {
             maxNodes: cfg.get<number>('maxNodes') ?? 400,
             exclude: (cfg.get<string[]>('exclude') ?? []).map(globMatcher),
-            external: cfg.get<boolean>('includeExternal') ?? false,
-            // drawn external code and standard library (scene.ts `Outside`)
-            outside: { external: cfg.get<boolean>('includeExternal') ?? false, standard: cfg.get<boolean>('includeStandardLibrary') ?? false },
-            cache: this.host.cacheFor(this.folder),
+            external: outside.external,
+            outside,
+            cache: this.host.cacheFor(this.folder, outside.external),
         };
     }
 
@@ -139,14 +204,21 @@ export class Session {
         if (!qs.length) return undefined;
         const o = this.opts();
         await o.cache.ready();
-        const r = await extendGraph(this.host.provider, this.doc(), qs, { ...o, mode, token, doubted: this.doubted,
-            progress: (q) => show(`${label} · ${q.definitions} definitions · ${q.requests} language-server requests · ${q.cached} cached`) });
+        const r = await viewScope.run({ external: o.external }, () => extendGraph(this.host.provider, this.doc(), qs, { ...o, mode, token, doubted: this.doubted,
+            progress: (q) => show(`${label} · ${q.definitions} definitions · ${q.requests} language-server requests · ${q.cached} cached`) }));
+        // frozen meanwhile (Ctrl+Z past Unfreeze): answers dropped
+        if (this.fixed) return undefined;
         const now = this.doc();
         const before = signature(now);
+        const first = !this.opening.built || !Object.keys(now.graph.nodes).length;
         now.graph = r.graph;
         now.explored = r.explored;
         if (signature(now) !== before) {
             now.updated = new Date().toISOString();
+            const commit = await gitShort(this.home.fsPath);
+            if (commit) now.commit = commit; else delete now.commit;
+            // first graph of this opening: Unfreeze of this opening, so Freeze then Ctrl+Z works as for an opened view
+            if (first) { this.opening.built = true; now.view.live = this.opening.id; }
             await this.write(now);
         }
         for (const u of r.unresolved) this.pending.set(`${u.dir}:${u.key}`, u);
@@ -234,7 +306,7 @@ export class Session {
     /**
      * Seeds written by name (seedspec.ts, a view a script wrote) become the keys of their definitions, with their
      * records and containers in the graph; then the usual build asks the language server within the view's depths.
-     * Paths resolve inside the folder holding the view's `.gaffy` directory, else the workspace folder. Names the
+     * Paths resolve inside the view's project (the folder holding its `.baggy`), else the workspace folder. Names the
      * language server does not resolve yet
      * (loading) are retried after 2, 5 and 10 s; the rest are reported once.
      */
@@ -257,12 +329,9 @@ export class Session {
         const named = doc.view.seeds.filter((k) => !Object.hasOwn(doc.graph.nodes, k));
         const bad: string[] = [], retry: string[] = [];
         if (!named.length) return { bad, retry };
-        // path bases: the folder holding the view's `.gaffy` directory (a repository a script wrote into), then the
-        // workspace folder; a path must stay inside its base
-        const view = this.document.uri.scheme === 'untitled' ? vscode.Uri.file(this.document.uri.path) : this.document.uri;
-        const parts = view.path.split('/');
-        const g = parts.lastIndexOf('.gaffy');
-        const bases = [...(g > 0 ? [view.with({ path: parts.slice(0, g).join('/') })] : []), this.folder];
+        // path bases: the view's project (a repository giddy or a script wrote into), then the workspace folder;
+        // a path must stay inside its base
+        const bases = this.home.toString() === this.folder.toString() ? [this.folder] : [this.home, this.folder];
         const acc: Record<NodeKey, GNode> = {};
         const found = new Map<string, NodeKey>();
         const fileOf = async (path: string) => {
@@ -292,11 +361,11 @@ export class Session {
     private badSeeds(seeds: string[]): void {
         void vscode.window.showWarningMessage(plain(`gaffy: ${this.name}: ${seeds.length} seed${seeds.length > 1 ? 's' : ''} not found: `
             + `${seeds.slice(0, 5).join(', ')}${seeds.length > 5 ? ', …' : ''} (write <path>#<qualified name> or <path>:<line>, `
-            + 'path relative to the folder holding .gaffy/ or the workspace folder)'));
+            + 'path relative to the folder holding .baggy/ or the workspace folder)'));
     }
 
-    /** Static or frozen view (`view.static`, `view.frozen`): fixed graph, no language-server requests. */
-    private get fixed(): boolean { const v = this.doc().view; return !!v.static || !!v.frozen; }
+    /** Static (`view.static`) or frozen (`held`) view: fixed graph, no language-server requests. */
+    private get fixed(): boolean { return !!this.doc().view.static || this.held; }
 
     ensure(): Promise<void> {
         if (this.fixed) return Promise.resolve();
@@ -444,14 +513,20 @@ export class GaffyEditor implements vscode.CustomTextEditorProvider {
     readonly sessions = new Map<string, Session>();
     active: Session | undefined;
     private caches = new Map<string, CallCache>();
+    /** Openings per document URI (all panels of one document share one). */
+    private openings = new Map<string, Opening>();
     /** Change records of open views (setting gaffy.trace). */
     readonly trace = new Trace();
 
-    /** Call cache of a workspace folder, `.gaffy/cache/calls.json`. */
-    cacheFor(folder: vscode.Uri): CallCache {
-        const k = folder.toString();
+    /**
+     * Call cache of a workspace folder: `.baggy/gaffy/cache/calls.json`, or `calls-external.json` for views drawing
+     * external code (answers keep external definitions only there).
+     */
+    cacheFor(folder: vscode.Uri, external: boolean): CallCache {
+        const name = external ? 'calls-external.json' : 'calls.json';
+        const k = `${folder.toString()}#${name}`;
         let c = this.caches.get(k);
-        if (!c) this.caches.set(k, (c = new CallCache(vscode.Uri.joinPath(gaffyDir(folder), 'cache', 'calls.json'), folder)));
+        if (!c) this.caches.set(k, (c = new CallCache(vscode.Uri.joinPath(gaffyDir(folder), 'cache', name), folder)));
         return c;
     }
 
@@ -479,7 +554,15 @@ export class GaffyEditor implements vscode.CustomTextEditorProvider {
     }
 
     async resolveCustomTextEditor(document: vscode.TextDocument, panel: vscode.WebviewPanel): Promise<void> {
-        const s = new Session(document, panel, this);
+        const uri = document.uri.toString();
+        let opening = this.openings.get(uri);
+        if (!opening) {
+            let built = false;
+            try { built = Object.keys(parseDoc(document.getText()).graph.nodes).length > 0; } catch { /* invalid JSON: shown as an error */ }
+            this.openings.set(uri, (opening = { id: randomBytes(8).toString('hex'), built, panels: 0 }));
+        }
+        opening.panels++;
+        const s = new Session(document, panel, this, opening);
         this.trace.open(document);
         const id = `${document.uri.toString()}#${Math.random().toString(36).slice(2)}`;
         this.sessions.set(id, s);
@@ -503,9 +586,12 @@ export class GaffyEditor implements vscode.CustomTextEditorProvider {
                         if (doc.view.seeds.length) void s.open();
                     } else if (m.type === 'edit') {
                         if (m.text !== document.getText()) this.trace.edit(document, m.cause, m.moved);
+                        const was = s.outside().external;
                         await s.write(parseDoc(m.text, s.name));
                         this.trace.written(document);
-                        void s.ensure();
+                        // external code on: answers fetched without it asked again (on screen now, the rest when opened)
+                        if (!was && s.outside().external) void s.refresh(undefined, 'revalidate');
+                        else void s.ensure();
                     } else {
                         await this.onMessage(s, m);
                     }
@@ -515,6 +601,7 @@ export class GaffyEditor implements vscode.CustomTextEditorProvider {
             }),
         ];
         panel.onDidDispose(() => {
+            if (--opening!.panels === 0) this.openings.delete(uri);
             s.dispose();
             subs.forEach((d) => d.dispose());
             this.sessions.delete(id);

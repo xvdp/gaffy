@@ -75,7 +75,7 @@ const T_BAR: Row[] = [
     ['Options > Folders > Include external code, Include standard library', at(MAIN, "label: 'Include external code'"), 'host setting; the webview redraws; their folders leave the list when off'],
     ['Options > Folders > a folder', at(MAIN, "label: f.label, title: `${f.path}: ${f.excluded"), '`exclude`, `include`'],
     ['Options > File > Save (.gaffy), Autosave Graphs, Save as Text, Refresh Language Server', at(MAIN, "label: 'Save (.gaffy)'"), 'host: save, setting `gaffy.saveViews`, export, `refresh` (new data)'],
-    ['Options > File > Freeze at commit', at(MAIN, "act: () => api.postMessage({ type: 'freeze', on: !v.frozen })"), 'host `freeze`: `frozen` = commit and time (no language-server updates), or removed'],
+    ['Options > File > Frozen; toolbar Unfreeze', at(MAIN, "act: () => api.postMessage({ type: 'hold', on: !settings.held })"), 'host `hold`: Unfreeze writes `live` (this opening) and the Options values into the view; Freeze removes `live`. A view holding a graph opens frozen'],
 ];
 const T_MENU: Row[] = [
     ['Make Seed, Remove Seed', `${menu('gaffy.node.makeSeed')}, ${reg('gaffy.node.makeSeed')}`, "forwarded: `runCmd('makeSeed' | 'removeSeed')`"],
@@ -302,7 +302,7 @@ Consequences:
 
 ## Trace
 
-Setting \`gaffy.trace\` records every view change to \`.gaffy/trace/<view>.jsonl\` (${at('src/host/trace.ts', 'export class Trace')}): the event, its target and grid cell, the functions above that acted, the view fields changed, the labels and boxes that moved; undo and redo included. \`node tools/gaffy-trace.mjs <file>\` prints it as a list ([tools/gaffy-trace.mjs](../tools/gaffy-trace.mjs)).
+Setting \`gaffy.trace\` records every view change to \`.baggy/gaffy/trace/<view>.jsonl\` (${at('src/host/trace.ts', 'export class Trace')}): the event, its target and grid cell, the functions above that acted, the view fields changed, the labels and boxes that moved; undo and redo included. \`node tools/gaffy-trace.mjs <file>\` prints it as a list ([tools/gaffy-trace.mjs](../tools/gaffy-trace.mjs)).
 `;
 writeFileSync(resolve(ROOT, OUT), doc);
 console.log(`${OUT}: ${T_MOUSE.length + T_KEYS.length + T_BAR.length + T_MENU.length + T_OUT.length} triggers, ${I.length} interpreters, ${P.length} layout functions`);

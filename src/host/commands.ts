@@ -2,7 +2,6 @@
  * Commands: graph creation (editor, explorer), view, node (webview context menu). `webview/context` commands
  * receive the clicked element's merged `data-vscode-context`: `{ webviewSection, key, webview }`.
  */
-import { execFile } from 'node:child_process';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { noHierarchyHint, serverHint } from '../core/langs';
@@ -11,7 +10,8 @@ import { ancestors, GNode, NodeKey, plain, visible } from '../core/model';
 import { buildScene, siblingsOf } from '../core/scene';
 import { DEFAULT_STYLE, glyphSet } from '../core/style';
 import { Direction, dropMovesWithin, emptyDoc, globMatcher, ROOTS, serializeDoc, ViewDoc, ViewSpec } from '../core/viewdoc';
-import { GaffyEditor, Session } from './editor';
+import { GaffyEditor, localOptions, Session } from './editor';
+import { gitShort } from './git';
 import { noLinks } from './safefs';
 import { readable } from './scope';
 import { folderOf, gaffyDir } from './style';
@@ -39,13 +39,6 @@ async function uniqueUri(dir: vscode.Uri, stem: string, ext: string): Promise<vs
  * Short HEAD hash in `cwd`; undefined outside git. Trusted workspaces only: a cloned or downloaded folder's
  * `.git/config` can make git run programs.
  */
-function gitShort(cwd: string): Promise<string | undefined> {
-    // a trusted window can hold folders outside its workspace folders (an active editor's file)
-    if (!vscode.workspace.isTrusted || !vscode.workspace.getWorkspaceFolder(vscode.Uri.file(cwd))) return Promise.resolve(undefined);
-    return new Promise((res) => execFile('git', ['rev-parse', '--short', 'HEAD'], { cwd, timeout: 3000 },
-        (err, out) => res(err ? undefined : out.trim() || undefined)));
-}
-
 const dateSlug = (d = new Date()) =>
     `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}-${String(d.getHours()).padStart(2, '0')}${String(d.getMinutes()).padStart(2, '0')}`;
 
@@ -125,13 +118,13 @@ export function registerCommands(ctx: vscode.ExtensionContext, editor: GaffyEdit
     };
 
     /**
-     * New view in `.gaffy/views/`: style.json `view` settings, then `over`. Without `gaffy.saveViews`: untitled,
+     * New view in `<workspace folder>/.baggy/gaffy/`: style.json `view` settings, then `over`. Without `gaffy.saveViews`: untitled,
      * bound to that path (Save writes, close discards). `fromEditor` + `gaffy.openDefinitions`: opens beside the editor.
      */
     const createView = async (base: vscode.Uri, stem: string, doc: ViewDoc, over: Partial<Pick<ViewSpec, 'arrange' | 'depthUp' | 'depthDown'>> = {},
         fromEditor = false) => {
         const folder = folderOf(base);
-        const views = vscode.Uri.joinPath(gaffyDir(folder), 'views');
+        const views = gaffyDir(folder);
         await noLinks(folder, views);
         await vscode.workspace.fs.createDirectory(views);
         // <symbol>_<short commit hash, or date>.gaffy
@@ -146,6 +139,8 @@ export function registerCommands(ctx: vscode.ExtensionContext, editor: GaffyEdit
         doc.view.depthUp = doc.view.direction !== 'out' ? doc.view.depth : 0;
         doc.view.depthDown = doc.view.direction !== 'in' ? doc.view.depth : 0;
         Object.assign(doc.view, over);
+        // Options values belong to the view from here on: style.json and settings are defaults for new views only
+        localOptions(doc, await editor.styles.get(folder), vscode.workspace.getConfiguration('gaffy', folder));
         if (doc.view.arrange === 'grow') doc.view.open = {};
         else delete doc.view.open;
         doc.name = path.basename(uri.path, '.gaffy');
@@ -279,18 +274,15 @@ export function registerCommands(ctx: vscode.ExtensionContext, editor: GaffyEdit
     reg('gaffy.sel.clear', forward('clearSelection'));
 
     const excludes = (s: Session) => (vscode.workspace.getConfiguration('gaffy', s.document.uri).get<string[]>('exclude') ?? []).map(globMatcher);
-    const external = (s: Session) => {
-        const c = vscode.workspace.getConfiguration('gaffy', s.document.uri);
-        return { external: c.get<boolean>('includeExternal') ?? false, standard: c.get<boolean>('includeStandardLibrary') ?? false };
-    };
+    const external = (s: Session) => s.outside();
 
     const exportView = async (s: Session) => {
         const doc = s.doc();
         const style = await editor.styles.get(s.folder);
         const sc = buildScene(doc, style, excludes(s), external(s));
         const gs = glyphSet(style);
-        const outDir = gaffyDir(s.folder);
-        await noLinks(s.folder, outDir);
+        const outDir = gaffyDir(s.home);
+        await noLinks(s.home, outDir);
         await vscode.workspace.fs.createDirectory(outDir);
         const href = (key: NodeKey) => {
             const n = nodeOf(doc, key);
@@ -303,8 +295,8 @@ export function registerCommands(ctx: vscode.ExtensionContext, editor: GaffyEdit
         const md = `# ${doc.name}\n\n<pre>\n${toHtmlPre(sc.grid, gs, href, (k) => doc.view.seeds.includes(k))}\n</pre>\n`;
         const seed = doc.view.seeds[0];
         const sym = ((seed && nodeOf(doc, seed)?.name) || s.name).replace(/[^\w.-]+/g, '_');
-        // .gaffy/<symbol>_<short commit hash, or date>.md, .txt; repeats per symbol and commit: _2, _3, …
-        const base = `${sym}_${(await gitShort(s.folder.fsPath)) ?? dateSlug()}`;
+        // <project>/.baggy/gaffy/<symbol>_<short commit hash, or date>.md, .txt; repeats per symbol and commit: _2, _3, …
+        const base = `${sym}_${(await gitShort(s.home.fsPath)) ?? dateSlug()}`;
         let n = 0;
         try {
             for (const [f] of await vscode.workspace.fs.readDirectory(outDir)) {
@@ -316,25 +308,18 @@ export function registerCommands(ctx: vscode.ExtensionContext, editor: GaffyEdit
         const stem = n ? `${base}_${n + 1}` : base;
         const mdUri = vscode.Uri.joinPath(outDir, `${stem}.md`);
         const txtUri = vscode.Uri.joinPath(outDir, `${stem}.txt`);
-        await noLinks(s.folder, mdUri);
-        await noLinks(s.folder, txtUri);
+        await noLinks(s.home, mdUri);
+        await noLinks(s.home, txtUri);
         await vscode.workspace.fs.writeFile(mdUri, new TextEncoder().encode(md.replace(`# ${doc.name}`, `# ${stem}`)));
         await vscode.workspace.fs.writeFile(txtUri, new TextEncoder().encode(toText(sc.grid, gs) + '\n'));
         await vscode.commands.executeCommand('markdown.showPreviewToSide', mdUri);
-        void vscode.window.showInformationMessage(plain(`gaffy: exported .gaffy/${stem}.md and .gaffy/${stem}.txt`), 'Reveal in Explorer')
+        void vscode.window.showInformationMessage(plain(`gaffy: exported .baggy/gaffy/${stem}.md and .txt`), 'Reveal in Explorer')
             .then((pick) => pick && vscode.commands.executeCommand('revealInExplorer', txtUri));
     };
     reg('gaffy.export', () => exportView(active()));
 
-    // unsaved view: saved to its bound .gaffy/views/ path
-    // frozen view: no language-server requests; the commit (trusted workspace folder) and time are recorded and shown
-    const freeze = async (s: Session, on: boolean) => {
-        const commit = on ? await gitShort(s.folder.fsPath) : undefined;
-        const at = new Date().toISOString().slice(0, 16).replace('T', ' ');
-        await s.update((d) => { if (on) d.view.frozen = { at, ...(commit ? { commit } : {}) }; else delete d.view.frozen; });
-        if (!on) await s.revalidate();
-    };
-    reg('gaffy.view.freeze', () => { const s = active(); return freeze(s, !s.doc().view.frozen); });
+    // unsaved view: saved to its bound .baggy/gaffy/ path
+    reg('gaffy.view.freeze', () => { const s = active(); return s.hold(!s.held); });
     reg('gaffy.view.save', async () => {
         const s = active();
         if (!(await vscode.workspace.save(s.document.uri))) throw new Error(`${s.name} was not saved`);
@@ -468,26 +453,16 @@ export function registerCommands(ctx: vscode.ExtensionContext, editor: GaffyEdit
                 void s.panel.webview.postMessage({ type: 'hoverText', key, code, lang: fence?.[1] ?? '' });
                 break;
             }
-            case 'freeze': await freeze(s, m.on === true); break;
+            case 'hold': await s.hold(m.on === true); break;
             // webview command missing its operand (selection, call, function): warning
             case 'warn': void vscode.window.showWarningMessage(plain(`gaffy: ${String(m.text ?? '').slice(0, 300)}`)); break;
             case 'editStyle': await vscode.commands.executeCommand('gaffy.editStyle'); break;
             case 'openSettings': await vscode.commands.executeCommand('workbench.action.openSettings', `@ext:${ctx.extension.id}`); break;
             case 'setting': {
-                // Options > Settings: workspace settings (user settings without a workspace)
-                // listed keys only, boolean values only
-                const k = m.key as string;
-                const ok = (k === 'includeExternal' || k === 'includeStandardLibrary' || k === 'saveViews') && typeof m.value === 'boolean';
-                if (!ok) break;
+                // Options > File > Autosave Graphs: workspace setting (user setting without a workspace); boolean only
+                if (m.key !== 'saveViews' || typeof m.value !== 'boolean') break;
                 const target = vscode.workspace.workspaceFolders?.length ? vscode.ConfigurationTarget.Workspace : vscode.ConfigurationTarget.Global;
-                await vscode.workspace.getConfiguration('gaffy').update(k, m.value, target);
-                // external code on: re-ask answers fetched without it (on screen now, rest when opened)
-                // standard library on: its on-screen functions get markers
-                if (k === 'includeStandardLibrary' && m.value === true) for (const x of new Set(editor.sessions.values())) void x.ensure();
-                if (k === 'includeExternal' && m.value === true) {
-                    for (const c of editor.allCaches()) c.clear();
-                    for (const x of new Set(editor.sessions.values())) void x.refresh(undefined, 'revalidate');
-                }
+                await vscode.workspace.getConfiguration('gaffy').update('saveViews', m.value, target);
                 break;
             }
             case 'hiddenNeighbors': {

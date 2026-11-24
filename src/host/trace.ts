@@ -1,5 +1,5 @@
 /** @xvdp
- * View change trace (`gaffy.trace`): one JSON line per view-document change in `.gaffy/trace/<view>.jsonl`;
+ * View change trace (`gaffy.trace`): one JSON line per view-document change in `.baggy/gaffy/trace/<view>.jsonl`;
  * records the causing event, absent from VS Code's undo stack. `tools/gaffy-trace.mjs` prints it as a list.
  * Fields: `t` (ISO time), `view`, `seq` (per view and session, from 1), `cause`, `changed`, `graph`, `moved`.
  * - `cause`: webview edit: `event` (click, dblclick, mousedown = drag, key …, menu <command>, auto), `target`
@@ -15,7 +15,7 @@ import { promises as fs } from 'node:fs';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { parseDoc, ViewDoc } from '../core/viewdoc';
-import { folderOf, gaffyDir } from './style';
+import { gaffyDir, homeOf } from './style';
 import { noLinks } from './safefs';
 import { Cause, checkedCause, Moved, traceRecord } from './tracerec';
 
@@ -65,7 +65,7 @@ export class Trace {
         const rec = traceRecord(before, now, cause, p?.moved, name, n);
         // trusted workspace only, never through a symbolic link (safefs.ts)
         if (!vscode.workspace.isTrusted) return;
-        const base = folderOf(doc.uri);
+        const base = homeOf(doc.uri);
         const file = vscode.Uri.joinPath(gaffyDir(base), 'trace', `${name}.jsonl`);
         const old = vscode.Uri.joinPath(gaffyDir(base), 'trace', `${name}.1.jsonl`);
         if (file.scheme !== 'file') return;

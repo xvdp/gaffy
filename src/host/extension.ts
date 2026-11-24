@@ -28,7 +28,7 @@ export function activate(ctx: vscode.ExtensionContext): void {
     // notification of missing language servers for the workspace's languages (once per version)
     setTimeout(() => void checkOnStart(ctx).catch(() => undefined), 4000);
 
-    const isGaffy = (u: vscode.Uri) => u.path.endsWith('.gaffy') || u.path.includes('/.gaffy/');
+    const isGaffy = (u: vscode.Uri) => u.path.endsWith('.gaffy') || u.path.includes('/.baggy/') || u.path.includes('/.gaffy/');
     const pending = new Set<string>();
     let timer: NodeJS.Timeout | undefined;
     const flush = () => {

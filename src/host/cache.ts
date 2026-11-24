@@ -1,5 +1,5 @@
 /** @xvdp
- * Call cache per workspace folder (`.gaffy/cache/calls.json`): language-server answers (one definition's incoming
+ * Call cache per workspace folder (`.baggy/gaffy/cache/calls.json`): language-server answers (one definition's incoming
  * or outgoing calls) with the node records they introduced; resolved definitions only.
  *
  * Invalidation: a saved or renamed file drops its definitions' outgoing entries and all incoming entries (any

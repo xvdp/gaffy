@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Prints a gaffy view trace (.gaffy/trace/<view>.jsonl, setting gaffy.trace) as a numbered list: event, target,
+// Prints a gaffy view trace (.baggy/gaffy/trace/<view>.jsonl, setting gaffy.trace) as a numbered list: event, target,
 // grid cell, acting functions, changed view fields, grid moves. Standalone, outside the extension: Node 18+, no deps.
 //
 //   node tools/gaffy-trace.mjs <trace.jsonl> [--last N] [--from SEQ] [--all-moves] [--json]

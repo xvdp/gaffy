@@ -62,7 +62,9 @@ export interface ViewSpec {
     parentRule?: ParentRule;                 // overrides style.grid.parentRule
     tight?: boolean;                         // frames hug content, moved content included; overrides style.boxes.tight
     static?: boolean;                        // fixed graph (hand-written or generated): no language-server requests
-    frozen?: { commit?: string; at: string }; // graph frozen at a commit (short hash) and time: no language-server requests
+    live?: string;                           // editor session that unfroze the view; any other session opens it frozen
+    external?: boolean;                      // external code drawn and asked; default: setting gaffy.includeExternal
+    stdlib?: boolean;                        // with external code, the standard library; default: gaffy.includeStandardLibrary
     save?: boolean;                          // file saved after every change, whatever gaffy.autoSave says (script views)
     between?: boolean;                       // drawn: only functions on call paths between seeds (scene.ts `onPaths`)
     tags: Record<NodeKey, string>;
@@ -78,6 +80,7 @@ export interface ViewDoc {
     explored?: Record<NodeKey, Direction>;   // per vertex: directions requested in last build
     truncated?: boolean;                     // build stopped at maxNodes
     updated?: string;                        // ISO time of last build
+    commit?: string;                         // short commit hash of the view's project at last build
 }
 
 export function defaultView(): ViewSpec {
@@ -163,10 +166,9 @@ export function parseDoc(text: string, fallbackName = 'view'): ViewDoc {
     if (v.static === true) view.static = true;
     if (v.save === true) view.save = true;
     if (v.between === true) view.between = true;
-    const fz = v.frozen as { commit?: unknown; at?: unknown } | undefined;
-    if (fz && typeof fz === 'object' && typeof fz.at === 'string') {
-        view.frozen = { at: fz.at.slice(0, 40), ...(typeof fz.commit === 'string' && /^[0-9a-f]{4,40}$/.test(fz.commit) ? { commit: fz.commit } : {}) };
-    }
+    if (typeof v.live === 'string' && /^[0-9a-f]{8,40}$/.test(v.live)) view.live = v.live;
+    if (typeof v.external === 'boolean') view.external = v.external;
+    if (typeof v.stdlib === 'boolean') view.stdlib = v.stdlib;
     const doc = emptyDoc(typeof raw.name === 'string' ? raw.name : fallbackName, view);
     /* secure tooling: node keys `<lang>:<path>#<qual>`; prototype keys (JSON `__proto__`) dropped. */
     const nodes = keyed(raw.graph?.nodes, (x) => (x && typeof x === 'object' && typeof (x as GNode).key === 'string' ? x as GNode : undefined));
@@ -175,6 +177,7 @@ export function parseDoc(text: string, fallbackName = 'view'): ViewDoc {
     if (raw.explored) doc.explored = keyed(raw.explored, (x) => oneOf(x, ['in', 'out', 'both'] as const));
     if (raw.truncated) doc.truncated = true;
     if (typeof raw.updated === 'string') doc.updated = raw.updated;
+    if (typeof raw.commit === 'string' && /^[0-9a-f]{4,40}$/.test(raw.commit)) doc.commit = raw.commit;
     return doc;
 }
 

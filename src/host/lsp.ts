@@ -10,6 +10,7 @@
  */
 import * as path from 'node:path';
 import * as vscode from 'vscode';
+import { viewScope } from './context';
 import { EXTERNAL, externalPath, extsOf, LANG, langOf, OVERLOADS, paramTypes, segments, TEXT_LANGS } from '../core/langs';
 import { bodyHash, GEdge, GNode, Kind, NodeKey } from '../core/model';
 import { pyCallSites } from '../core/bindings';
@@ -259,7 +260,7 @@ export class LspProvider {
         let p = this.index.get(lang);
         if (!p) {
             p = (async () => {
-                const uris = await vscode.workspace.findFiles(`**/*.{${extsOf(lang).join(',')}}`, '**/{node_modules,.git,.gaffy}/**', 3000);
+                const uris = await vscode.workspace.findFiles(`**/*.{${extsOf(lang).join(',')}}`, '**/{node_modules,.git,.gaffy,.baggy}/**', 3000);
                 const out: TextFile[] = [];
                 for (const uri of uris) {
                     try {
@@ -373,7 +374,8 @@ export class LspProvider {
     async describe(item: vscode.CallHierarchyItem, acc: Record<NodeKey, GNode>): Promise<NodeKey | undefined> {
         const folder = vscode.workspace.getWorkspaceFolder(item.uri);
         const external = !folder || EXTERNAL.test(item.uri.path);
-        if (external && !this.includeExternal()) return undefined;
+        // the building view's choice (context.ts), else the setting (a new view's seed)
+        if (external && !(viewScope.getStore()?.external ?? this.includeExternal())) return undefined;
         // outside every folder: path from its library root (`site-packages/torch/functional.py`)
         const lib = folder ? undefined : externalPath(item.uri.path);
         const root = folder?.uri ?? item.uri.with({ path: lib!.root });

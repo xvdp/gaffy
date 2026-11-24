@@ -1,5 +1,5 @@
 /** @xvdp
- * Style merge order: defaults, `gaffy.style` setting, `.gaffy/style.json`, per-view overrides (ViewSpec.boxes,
+ * Style merge order: defaults, `gaffy.style` setting, `.baggy/gaffy/style.json`, per-view overrides (ViewSpec.boxes,
  * edges, curve, parentRule). `view`: initial layout and traverse of a new view, written to its file.
  */
 import type { EdgeMode, ParentRule } from './viewdoc';
@@ -102,7 +102,7 @@ const BOUNDS: [keyof Style, string, number, number][] = [
 
 /**
  * Merged style with numeric fields clamped to range (non-numbers → default), crossing glyph cut to one character.
- * `.gaffy/style.json` may come with a cloned repository: `grid.indent: 20000` made one layout take 7 s and 600 MB.
+ * `.baggy/gaffy/style.json` may come with a cloned repository: `grid.indent: 20000` made one layout take 7 s and 600 MB.
  */
 export function boundedStyle(st: Style): Style {
     const out = structuredClone(st);

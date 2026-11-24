@@ -18,23 +18,23 @@ Reading the graph: a function calls the functions and rules below it in code ord
 <pre>
 ╭┄ src ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄╮
 ┆  ╭┄ webview/main ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄╮     ╭┄ core ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄╮ ┆
-┆  ┆  <a href="../src/webview/main.ts#L371"><b>render()</b></a> ──────────────────────────────┬────────&gt; <a href="../src/core/scene.ts#L103">scene.buildScene()</a>                                      ┆ ┆
+┆  ┆  <a href="../src/webview/main.ts#L372"><b>render()</b></a> ──────────────────────────────┬────────&gt; <a href="../src/core/scene.ts#L103">scene.buildScene()</a>                                      ┆ ┆
 ┆  ┆  ├─&gt; <a href="#h37_hops">h37_hops()</a>                         │ ┆     ┆  ├─&gt; <a href="../src/core/scene.ts#L303">scene.revealView()</a>                                  ┆ ┆
-┆  ┆  └─&gt; <a href="../src/webview/main.ts#L609">afterRender()</a> ─────────────────┐   │ ┆     ┆  │   ├─&gt; <a href="../src/core/reveal.ts#L74">reveal.revealDepth()</a>                            ┆ ┆
+┆  ┆  └─&gt; <a href="../src/webview/main.ts#L611">afterRender()</a> ─────────────────┐   │ ┆     ┆  │   ├─&gt; <a href="../src/core/reveal.ts#L74">reveal.revealDepth()</a>                            ┆ ┆
 ┆  ┆      └─&gt; <a href="#h35_save_what_is_drawn">h35_save_what_is_drawn()</a>   │   │ ┆     ┆  │   │   └─&gt; <a href="#h02_call_depth_by_path">reveal.h02_call_depth_by_path()</a>             ┆ ┆
-┆  ┆  <a href="../src/webview/main.ts#L710"><b>setSide()</b></a> ─────────────────────────┼─┐ │ ┆     ┆  │   └─&gt; <a href="../src/core/reveal.ts#L40">reveal.reveal()</a>                                 ┆ ┆
+┆  ┆  <a href="../src/webview/main.ts#L712"><b>setSide()</b></a> ─────────────────────────┼─┐ │ ┆     ┆  │   └─&gt; <a href="../src/core/reveal.ts#L40">reveal.reveal()</a>                                 ┆ ┆
 ┆  ┆  ┌──────────────────────────────────┘ │ │ ┆     ┆  │       └─&gt; <a href="#h01_first_revealer">reveal.h01_first_revealer()</a>                 ┆ ┆
 ┆  ┆  └─&gt; <a href="#h34_offset_handover">h34_offset_handover()</a>            │ │ ┆     ┆  ├─&gt; <a href="../src/core/boxes.ts#L45">boxes.boxTree()</a>                                     ┆ ┆
-┆  ┆  <a href="../src/webview/main.ts#L1035"><b>dragUnit()</b></a> ─────────────────────┬────┤ │ ┆     ┆  │   └─&gt; <a href="#h03_box_order">boxes.h03_box_order()</a>                           ┆ ┆
-┆  ┆  ├─&gt; <a href="../src/webview/main.ts#L1026">topUnits()</a>                  │    │ │ ┆     ┆  ├─&gt; <a href="../src/core/place.ts#L73">place.place()</a>                                       ┆ ┆
+┆  ┆  <a href="../src/webview/main.ts#L1037"><b>dragUnit()</b></a> ─────────────────────┬────┤ │ ┆     ┆  │   └─&gt; <a href="#h03_box_order">boxes.h03_box_order()</a>                           ┆ ┆
+┆  ┆  ├─&gt; <a href="../src/webview/main.ts#L1028">topUnits()</a>                  │    │ │ ┆     ┆  ├─&gt; <a href="../src/core/place.ts#L73">place.place()</a>                                       ┆ ┆
 ┆  ┆  │   └─&gt; <a href="#h32_multi_unit_drag">h32_multi_unit_drag()</a>   │    │ │ ┆     ┆  │   └─&gt; <a href="../src/core/place.ts#L221">place.placeBox() ↻</a>                              ┆ ┆
-┆  ┆  └─&gt; <a href="../src/webview/main.ts#L1136">settleDrop()</a>                │    │ │ ┆     ┆  │       ├─&gt; <a href="#h16_item_order">place.h16_item_order()</a>                      ┆ ┆
+┆  ┆  └─&gt; <a href="../src/webview/main.ts#L1138">settleDrop()</a>                │    │ │ ┆     ┆  │       ├─&gt; <a href="#h16_item_order">place.h16_item_order()</a>                      ┆ ┆
 ┆  ┆      └─&gt; <a href="#h33_drop_repulsion">h33_drop_repulsion()</a>    │    │ │ ┆     ┆  │       ├─&gt; <a href="#h17_item_column">place.h17_item_column()</a>                     ┆ ┆
-┆  ┆  <a href="../src/webview/main.ts#L1204"><b>runCmd()</b></a> ───────────────────────┼────┤ │ ┆     ┆  │       ├─&gt; <a href="#h18_item_row">place.h18_item_row()</a>                        ┆ ┆
+┆  ┆  <a href="../src/webview/main.ts#L1206"><b>runCmd()</b></a> ───────────────────────┼────┤ │ ┆     ┆  │       ├─&gt; <a href="#h18_item_row">place.h18_item_row()</a>                        ┆ ┆
 ┆  ┆      ┌───────────────────────────┘    │ │ ┆     ┆  │       ├─&gt; <a href="../src/core/place.ts#L92">place.placeBlock()</a>                          ┆ ┆
 ┆  ┆      └─&gt; <a href="#h31_still_anchor">h31_still_anchor()</a>           │ │ ┆     ┆  │       │   ├─&gt; <a href="#h13_caller_alignment">place.h13_caller_alignment()</a>            ┆ ┆
 ┆  ┆  ┌────────────────────────────────────┘ │ ┆     ┆  │       │   ├─&gt; <a href="../src/core/layout.ts#L78">layout.layout()</a>                         ┆ ┆
-┆  ┆  └─&gt; <a href="../src/webview/main.ts#L695">anchorAt()</a> ────────────────────────┤ ┆     ┆  │       │   │   ├─&gt; <a href="#h06_root_order">layout.h06_root_order()</a>             ┆ ┆
+┆  ┆  └─&gt; <a href="../src/webview/main.ts#L697">anchorAt()</a> ────────────────────────┤ ┆     ┆  │       │   │   ├─&gt; <a href="#h06_root_order">layout.h06_root_order()</a>             ┆ ┆
 ┆  ┆      ┌──────────────────────────────────┘ ┆     ┆  │       │   │   ├─&gt; <a href="#h07_child_order">layout.h07_child_order()</a>            ┆ ┆
 ┆  ┆      └─&gt; <a href="#h30_action_anchor">h30_action_anchor()</a>              ┆     ┆  │       │   │   ├─&gt; <a href="#h08_row_order">layout.h08_row_order()</a>              ┆ ┆
 ┆  ╰┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄╯     ┆  │       │   │   ├─&gt; <a href="#tree_parent_rule">layout.tree_parent_rule()</a>           ┆ ┆
@@ -274,40 +274,40 @@ Code: [grid.ts:606](../src/core/grid.ts#L606), in `buildGrid`.
 
 **Hops.** Where a horizontal call line crosses a vertical one (one cell, neither turning), the horizontal line hops over it with a half circle of 0.525 cell, in orthogonal and rounded edges; text shows the crossing glyph.
 
-Code: [main.ts:436](../src/webview/main.ts#L436), in `render`.
+Code: [main.ts:437](../src/webview/main.ts#L437), in `render`.
 
 ### h30_action_anchor
 
 **Action anchor.** The function you last opened, closed or removed keeps its spot on screen: the view pans to compensate.
 
-Code: [main.ts:387](../src/webview/main.ts#L387), in `render`; [main.ts:696](../src/webview/main.ts#L696), in `anchorAt`.
+Code: [main.ts:388](../src/webview/main.ts#L388), in `render`; [main.ts:698](../src/webview/main.ts#L698), in `anchorAt`.
 
 ### h31_still_anchor
 
 **Still anchor.** After a drag or Re-arrange Selection, the view stays fixed on a seed or another function that did not move.
 
-Code: [main.ts:1077](../src/webview/main.ts#L1077), in `dragUnit`; [main.ts:1332](../src/webview/main.ts#L1332), in `runCmd`.
+Code: [main.ts:1079](../src/webview/main.ts#L1079), in `dragUnit`; [main.ts:1334](../src/webview/main.ts#L1334), in `runCmd`.
 
 ### h32_multi_unit_drag
 
 **Multi-unit drag.** Dragging a selected function moves each selected function with the functions below it, each once; one inside another selected function's tree moves with that function.
 
-Code: [main.ts:1028](../src/webview/main.ts#L1028), in `topUnits`.
+Code: [main.ts:1030](../src/webview/main.ts#L1030), in `topUnits`.
 
 ### h33_drop_repulsion
 
 **Drop repulsion.** A drop on content, or one that leaves a call unroutable, moves on in the drag direction, then sideways, up to 12 cells or 1.5 s. Since h23_settle runs in buildScene, every trial spot looks clear and this rule changes nothing.
 
-Code: [main.ts:1149](../src/webview/main.ts#L1149), in `settleDrop`.
+Code: [main.ts:1151](../src/webview/main.ts#L1151), in `settleDrop`.
 
 ### h34_offset_handover
 
 **Offset handover.** Opening the callers of a moved function: when a caller revealed by that opening becomes its tree parent and has no offset or lock, the caller takes the function's offset and the function loses it. The offset now moves both, so the caller sits right above the function where you put it.
 
-Code: [main.ts:619](../src/webview/main.ts#L619), in `afterRender`; [main.ts:715](../src/webview/main.ts#L715), in `setSide`.
+Code: [main.ts:621](../src/webview/main.ts#L621), in `afterRender`; [main.ts:717](../src/webview/main.ts#L717), in `setSide`.
 
 ### h35_save_what_is_drawn
 
 **Save what is drawn.** The view saves the offsets h23_settle drew with, at most 3 saves in a row; any other change resets the count.
 
-Code: [main.ts:626](../src/webview/main.ts#L626), in `afterRender`.
+Code: [main.ts:628](../src/webview/main.ts#L628), in `afterRender`.

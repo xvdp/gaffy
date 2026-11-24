@@ -6,7 +6,7 @@ This sketch uses the character grid logic of ASCII, the clean looks of D3, to ex
 Supports Python, TypeScript, JavaScript, Rust, C++, CUDA, Objective-C, Go, Java, C#, Kotlin, Swift, Dart, relying on their language servers, partial support for Slang. Some cross language support across pybind11, nanobind, wasm-bindgen. More info in [docs/development.md](docs/development.md).
 
 
-Graphs are .json (.gaffy) files saved as  `<vscode-root>/.gaffy/<symbol>_<commit>.gaffy`
+Graphs are .json (.gaffy) files saved as  `<vscode-root>/.baggy/gaffy/<symbol>_<commit>.gaffy`; views written by [giddy](https://github.com/xvdp/giddy) live in their repository, `<repo>/.baggy/gaffy/`, beside giddy's reports in `<repo>/.baggy/giddy/`.
 
 ## Install from vscode marketplace
 Stupid MS locked my account so not yet published. I suppose if i were an agent i would have the patience to go thru with their byzantine mating rituals to unlock an account.
@@ -67,7 +67,9 @@ Development: `gaffy/` in VS Code, F5 (Extension Development Host); `npm run watc
 
 `style.json` `view.traverse: "both"`: new views start with callers and calls. Explorer right click on a file > **gaffy** > Call Hierarchies (all, up): each function of the file with one caller level, full layout. `gaffy: Check Language Servers`: workspace languages, extension providing each call hierarchy, missing installs; a notification once per version when a required extension is missing (Install, Show Report, Don't Show Again).
 
-New view: unsaved, bound to `.gaffy/views/<symbol>_<short commit hash>.gaffy` (`<symbol>_<YYYYMMDD-HHMM>` outside git); right click > Save (.gaffy) writes it; Autosave Graphs (`gaffy.saveViews`) saves new views at once. Save as Text (key `x`): `.gaffy/<symbol>_<commit>.md` and `.txt`, named in a notification.
+New view: unsaved, bound to `.baggy/gaffy/<symbol>_<short commit hash>.gaffy` (`<symbol>_<YYYYMMDD-HHMM>` outside git); right click > Save (.gaffy) writes it; Autosave Graphs (`gaffy.saveViews`) saves new views at once. Save as Text (key `x`): `.baggy/gaffy/<symbol>_<commit>.md` and `.txt` in the view's project, named in a notification.
+
+Options values belong to the view: edge style, curve, tree parent, grouping, tight groups, external code and standard library are stored in it when it is created (or unfrozen); `style.json` and the settings are defaults for new views only.
 
 Build: one layer, drawn at once; in the background, callers and calls of each function on screen (for the markers) and `gaffy.depth` layers prefetched along the traversal direction. Reopened view: the stored graph at once ([Building, progress, cache](#building-progress-cache)).
 
@@ -152,8 +154,8 @@ Toolbar: **Isolate** (nothing hidden) or **Show all (n)** (something hidden), ca
 - Edges: glyphs (UTF box drawing) or vector; vector curve: orthogonal, rounded, sigmoid, spline. Cross-language calls dash-dot, implicit calls dotted, every style and the text export (`┈ ┊`, `─·─·`)
 - Tree parent: first caller found (dfs), nearest caller above, left merge (joint: a caller right above joins the elbow `├───┴─>`; several callers in a box join one collector from the left, `┌──┘` then `└─>`; calls between boxes arrive from the left where cells are free)
 - Arrange, also on canvas right click (key `a`: re-arrange): **Reset graph**: seeds, depth, direction (one layer at a time: seeds and first layer; full: starting call depths), **Reset Layout**: moves, locks, order (sibling order, straightened calls), Re-arrange (selected functions to their computed place; no selection: every unlocked move dropped), Unlock all, Expand collapsed
-- Folders: ✓ Include external code (`gaffy.includeExternal`, workspace setting; on: language server asked again; off: hidden at once), ✓ Include standard library (`gaffy.includeStandardLibrary`), then each top-level folder, included or excluded (external and standard library folders listed only while included). Draw-time filters: calls into an excluded folder stay stored, so including it shows them without the language server.
-- File: Save (.gaffy) (Autosave Graphs off), ✓ Freeze at commit (no language-server updates; commit and time recorded in the view and shown in the toolbar: Frozen at commit … ; also `gaffy: Freeze or Unfreeze View at Commit`), ✓ Autosave Graphs (`gaffy.saveViews`), Save as Text (.txt, .md), Refresh Language Server, Edit style.json, Settings (filtered to gaffy)
+- Folders: ✓ Include external code (this view; new views: `gaffy.includeExternal`; on: language server asked again; off: hidden at once), ✓ Include standard library (this view; new views: `gaffy.includeStandardLibrary`), then each top-level folder, included or excluded (external and standard library folders listed only while included). Draw-time filters: calls into an excluded folder stay stored, so including it shows them without the language server.
+- File: Save (.gaffy) (Autosave Graphs off), ✓ Frozen (see [Freeze on open](#freeze-on-open); also `gaffy: Freeze or Unfreeze View`), ✓ Autosave Graphs (`gaffy.saveViews`), Save as Text (.txt, .md), Refresh Language Server, Edit style.json, Settings (filtered to gaffy)
 
 Toolbar, pulldown: HTML built with d3-selection, VS Code theme variables (`--vscode-menu-*`). Graph: SVG drawn with D3.
 
@@ -163,7 +165,7 @@ Locks: a locked function or box keeps its absolute position; unlocked items plac
 
 ## Views from scripts
 
-A script writes a view file with seeds by name and opens it; gaffy resolves each seed (document symbols, call hierarchy) and asks the language server within the view's depths. Seeds: `<path>#<qualified name>` or `<path>:<line>` (1-based, inside the definition), path relative to the folder holding `.gaffy/` (the repository), else to the workspace folder; a seed not found is reported in a warning. `"save": true`: the file is saved after every change, whatever `gaffy.autoSave` says.
+A script writes a view file with seeds by name and opens it; gaffy resolves each seed (document symbols, call hierarchy) and asks the language server within the view's depths. Seeds: `<path>#<qualified name>` or `<path>:<line>` (1-based, inside the definition), path relative to the folder holding `.baggy/` (the repository), else to the workspace folder; a seed not found is reported in a warning. `"save": true`: the file is saved after every change, whatever `gaffy.autoSave` says.
 
 ```python
 import json, pathlib, subprocess
@@ -171,7 +173,7 @@ import json, pathlib, subprocess
 view = {"gaffy": 1, "name": "batch", "view": {
     "seeds": ["src/pkg/mod.py#Scoobie.do", "src/pkg/other.py#magoo", "src/pkg/other.py:120"],
     "arrange": "auto", "direction": "both", "depthUp": 2, "depthDown": 3, "save": True}}
-p = pathlib.Path(".gaffy/views/batch.gaffy")
+p = pathlib.Path(".baggy/gaffy/batch.gaffy")
 p.parent.mkdir(parents=True, exist_ok=True)
 p.write_text(json.dumps(view))
 subprocess.run(["code", str(p)])
@@ -182,11 +184,11 @@ subprocess.run(["code", str(p)])
 ## Building, progress, cache
 
 - Progress: banner with phase, depth, definitions, language-server requests, cached answers; after 400 ms also a notification with cancel.
-- Cache: each language-server answer (callers or callees of one definition), in `.gaffy/cache/calls.json`. Depth or direction changes, expansion and view opening ask the language server only for uncached answers.
+- Cache: each language-server answer (callers or callees of one definition), in `.baggy/gaffy/cache/calls.json` (`calls-external.json` for views with external code). Depth or direction changes, expansion and view opening ask the language server only for uncached answers.
 - Invalidation: a saved, renamed or externally changed source file drops its definitions' cached outgoing calls and all cached incoming calls; files of an extension no cached definition has (logs, bytecode, build output): none. `gaffy: Clear Call Cache`: everything.
 - No answer ≠ empty answer: a definition the language server does not resolve (analyzing after a reload, renamed, removed) keeps its stored calls, uncached, unexplored; retries after 2, 4, 8, 15, 30, 60 s (`language server not ready` in the status line), then a warning with the count.
 - Timeout: 30 s without an answer counts as no answer (retried); one stalled request never holds the queue.
-- Opening a view: explored (definition, direction) pairs take cached answers; stale pairs on screen asked again in the background, off screen kept and asked when a side opens onto them. Nothing changed since the last save: no request.
+- Unfrozen view: explored (definition, direction) pairs take cached answers; stale pairs on screen asked again in the background, off screen kept and asked when a side opens onto them. Nothing changed since the last save: no request.
 - **Refresh Language Server** (Options > File, `r`, `gaffy: Refresh Language Server`): every on-screen (definition, direction) pair asked again; cached answers of the others dropped (asked when a side or a call depth reaches them).
 
 ## Change tracking
@@ -199,19 +201,27 @@ subprocess.run(["code", str(p)])
 ## Files
 
 ```
-.gaffy/
-  views/<symbol>_<commit>.gaffy  view: seeds, direction, depth, open sides, call depths, cut calls, collapsed, hidden, grouping,
-                               folder include and exclude, tags, straightened calls, last graph and the
-                               directions asked per definition (JSON)
-  <symbol>_<commit>.md         text export, <pre> with links to path#Lline, seeds in bold; <commit> = short HEAD hash, or
-  <symbol>_<commit>.txt        <YYYYMMDD-HHMM> outside git; later exports of the same symbol and commit: _2, _3, …
-  cache/calls.json             cached language-server answers
-  style.json                   style overrides (gaffy: Edit Style writes the defaults)
+.baggy/                        shared with giddy (.baggy/giddy/: reports, commits.md)
+  gaffy/
+    <symbol>_<commit>.gaffy    view: seeds, direction, depth, open sides, call depths, cut calls, collapsed, hidden, grouping,
+                               folder include and exclude, tags, straightened calls, Options values, last graph, the
+                               directions asked per definition, commit at last build (JSON)
+    <symbol>_<commit>.md       text export, <pre> with links to path#Lline, seeds in bold; <commit> = short HEAD hash, or
+    <symbol>_<commit>.txt      <YYYYMMDD-HHMM> outside git; later exports of the same symbol and commit: _2, _3, …
+    cache/calls.json           cached language-server answers (calls-external.json: views with external code)
+    trace/<view>.jsonl         change log (gaffy.trace)
+    style.json                 style overrides (gaffy: Edit Style writes the defaults)
 ```
+
+Placement: views created in VS Code under the workspace folder; views written by giddy or a script under their repository (seed paths, exports and the commit hash refer to the folder holding `.baggy/`). Style and call cache: per workspace folder. Views in a `.gaffy/views/` folder still open; new files go to `.baggy/gaffy/`.
+
+## Freeze on open
+
+A view that holds a graph opens frozen: no language-server requests, settled moves not written; the file stays as saved. The toolbar shows **Unfreeze** (with the build time and commit); clicking it is an edit of the view (`view.live`, the id of this opening, and the Options values), so Ctrl+Z freezes again and Ctrl+Y unfreezes. Every opening has a new id: the next opening is frozen again. Options > File > Frozen toggles the same state. Edits (moves, hides, collapses) work while frozen; sides without stored calls stay closed. A view without a graph (new, or written by giddy or a script) builds at once.
 
 ## Style
 
-Precedence: `.gaffy/style.json` over the `gaffy.style` setting over `DEFAULT_STYLE` ([src/core/style.ts](src/core/style.ts)); numbers clamped to the ranges of [schemas/style.schema.json](schemas/style.schema.json).
+Precedence: `.baggy/gaffy/style.json` over the `gaffy.style` setting over `DEFAULT_STYLE` ([src/core/style.ts](src/core/style.ts)); numbers clamped to the ranges of [schemas/style.schema.json](schemas/style.schema.json).
 
 ```json
 {
@@ -257,11 +267,11 @@ New UI color: a rule in `media/webview.css` reading `var(--g-<key>)`; the key wi
 | `gaffy.depth` | 3 | one layer at a time: levels prefetched in the background; full: the starting call depths |
 | `gaffy.maxNodes` | 400 | definitions fetched per build |
 | `gaffy.openCallHierarchy` | true | also open VS Code's Call Hierarchy, in the References view, when creating a view |
-| `gaffy.saveViews` | false | Autosave Graphs: new views written to `.gaffy/views/`, saved after each change. Off: closing an unsaved view discards it (hot exit keeps it across window reloads) |
-| `gaffy.trace` | false | view change log, undo and redo included, in `.gaffy/trace/<view>.jsonl`: event, target, grid cell, acting functions, changed fields, moved labels and boxes; trusted workspaces only. Reader: `node tools/gaffy-trace.mjs <file>` (this repository) |
+| `gaffy.saveViews` | false | Autosave Graphs: new views written to `.baggy/gaffy/`, saved after each change. Off: closing an unsaved view discards it (hot exit keeps it across window reloads) |
+| `gaffy.trace` | false | view change log, undo and redo included, in `.baggy/gaffy/trace/<view>.jsonl`: event, target, grid cell, acting functions, changed fields, moved labels and boxes; trusted workspaces only. Reader: `node tools/gaffy-trace.mjs <file>` (this repository) |
 | `gaffy.exclude` | none | globs of folders and files kept off screen (for example `"**/tests/**"`); Options > Folders includes them again per view |
-| `gaffy.includeExternal` | false | show external code: installed packages (site-packages, node_modules), stubs, system headers, build output, wasm-pack glue |
-| `gaffy.includeStandardLibrary` | false | with external code: builtins and standard library (Python typeshed `stdlib`, `pythonX.Y`; Rust core, alloc, std; C++ standard headers; TypeScript `lib.*.d.ts`); off: installed packages only; drawn without the language server |
+| `gaffy.includeExternal` | false | new views: show external code (Options > Folders per view): installed packages (site-packages, node_modules), stubs, system headers, build output, wasm-pack glue |
+| `gaffy.includeStandardLibrary` | false | new views, with external code: builtins and standard library (Python typeshed `stdlib`, `pythonX.Y`; Rust core, alloc, std; C++ standard headers; TypeScript `lib.*.d.ts`); off: installed packages only; drawn without the language server |
 | `gaffy.autoSave` | true | save the view file after each graph change |
 | `gaffy.refreshOnSave` | touched | update policy after a source save |
 | `gaffy.openDefinitions` | true | Open Definitions: a view from the editor opens beside it; a click opens the definition next to the graph. Off: active column; a click only selects |

@@ -792,13 +792,12 @@ describe('view files are data', () => {
         expect(d.graph.edges).toEqual([{ from: 'a', to: 'b' }]);
     });
 
-    it('frozen and save: kept when well formed', () => {
-        const d = parseDoc(JSON.stringify({ gaffy: 1, view: { save: true, frozen: { commit: 'abc1234', at: '2026-11-23 10:00' } } }));
-        expect(d.view.save).toBe(true);
-        expect(d.view.frozen).toEqual({ commit: 'abc1234', at: '2026-11-23 10:00' });
-        const e = parseDoc(JSON.stringify({ gaffy: 1, view: { save: 'yes', frozen: { commit: '$(rm -rf /)', at: '2026-11-23' } } }));
-        expect(e.view.save).toBeUndefined();
-        expect(e.view.frozen).toEqual({ at: '2026-11-23' });
+    it('save, live, external, stdlib, commit: kept when well formed', () => {
+        const d = parseDoc(JSON.stringify({ gaffy: 1, commit: 'abc1234', view: { save: true, live: '0123abcd4567ef89', external: true, stdlib: false } }));
+        expect([d.view.save, d.view.live, d.view.external, d.view.stdlib, d.commit]).toEqual([true, '0123abcd4567ef89', true, false, 'abc1234']);
+        const e = parseDoc(JSON.stringify({ gaffy: 1, commit: '$(rm -rf /)', view: { save: 'yes', live: '../x', external: 'on', frozen: { at: '2026' } } }));
+        expect([e.view.save, e.view.live, e.view.external, e.commit]).toEqual([undefined, undefined, undefined, undefined]);
+        expect('frozen' in e.view).toBe(false);
     });
 
     it('a lock at the bound lays out without routing a huge grid', () => {

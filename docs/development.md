@@ -75,7 +75,7 @@ Not followed (a call trace would see them): backprop, hooks, `with` blocks, iter
 ```
 package.json          manifest: identity, VS Code version range, entry point, activation, contributions; npm scripts
 esbuild.mjs           two bundles: host (Node, CommonJS⁸, `vscode` left external) and webview (browser, IIFE⁹)
-schemas/              JSON schema of .gaffy/style.json (completion and validation in the editor)
+schemas/              JSON schema of .baggy/gaffy/style.json (completion and validation in the editor)
 media/webview.css     webview styles, mapped to VS Code theme variables
 src/core/             TypeScript, no VS Code API: runs in the host (export), the webview (render) and tests
   model.ts              graph types: nodes (definitions, containers), edges (calls)
@@ -101,7 +101,7 @@ src/host/             extension host: Node.js, VS Code API
   implicit.ts           implicit calls: construction, instance call
   servers.ts            which language servers the workspace needs, and whether they are installed
   scope.ts              URI scheme gate (`readable`)
-  safefs.ts             no writes through symbolic links under `.gaffy/` (`noLinks`)
+  safefs.ts             no writes through symbolic links under `.baggy/gaffy/` (`noLinks`)
   seedspec.ts           seeds written by name in a view file (`<path>#<qualified name>`, `<path>:<line>`)
   trace.ts, tracerec.ts view change records (setting gaffy.trace)
   style.ts              style.json per workspace folder
@@ -110,7 +110,7 @@ test/                 vitest tests, fixtures, golden text renders
 scripts/preview.mjs   browser preview of the webview with fixtures and simulated steps (GAFFY_PREVIEW_FILE=<view> for any view file; steps=…, trace=1)
 scripts/heuristics.ts the layout heuristics as a graph: writes docs/heuristics.md and docs/heuristics.gaffy (`npm run heuristics`)
 scripts/ordering.ts   every function that changes what is shown or where: writes docs/ordering.md (`npm run heuristics`)
-tools/gaffy-trace.mjs standalone, no dependencies, not packaged: prints a view trace (.gaffy/trace/<view>.jsonl, setting gaffy.trace)
+tools/gaffy-trace.mjs standalone, no dependencies, not packaged: prints a view trace (.baggy/gaffy/trace/<view>.jsonl, setting gaffy.trace)
 test/data/            view files reduced from real cases, names made up (runaway.gaffy: box descent drift)
 ```
 
@@ -150,10 +150,10 @@ Threat model: a workspace or a `.gaffy` file comes from someone else (a cloned r
 | `style.json` | Merged without the keys `__proto__`, `constructor`, `prototype` (prototype pollution); colors become CSS custom properties, which cannot load external resources under the policy above. |
 | git | `git rev-parse --short HEAD` (view file names) runs only in a trusted workspace and only in a workspace folder: a `.git/config` from a downloaded folder can make git run programs. `package.json` declares `untrustedWorkspaces: limited`. |
 | Source text (bindings, shader languages) | Read, never run: `setup.py` and build files are matched with regular expressions; a name from the text enters an expression only after it matches an identifier pattern (a `TORCH_LIBRARY` variable such as `.*.*.*` once took 16 s to scan); a class walk over base classes visits each class once, at most 64. Files over 2 MB are skipped; declaration headers over 600 characters are not parsed (bounded regular-expression work); a `.slang` path written in Python source resolves only inside a workspace folder. |
-| Writes under `.gaffy/` | Call cache, trace, exports, new views and `style.json` never write through a symbolic link: every existing path segment below the workspace folder is checked with lstat first (`noLinks` in `src/host/safefs.ts`); a repository shipping `.gaffy/cache/calls.json` as a link to a shell startup file cannot make gaffy truncate or append to it. The trace writes only in a trusted workspace and rotates at 20 MB. |
+| Writes under `.baggy/gaffy/` | Call cache, trace, exports, new views and `style.json` never write through a symbolic link: every existing path segment below the workspace folder is checked with lstat first (`noLinks` in `src/host/safefs.ts`); a repository shipping `.gaffy/cache/calls.json` as a link to a shell startup file cannot make gaffy truncate or append to it. The trace writes only in a trusted workspace and rotates at 20 MB. |
 | Settings from the workspace | `package.json` lists `gaffy.trace`, `gaffy.exclude` and `gaffy.style` as restricted configurations: in an untrusted workspace VS Code reads them from user settings only. Globs match in linear time (`globMatcher`, no regular expression to backtrack); style numbers are clamped to the ranges of `schemas/style.schema.json` (`boundedStyle`). |
 | View files | `parseDoc` keeps strings in lists, drops special keys and values of the wrong type in keyed records, bounds offsets to ±1000 and locks to [0, 2000] cells; routing searches grids up to 10⁶ cells and draws larger ones with fallback lines, so a crafted file cannot allocate gigabytes. |
-| Export | Writes only under `.gaffy/`; file names keep `[A-Za-z0-9_.-]`; HTML text and attributes are escaped (`&`, `<`, `>`, `"`, `'`); links are paths relative to `.gaffy/` and start with `./` or `../`, so no first segment reads as a scheme. |
+| Export | Writes only under the project's `.baggy/gaffy/`; file names keep `[A-Za-z0-9_.-]`; HTML text and attributes are escaped (`&`, `<`, `>`, `"`, `'`); links are paths relative to `.baggy/gaffy/` and start with `./` or `../`, so no first segment reads as a scheme. |
 | Dependencies | Shipped: the D3 modules in `dist/webview.js` (`npm audit --omit=dev`: 0 vulnerabilities). Development only (vitest, vsce): findings in `npm audit` that do not reach the package. |
 
 Trace reader: `tools/gaffy-trace.mjs` prints control, zero-width and bidirectional characters from trace data as `\u{…}` (text) or `\uXXXX` (`--json`), so names cannot send terminal escape sequences.

@@ -21,7 +21,7 @@ import { GEdge, GNode, NodeKey } from '../core/model';
 import type { LspProvider } from './lsp';
 import { readable } from './scope';
 
-const SKIP = '{**/node_modules/**,**/.git/**,**/_deps/**,**/.venv/**,**/venv/**,**/site-packages/**,**/.gaffy/**}';
+const SKIP = '{**/node_modules/**,**/.git/**,**/_deps/**,**/.venv/**,**/venv/**,**/site-packages/**,**/.gaffy/**,**/.baggy/**}';
 const MANIFESTS = ['setup.py', 'pyproject.toml', 'setup.cfg', 'CMakeLists.txt', 'Cargo.toml', 'package.json'];
 const NATIVE = new Set(['c', 'cpp', 'cuda']);
 const JS = new Set(['ts', 'js']);
@@ -271,7 +271,7 @@ export class Bridges {
 
     private jsFiles(): Promise<PyFile[]> {
         this.js ??= (async () => {
-            const uris = await vscode.workspace.findFiles('**/*.{ts,tsx,mts,cts,js,jsx,mjs,cjs}', '{**/node_modules/**,**/.git/**,**/dist/**,**/pkg/**,**/target/**,**/*.d.ts,**/.gaffy/**}', 5000);
+            const uris = await vscode.workspace.findFiles('**/*.{ts,tsx,mts,cts,js,jsx,mjs,cjs}', '{**/node_modules/**,**/.git/**,**/dist/**,**/pkg/**,**/target/**,**/*.d.ts,**/.gaffy/**,**/.baggy/**}', 5000);
             return Promise.all(uris.map(async (uri) => ({ uri, text: await this.read(uri) })));
         })();
         return this.js;

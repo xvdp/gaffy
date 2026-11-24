@@ -2,7 +2,7 @@
   "name": "gaffy",
   "displayName": "gaffy",
   "description": "Persistent, manipulable call graphs on a character grid, rendered with D3",
-  "version": "0.9.30",
+  "version": "0.9.31",
   "publisher": "xvdp",
   "license": "Apache-2.0",
   "repository": {
@@ -19,6 +19,7 @@
   ],
   "main": "./dist/extension.js",
   "activationEvents": [
+    "workspaceContains:.baggy/gaffy",
     "workspaceContains:.gaffy",
     "onStartupFinished"
   ],
@@ -37,7 +38,7 @@
     ],
     "jsonValidation": [
       {
-        "fileMatch": "**/.gaffy/style.json",
+        "fileMatch": "**/.baggy/gaffy/style.json",
         "url": "./schemas/style.schema.json"
       }
     ],
@@ -89,7 +90,7 @@
         "gaffy.style": {
           "type": "object",
           "default": {},
-          "description": "Style overrides; .gaffy/style.json overrides these."
+          "description": "Style overrides; .baggy/gaffy/style.json overrides these."
         },
         "gaffy.exclude": {
           "type": "array",
@@ -112,12 +113,12 @@
         "gaffy.saveViews": {
           "type": "boolean",
           "default": false,
-          "description": "Save gaffy views: a new view is written to .gaffy/views/ at once and saved after every change. Off: a new view opens unsaved (bound to its .gaffy/views/ path); right click > Save writes it there, closing it without saving discards it."
+          "description": "Save gaffy views: a new view is written to .baggy/gaffy/ at once and saved after every change. Off: a new view opens unsaved (bound to its .baggy/gaffy/ path); right click > Save writes it there, closing it without saving discards it."
         },
         "gaffy.trace": {
           "type": "boolean",
           "default": false,
-          "description": "Record every change of a view (the click, key or menu entry and its grid cell, the functions that acted, the view fields changed, the labels and boxes that moved; undo and redo included) to .gaffy/trace/<view>.jsonl. Read it with tools/gaffy-trace.mjs from the gaffy repository."
+          "description": "Record every change of a view (the click, key or menu entry and its grid cell, the functions that acted, the view fields changed, the labels and boxes that moved; undo and redo included) to .baggy/gaffy/trace/<view>.jsonl. Read it with tools/gaffy-trace.mjs from the gaffy repository."
         }
       }
     },
@@ -378,7 +379,7 @@
       },
       {
         "command": "gaffy.view.freeze",
-        "title": "Freeze or Unfreeze View at Commit",
+        "title": "Freeze or Unfreeze View",
         "category": "gaffy"
       },
       {

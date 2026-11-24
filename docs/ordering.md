@@ -19,123 +19,123 @@ Canvas (mouse):
 
 | trigger | code | calls |
 |---|---|---|
-| double click a label (one layer at a time) | [main.ts:540](../src/webview/main.ts#L540) | `toggleSides`; on a collapsed container: expand (`collapsed` filter, `anchorAt`) |
-| drag a label | [main.ts:547](../src/webview/main.ts#L547) | `dragUnit` (unit: the vertex, `collapsed:<key>` for a collapsed one, or the selection) |
-| click `>> ` before a label | [main.ts:521](../src/webview/main.ts#L521) | `markerClick(key, 'up')` |
-| click `>` of a `└─>>` row | [main.ts:555](../src/webview/main.ts#L555) | `markerClick(key, side)` |
-| click the elbow of a `└─>>` row | [main.ts:467](../src/webview/main.ts#L467) | `markerClick(caller, 'down')` |
-| click an arrowhead | [main.ts:501](../src/webview/main.ts#L501) | `closingOf(…).run` → `setSide(…, false)`: closes the level it points into |
-| double click a call | [main.ts:480](../src/webview/main.ts#L480) | `isolateCalls` (the selection holding the call, else the calls through the cell) |
-| double click a box header | [main.ts:579](../src/webview/main.ts#L579) | collapse the container (`collapsed` push) |
-| drag a box header | [main.ts:584](../src/webview/main.ts#L584) | `dragUnit` (unit `box:<key>`) |
-| wheel, drag the background | [main.ts:60](../src/webview/main.ts#L60) | zoom and pan only: no view change |
+| double click a label (one layer at a time) | [main.ts:541](../src/webview/main.ts#L541) | `toggleSides`; on a collapsed container: expand (`collapsed` filter, `anchorAt`) |
+| drag a label | [main.ts:548](../src/webview/main.ts#L548) | `dragUnit` (unit: the vertex, `collapsed:<key>` for a collapsed one, or the selection) |
+| click `>> ` before a label | [main.ts:522](../src/webview/main.ts#L522) | `markerClick(key, 'up')` |
+| click `>` of a `└─>>` row | [main.ts:556](../src/webview/main.ts#L556) | `markerClick(key, side)` |
+| click the elbow of a `└─>>` row | [main.ts:468](../src/webview/main.ts#L468) | `markerClick(caller, 'down')` |
+| click an arrowhead | [main.ts:502](../src/webview/main.ts#L502) | `closingOf(…).run` → `setSide(…, false)`: closes the level it points into |
+| double click a call | [main.ts:481](../src/webview/main.ts#L481) | `isolateCalls` (the selection holding the call, else the calls through the cell) |
+| double click a box header | [main.ts:580](../src/webview/main.ts#L580) | collapse the container (`collapsed` push) |
+| drag a box header | [main.ts:585](../src/webview/main.ts#L585) | `dragUnit` (unit `box:<key>`) |
+| wheel, drag the background | [main.ts:61](../src/webview/main.ts#L61) | zoom and pan only: no view change |
 
 Keys (focused function `k`):
 
 | key | code | calls |
 |---|---|---|
-| Alt+↑, Alt+↓ | [main.ts:1426](../src/webview/main.ts#L1426) | `moveSibling(±1)` |
-| e, Space | [main.ts:1434](../src/webview/main.ts#L1434) | `setSide(k, side, true)` for each side with more |
-| ←, c | [main.ts:1435](../src/webview/main.ts#L1435) | `collapseInnermost` |
-| → | [main.ts:1436](../src/webview/main.ts#L1436) | expand the focused collapsed container |
-| Delete, Backspace | [main.ts:1437](../src/webview/main.ts#L1437) | `runCmd('remove')` |
-| h | [main.ts:1438](../src/webview/main.ts#L1438) | `runCmd('hideSelection')` |
-| a | [main.ts:1439](../src/webview/main.ts#L1439) | `runCmd('rearrangeSelection')` with a selection, else `runCmd('rearrange')` |
-| i | [main.ts:1440](../src/webview/main.ts#L1440) | `runCmd('isolateSelection')` |
-| Escape | [main.ts:1441](../src/webview/main.ts#L1441) | clear the selection, else `runCmd('showAll')` |
-| k | [main.ts:1446](../src/webview/main.ts#L1446) | `runCmd('lock' | 'unlock')` on the focused unit |
-| u | [main.ts:1447](../src/webview/main.ts#L1447) | `hidden = []` |
-| b | [main.ts:1449](../src/webview/main.ts#L1449) | `boxes` toggled |
-| r | [main.ts:1450](../src/webview/main.ts#L1450) | host `refresh`: new data from the language server |
+| Alt+↑, Alt+↓ | [main.ts:1428](../src/webview/main.ts#L1428) | `moveSibling(±1)` |
+| e, Space | [main.ts:1436](../src/webview/main.ts#L1436) | `setSide(k, side, true)` for each side with more |
+| ←, c | [main.ts:1437](../src/webview/main.ts#L1437) | `collapseInnermost` |
+| → | [main.ts:1438](../src/webview/main.ts#L1438) | expand the focused collapsed container |
+| Delete, Backspace | [main.ts:1439](../src/webview/main.ts#L1439) | `runCmd('remove')` |
+| h | [main.ts:1440](../src/webview/main.ts#L1440) | `runCmd('hideSelection')` |
+| a | [main.ts:1441](../src/webview/main.ts#L1441) | `runCmd('rearrangeSelection')` with a selection, else `runCmd('rearrange')` |
+| i | [main.ts:1442](../src/webview/main.ts#L1442) | `runCmd('isolateSelection')` |
+| Escape | [main.ts:1443](../src/webview/main.ts#L1443) | clear the selection, else `runCmd('showAll')` |
+| k | [main.ts:1448](../src/webview/main.ts#L1448) | `runCmd('lock' | 'unlock')` on the focused unit |
+| u | [main.ts:1449](../src/webview/main.ts#L1449) | `hidden = []` |
+| b | [main.ts:1451](../src/webview/main.ts#L1451) | `boxes` toggled |
+| r | [main.ts:1452](../src/webview/main.ts#L1452) | host `refresh`: new data from the language server |
 
 Toolbar and Options:
 
 | entry | code | calls |
 |---|---|---|
-| call depth `all` `+` `−` (full layout) | [main.ts:1550](../src/webview/main.ts#L1550) | `setDepth(side, …)` |
-| **Show all (n)** | [main.ts:1559](../src/webview/main.ts#L1559) | `runCmd('showAll')` |
-| **Expand mode >>**, **Expand mode -+** | [main.ts:1569](../src/webview/main.ts#L1569) | `setArrange('auto' | 'grow')`: switches to the mode it names |
-| **Isolate** | [main.ts:1560](../src/webview/main.ts#L1560) | `runCmd('isolateSelection')` |
-| Options > Call Expansion: Individual On Graph, Global Toolbar | [main.ts:1575](../src/webview/main.ts#L1575) | `setArrange('grow' | 'auto')` |
-| Options > Seeds > Only paths between seeds | [main.ts:1581](../src/webview/main.ts#L1581) | `between`: drawn functions filtered to seed-to-seed call paths (`onPaths`) |
-| Options > Call depth by: shortest, longest path | [main.ts:1585](../src/webview/main.ts#L1585) | `depthRule` |
-| Options > Namespaces > Group namespaces | [main.ts:1589](../src/webview/main.ts#L1589) | `boxes` |
-| Options > Namespaces > Tight groups | [main.ts:1591](../src/webview/main.ts#L1591) | `tight` |
-| Options > Namespaces > Reset grouping | [main.ts:1593](../src/webview/main.ts#L1593) | `group`, `ungroup` = [], `dropMovesWithin` for each |
-| Options > Tree parent: first caller found, nearest caller above, left merge | [main.ts:1603](../src/webview/main.ts#L1603) | `parentRule` |
-| Options > Arrange > Reset graph: seeds, depth, direction | [main.ts:1609](../src/webview/main.ts#L1609) | `runCmd('resetView')` |
-| Options > Arrange > Reset Layout: moves, locks, order | [main.ts:1612](../src/webview/main.ts#L1612) | `runCmd('resetLayout')` |
-| Options > Arrange > Re-arrange | [main.ts:1613](../src/webview/main.ts#L1613) | `runCmd('rearrangeSelection' | 'rearrange')` |
-| Options > Arrange > Unlock all | [main.ts:1616](../src/webview/main.ts#L1616) | `runCmd('unlockAll')` |
-| Options > Arrange > Expand collapsed | [main.ts:1617](../src/webview/main.ts#L1617) | `runCmd('expandAll')` |
-| Options > Folders > Include external code, Include standard library | [main.ts:1620](../src/webview/main.ts#L1620) | host setting; the webview redraws; their folders leave the list when off |
-| Options > Folders > a folder | [main.ts:1625](../src/webview/main.ts#L1625) | `exclude`, `include` |
-| Options > File > Save (.gaffy), Autosave Graphs, Save as Text, Refresh Language Server | [main.ts:1638](../src/webview/main.ts#L1638) | host: save, setting `gaffy.saveViews`, export, `refresh` (new data) |
-| Options > File > Freeze at commit | [main.ts:1641](../src/webview/main.ts#L1641) | host `freeze`: `frozen` = commit and time (no language-server updates), or removed |
+| call depth `all` `+` `−` (full layout) | [main.ts:1553](../src/webview/main.ts#L1553) | `setDepth(side, …)` |
+| **Show all (n)** | [main.ts:1563](../src/webview/main.ts#L1563) | `runCmd('showAll')` |
+| **Expand mode >>**, **Expand mode -+** | [main.ts:1573](../src/webview/main.ts#L1573) | `setArrange('auto' | 'grow')`: switches to the mode it names |
+| **Isolate** | [main.ts:1564](../src/webview/main.ts#L1564) | `runCmd('isolateSelection')` |
+| Options > Call Expansion: Individual On Graph, Global Toolbar | [main.ts:1579](../src/webview/main.ts#L1579) | `setArrange('grow' | 'auto')` |
+| Options > Seeds > Only paths between seeds | [main.ts:1585](../src/webview/main.ts#L1585) | `between`: drawn functions filtered to seed-to-seed call paths (`onPaths`) |
+| Options > Call depth by: shortest, longest path | [main.ts:1589](../src/webview/main.ts#L1589) | `depthRule` |
+| Options > Namespaces > Group namespaces | [main.ts:1593](../src/webview/main.ts#L1593) | `boxes` |
+| Options > Namespaces > Tight groups | [main.ts:1595](../src/webview/main.ts#L1595) | `tight` |
+| Options > Namespaces > Reset grouping | [main.ts:1597](../src/webview/main.ts#L1597) | `group`, `ungroup` = [], `dropMovesWithin` for each |
+| Options > Tree parent: first caller found, nearest caller above, left merge | [main.ts:1607](../src/webview/main.ts#L1607) | `parentRule` |
+| Options > Arrange > Reset graph: seeds, depth, direction | [main.ts:1613](../src/webview/main.ts#L1613) | `runCmd('resetView')` |
+| Options > Arrange > Reset Layout: moves, locks, order | [main.ts:1616](../src/webview/main.ts#L1616) | `runCmd('resetLayout')` |
+| Options > Arrange > Re-arrange | [main.ts:1617](../src/webview/main.ts#L1617) | `runCmd('rearrangeSelection' | 'rearrange')` |
+| Options > Arrange > Unlock all | [main.ts:1620](../src/webview/main.ts#L1620) | `runCmd('unlockAll')` |
+| Options > Arrange > Expand collapsed | [main.ts:1621](../src/webview/main.ts#L1621) | `runCmd('expandAll')` |
+| Options > Folders > Include external code, Include standard library | [main.ts:1624](../src/webview/main.ts#L1624) | host setting; the webview redraws; their folders leave the list when off |
+| Options > Folders > a folder | [main.ts:1629](../src/webview/main.ts#L1629) | `exclude`, `include` |
+| Options > File > Save (.gaffy), Autosave Graphs, Save as Text, Refresh Language Server | [main.ts:1642](../src/webview/main.ts#L1642) | host: save, setting `gaffy.saveViews`, export, `refresh` (new data) |
+| Options > File > Frozen; toolbar Unfreeze | [main.ts:1646](../src/webview/main.ts#L1646) | host `hold`: Unfreeze writes `live` (this opening) and the Options values into the view; Freeze removes `live`. A view holding a graph opens frozen |
 
 Context menu (`webview/context` entry, host registration; *forwarded* entries post `cmd` to the webview):
 
 | entry | code | calls |
 |---|---|---|
-| Make Seed, Remove Seed | [package.json:592](../package.json#L592), [commands.ts:408](../src/host/commands.ts#L408) | forwarded: `runCmd('makeSeed' | 'removeSeed')` |
-| Open Callers / Open Called / Close Callers / Close Called (one layer) | [package.json:572](../package.json#L572), [commands.ts:254](../src/host/commands.ts#L254) | forwarded: `runCmd('openUp' …)` → `setSide` |
-| Isolate Selection, Hide Selection | [package.json:627](../package.json#L627), [commands.ts:277](../src/host/commands.ts#L277) | forwarded: `runCmd('isolateSelection' | 'hideSelection')` (the selection, else the function right clicked; seeds stay) |
-| Show Hidden Neighbors… | [package.json:637](../package.json#L637), [commands.ts:272](../src/host/commands.ts#L272) | host quick pick: `hidden` minus the picked |
-| Collapse Class / Module / Package | [package.json:642](../package.json#L642), [commands.ts:386](../src/host/commands.ts#L386) | host `collapse(kinds)`: `collapsed` push |
-| Expand Container | [package.json:657](../package.json#L657), [commands.ts:405](../src/host/commands.ts#L405) | host: `collapsed` filter |
-| Group Module, Ungroup Module, Group Submodules | [package.json:662](../package.json#L662), [commands.ts:390](../src/host/commands.ts#L390) | host: `group`, `ungroup`; `dropMovesWithin` the container |
-| Re-arrange selected | [package.json:522](../package.json#L522), [commands.ts:278](../src/host/commands.ts#L278) | forwarded: `runCmd('rearrangeSelection')` |
-| Lock Position, Unlock Position | [package.json:682](../package.json#L682), [commands.ts:270](../src/host/commands.ts#L270) | forwarded: `runCmd('lock' | 'unlock')` |
-| Move Up One, Move Down One | [package.json:692](../package.json#L692), [commands.ts:426](../src/host/commands.ts#L426) | host `move(±1)`: `sibling` |
-| Tag… | [package.json:702](../package.json#L702), [commands.ts:410](../src/host/commands.ts#L410) | host: `tags` (a longer label widens its column) |
-| Straighten This Call | [package.json:707](../package.json#L707), [commands.ts:258](../src/host/commands.ts#L258) | forwarded: `runCmd('straighten')` (routing order only) |
-| Isolate This Call, Isolate the Path Through This Call | [package.json:712](../package.json#L712), [commands.ts:259](../src/host/commands.ts#L259) | forwarded: `runCmd('callSubtree' | 'callPath')` |
-| canvas: Save (.gaffy), Autosave Graphs, Save as Text (.txt, .md), Refresh Language Server | [package.json:452](../package.json#L452), [commands.ts:338](../src/host/commands.ts#L338) | host: save, setting, export, `refresh` |
-| canvas: Group namespaces, Tight groups, Reset graph, Reset Layout, Re-arrange, Unlock all, Expand collapsed | [package.json:487](../package.json#L487), [commands.ts:246](../src/host/commands.ts#L246) | host `boxes`, `tight`; the rest forwarded to `runCmd` (the Options Arrange entries) |
+| Make Seed, Remove Seed | [package.json:593](../package.json#L593), [commands.ts:393](../src/host/commands.ts#L393) | forwarded: `runCmd('makeSeed' | 'removeSeed')` |
+| Open Callers / Open Called / Close Callers / Close Called (one layer) | [package.json:573](../package.json#L573), [commands.ts:249](../src/host/commands.ts#L249) | forwarded: `runCmd('openUp' …)` → `setSide` |
+| Isolate Selection, Hide Selection | [package.json:628](../package.json#L628), [commands.ts:272](../src/host/commands.ts#L272) | forwarded: `runCmd('isolateSelection' | 'hideSelection')` (the selection, else the function right clicked; seeds stay) |
+| Show Hidden Neighbors… | [package.json:638](../package.json#L638), [commands.ts:267](../src/host/commands.ts#L267) | host quick pick: `hidden` minus the picked |
+| Collapse Class / Module / Package | [package.json:643](../package.json#L643), [commands.ts:371](../src/host/commands.ts#L371) | host `collapse(kinds)`: `collapsed` push |
+| Expand Container | [package.json:658](../package.json#L658), [commands.ts:390](../src/host/commands.ts#L390) | host: `collapsed` filter |
+| Group Module, Ungroup Module, Group Submodules | [package.json:663](../package.json#L663), [commands.ts:375](../src/host/commands.ts#L375) | host: `group`, `ungroup`; `dropMovesWithin` the container |
+| Re-arrange selected | [package.json:523](../package.json#L523), [commands.ts:273](../src/host/commands.ts#L273) | forwarded: `runCmd('rearrangeSelection')` |
+| Lock Position, Unlock Position | [package.json:683](../package.json#L683), [commands.ts:265](../src/host/commands.ts#L265) | forwarded: `runCmd('lock' | 'unlock')` |
+| Move Up One, Move Down One | [package.json:693](../package.json#L693), [commands.ts:411](../src/host/commands.ts#L411) | host `move(±1)`: `sibling` |
+| Tag… | [package.json:703](../package.json#L703), [commands.ts:395](../src/host/commands.ts#L395) | host: `tags` (a longer label widens its column) |
+| Straighten This Call | [package.json:708](../package.json#L708), [commands.ts:253](../src/host/commands.ts#L253) | forwarded: `runCmd('straighten')` (routing order only) |
+| Isolate This Call, Isolate the Path Through This Call | [package.json:713](../package.json#L713), [commands.ts:254](../src/host/commands.ts#L254) | forwarded: `runCmd('callSubtree' | 'callPath')` |
+| canvas: Save (.gaffy), Autosave Graphs, Save as Text (.txt, .md), Refresh Language Server | [package.json:453](../package.json#L453), [commands.ts:323](../src/host/commands.ts#L323) | host: save, setting, export, `refresh` |
+| canvas: Group namespaces, Tight groups, Reset graph, Reset Layout, Re-arrange, Unlock all, Expand collapsed | [package.json:488](../package.json#L488), [commands.ts:241](../src/host/commands.ts#L241) | host `boxes`, `tight`; the rest forwarded to `runCmd` (the Options Arrange entries) |
 
 Outside the view:
 
 | event | code | calls |
 |---|---|---|
-| editor: gaffy> Call Hierarchy (up, dn); explorer: Call Hierarchies | [commands.ts:186](../src/host/commands.ts#L186), [commands.ts:199](../src/host/commands.ts#L199) | `createView`: a new view |
-| editor: gaffy> Add to Call Graph | [commands.ts:189](../src/host/commands.ts#L189) | seed added, `Session.refresh` |
-| VS Code undo, redo; an edit of the .gaffy text | [editor.ts:493](../src/host/editor.ts#L493) | the webview receives the text (`state`) and redraws |
+| editor: gaffy> Call Hierarchy (up, dn); explorer: Call Hierarchies | [commands.ts:181](../src/host/commands.ts#L181), [commands.ts:194](../src/host/commands.ts#L194) | `createView`: a new view |
+| editor: gaffy> Add to Call Graph | [commands.ts:184](../src/host/commands.ts#L184) | seed added, `Session.refresh` |
+| VS Code undo, redo; an edit of the .gaffy text | [editor.ts:569](../src/host/editor.ts#L569) | the webview receives the text (`state`) and redraws |
 | saving a source file; renaming a file | [extension.ts:58](../src/host/extension.ts#L58) | refresh of the views that show it |
 
 ## 2. Interpreters
 
 | function | code | view fields written | what it does |
 |---|---|---|---|
-| `commit` | [main.ts:152](../src/webview/main.ts#L152) | any | clones the view, applies the change, redraws, posts the text to the host (an undo step) |
-| `toggleSides` | [main.ts:700](../src/webview/main.ts#L700) | `open` | closes both sides, or opens every side with more |
-| `setSide` | [main.ts:710](../src/webview/main.ts#L710) | `open`; `hidden`, `cut` (restore) | opens or closes one side; asks the host for data the side lacks; starts the offset handover (h34) |
-| `markerClick` | [main.ts:743](../src/webview/main.ts#L743) | via `setSide`, `restoreHidden` | opens the side, else brings hidden neighbors back |
-| `restoreHidden` | [main.ts:753](../src/webview/main.ts#L753) | `hidden`, `cut` | shows the hidden neighbors of one side and the hidden functions on their way from the seeds |
-| `closingOf` | [main.ts:779](../src/webview/main.ts#L779) | via `setSide` | chooses the side an arrowhead closes |
-| `isolateCalls`, `isolate`, `hide` | [main.ts:814](../src/webview/main.ts#L814) | `hidden` | keeps the given functions (and their path from the seeds); hides the rest, seeds excepted |
-| `dragUnit` | [main.ts:1035](../src/webview/main.ts#L1035) | `offset` or `lock` | drop: cell delta, `settleDrop`, `moveUnit` per unit; anchor on a function that did not move |
-| `topUnits` | [main.ts:1026](../src/webview/main.ts#L1026) | - | units a multi-selection drag moves: each selected function with its tree, once |
-| `settleDrop` | [main.ts:1136](../src/webview/main.ts#L1136) | - | drop repulsion: tries cells along the drag, then sideways, ≤ 12 cells or 1.5 s |
-| `moveUnit` | [main.ts:1088](../src/webview/main.ts#L1088) | `offset[unit]` or `lock[unit]` | adds the move to the lock when locked, else to the offset |
-| `lockUnit`, `unlockUnit` | [main.ts:1159](../src/webview/main.ts#L1159) | `lock`, `offset` | lock: the anchor cell becomes absolute; unlock: the offset from the computed place |
-| `moveSibling` | [main.ts:1402](../src/webview/main.ts#L1402) | `sibling` | swaps the focused function with its neighbor under one tree parent |
-| `collapseInnermost` | [main.ts:1414](../src/webview/main.ts#L1414) | `collapsed` | collapses the innermost container not collapsed yet |
-| `setArrange`, `setDepth` | [main.ts:1503](../src/webview/main.ts#L1503) | `arrange`, `open`, `depthUp`, `depthDown` | switches one layer at a time ⇄ full, keeping what is on screen; call depths per side |
-| `runCmd` | [main.ts:1204](../src/webview/main.ts#L1204) | per case | command dispatch: the cases below |
-| `runCmd: 'remove'` | [main.ts:1264](../src/webview/main.ts#L1264) | `cut` or `hidden` | cuts selected calls (one layer at a time), else hides the selection |
-| `runCmd: 'showAll'` | [main.ts:1251](../src/webview/main.ts#L1251) | `hidden`, `cut`, `collapsed` | shows everything hidden, removed or collapsed |
-| `runCmd: 'resetView'` | [main.ts:1229](../src/webview/main.ts#L1229) | most fields | back to the seeds: no hidden, collapsed, moves, locks, grouping |
-| `runCmd: 'resetLayout'` | [main.ts:1250](../src/webview/main.ts#L1250) | `offset`, `lock`, `sibling`, `straight` | every computed place again |
-| `runCmd: 'rearrangeSelection'`, `'rearrange'` | [main.ts:1328](../src/webview/main.ts#L1328) | `offset`, `lock` | the selected units (or all unlocked) back to their computed place |
-| `runCmd: 'makeSeed'`, `'removeSeed'` | [main.ts:1317](../src/webview/main.ts#L1317) | `seeds` | adds or drops a seed; the host asks for the new seed's sides |
-| `runCmd: 'expandAll'` | [main.ts:1339](../src/webview/main.ts#L1339) | `collapsed` | expands every collapsed container |
+| `commit` | [main.ts:153](../src/webview/main.ts#L153) | any | clones the view, applies the change, redraws, posts the text to the host (an undo step) |
+| `toggleSides` | [main.ts:702](../src/webview/main.ts#L702) | `open` | closes both sides, or opens every side with more |
+| `setSide` | [main.ts:712](../src/webview/main.ts#L712) | `open`; `hidden`, `cut` (restore) | opens or closes one side; asks the host for data the side lacks; starts the offset handover (h34) |
+| `markerClick` | [main.ts:745](../src/webview/main.ts#L745) | via `setSide`, `restoreHidden` | opens the side, else brings hidden neighbors back |
+| `restoreHidden` | [main.ts:755](../src/webview/main.ts#L755) | `hidden`, `cut` | shows the hidden neighbors of one side and the hidden functions on their way from the seeds |
+| `closingOf` | [main.ts:781](../src/webview/main.ts#L781) | via `setSide` | chooses the side an arrowhead closes |
+| `isolateCalls`, `isolate`, `hide` | [main.ts:816](../src/webview/main.ts#L816) | `hidden` | keeps the given functions (and their path from the seeds); hides the rest, seeds excepted |
+| `dragUnit` | [main.ts:1037](../src/webview/main.ts#L1037) | `offset` or `lock` | drop: cell delta, `settleDrop`, `moveUnit` per unit; anchor on a function that did not move |
+| `topUnits` | [main.ts:1028](../src/webview/main.ts#L1028) | - | units a multi-selection drag moves: each selected function with its tree, once |
+| `settleDrop` | [main.ts:1138](../src/webview/main.ts#L1138) | - | drop repulsion: tries cells along the drag, then sideways, ≤ 12 cells or 1.5 s |
+| `moveUnit` | [main.ts:1090](../src/webview/main.ts#L1090) | `offset[unit]` or `lock[unit]` | adds the move to the lock when locked, else to the offset |
+| `lockUnit`, `unlockUnit` | [main.ts:1161](../src/webview/main.ts#L1161) | `lock`, `offset` | lock: the anchor cell becomes absolute; unlock: the offset from the computed place |
+| `moveSibling` | [main.ts:1404](../src/webview/main.ts#L1404) | `sibling` | swaps the focused function with its neighbor under one tree parent |
+| `collapseInnermost` | [main.ts:1416](../src/webview/main.ts#L1416) | `collapsed` | collapses the innermost container not collapsed yet |
+| `setArrange`, `setDepth` | [main.ts:1506](../src/webview/main.ts#L1506) | `arrange`, `open`, `depthUp`, `depthDown` | switches one layer at a time ⇄ full, keeping what is on screen; call depths per side |
+| `runCmd` | [main.ts:1206](../src/webview/main.ts#L1206) | per case | command dispatch: the cases below |
+| `runCmd: 'remove'` | [main.ts:1266](../src/webview/main.ts#L1266) | `cut` or `hidden` | cuts selected calls (one layer at a time), else hides the selection |
+| `runCmd: 'showAll'` | [main.ts:1253](../src/webview/main.ts#L1253) | `hidden`, `cut`, `collapsed` | shows everything hidden, removed or collapsed |
+| `runCmd: 'resetView'` | [main.ts:1231](../src/webview/main.ts#L1231) | most fields | back to the seeds: no hidden, collapsed, moves, locks, grouping |
+| `runCmd: 'resetLayout'` | [main.ts:1252](../src/webview/main.ts#L1252) | `offset`, `lock`, `sibling`, `straight` | every computed place again |
+| `runCmd: 'rearrangeSelection'`, `'rearrange'` | [main.ts:1330](../src/webview/main.ts#L1330) | `offset`, `lock` | the selected units (or all unlocked) back to their computed place |
+| `runCmd: 'makeSeed'`, `'removeSeed'` | [main.ts:1319](../src/webview/main.ts#L1319) | `seeds` | adds or drops a seed; the host asks for the new seed's sides |
+| `runCmd: 'expandAll'` | [main.ts:1341](../src/webview/main.ts#L1341) | `collapsed` | expands every collapsed container |
 | `dropMovesWithin` | [viewdoc.ts:31](../src/core/viewdoc.ts#L31) | `offset`, `lock` | drops the moves and locks inside a container whose grouping changes (group, ungroup, reset grouping) |
-| `afterRender`: adopt | [main.ts:618](../src/webview/main.ts#L618) | `offset` | offset handover: the new tree parent of a moved function takes its offset (h34) |
-| `afterRender`: settle | [main.ts:629](../src/webview/main.ts#L629) | `offset` | saves the offsets settle drew with, ≤ 3 saves in a row (h35) |
-| `anchorAt`, `render` | [main.ts:695](../src/webview/main.ts#L695) | - | no view change: pans so the function acted on keeps its screen spot (h30, h31) |
-| host `Session.update`, `write` | [editor.ts:39](../src/host/editor.ts#L39) | any | replaces the document text (host commands, language server data) |
-| host `collapse`, `expandContainer`, `move`, group commands | [commands.ts:381](../src/host/commands.ts#L381) | `collapsed`, `sibling`, `group`, `ungroup` | context menu changes made on the host |
-| host `Session.revalidate`, `expand`, `ask` | [editor.ts:356](../src/host/editor.ts#L356) | `graph`, `explored` | new calls from the language server: new functions appear where their sides are open |
+| `afterRender`: adopt | [main.ts:620](../src/webview/main.ts#L620) | `offset` | offset handover: the new tree parent of a moved function takes its offset (h34) |
+| `afterRender`: settle | [main.ts:631](../src/webview/main.ts#L631) | `offset` | saves the offsets settle drew with, ≤ 3 saves in a row (h35) |
+| `anchorAt`, `render` | [main.ts:697](../src/webview/main.ts#L697) | - | no view change: pans so the function acted on keeps its screen spot (h30, h31) |
+| host `Session.update`, `write` | [editor.ts:96](../src/host/editor.ts#L96) | any | replaces the document text (host commands, language server data) |
+| host `collapse`, `expandContainer`, `move`, group commands | [commands.ts:366](../src/host/commands.ts#L366) | `collapsed`, `sibling`, `group`, `ungroup` | context menu changes made on the host |
+| host `Session.revalidate`, `expand`, `ask` | [editor.ts:418](../src/host/editor.ts#L418) | `graph`, `explored` | new calls from the language server: new functions appear where their sides are open |
 
 ## 3. Layout
 
@@ -194,12 +194,12 @@ Nets: `t:<parent>` holds a tree stem and its elbows, `l:<target>` every call int
 Three mechanisms move the rest of the picture after a drop, in this order: placement (positions from the stored moves), settle (moved units that collide go to the nearest clear place) and the pan (the still function keeps its spot on screen). Content never moved is not relocated to make room, except that an unmoved group slides below an earlier sibling that is locked or stretched by moves inside it.
 
 <pre>
-drop: pointer delta in whole cells; zero cells: nothing   <a href="../src/webview/main.ts#L1071">main.ts:1071</a>
+drop: pointer delta in whole cells; zero cells: nothing   <a href="../src/webview/main.ts#L1073">main.ts:1073</a>
 ├── 1. units: a group is its box (selection ignored); a function is itself with its tree below, or every selected
-│      function with its tree, once each, when one of several selected is dragged   <a href="../src/webview/main.ts#L1046">main.ts:1046</a>
+│      function with its tree, once each, when one of several selected is dragged   <a href="../src/webview/main.ts#L1048">main.ts:1048</a>
 ├── 2. drop spot: as dropped when no call loses its route and the dropped labels collide with nothing; else the
-│      nearest such spot up to 12 cells along the drag or sideways (1.5 s); else as dropped   <a href="../src/webview/main.ts#L1136">main.ts:1136</a>
-├── 3. stored: a locked unit moves its lock, any other its offset   <a href="../src/webview/main.ts#L1088">main.ts:1088</a>
+│      nearest such spot up to 12 cells along the drag or sideways (1.5 s); else as dropped   <a href="../src/webview/main.ts#L1138">main.ts:1138</a>
+├── 3. stored: a locked unit moves its lock, any other its offset   <a href="../src/webview/main.ts#L1090">main.ts:1090</a>
 ├── 4. placement: what was not moved keeps its computed place
 │   ├── a moved function lands at its computed place + offset, with its tree   <a href="../src/core/place.ts#L153">place.ts:153</a>
 │   │   └── labels within 2 cells of another label of its group on the row ─────► slides down until clear   <a href="../src/core/place.ts#L178">place.ts:178</a>
@@ -213,17 +213,17 @@ drop: pointer delta in whole cells; zero cells: nothing   <a href="../src/webvie
 ├── 5. settle, up to 3 rounds in every redraw: moved, unlocked units that collide (on content, or a frame
 │      touching another frame with no free row or column between) move to the nearest clear offset, the least
 │      displacement (distance × labels) first; unmoved and locked units never move here   <a href="../src/core/settle.ts#L46">settle.ts:46</a>
-└── 6. the view saves the settled offsets (at most 3 saves in a row) and pans so the still function keeps its spot   <a href="../src/webview/main.ts#L609">main.ts:609</a>
+└── 6. the view saves the settled offsets (at most 3 saves in a row) and pans so the still function keeps its spot   <a href="../src/webview/main.ts#L611">main.ts:611</a>
 </pre>
 
 | condition | code | effect |
 |---|---|---|
-| which units move | [main.ts:1046](../src/webview/main.ts#L1046) | a box header moves `box:<key>`; a label its unit (`vertexUnit`, `collapsed:<key>` for a collapsed container), or `topUnits` of the selection |
-| units of a selection | [main.ts:1026](../src/webview/main.ts#L1026) | each selected function with its tree, skipping one inside another selected function's tree |
-| still function | [main.ts:1077](../src/webview/main.ts#L1077) | the first seed, else any function, outside what moves; none: the drop is a pan of everything |
-| drop accepted | [main.ts:1149](../src/webview/main.ts#L1149) | a probe redraw: no more unroutable calls, `collisions` of the dropped labels and frames zero; each probe settles (step 5), so the first spot usually passes |
-| drop search | [main.ts:1151](../src/webview/main.ts#L1151) | k cells further along the drag, then sideways either way, then back; k ≤ 12 |
-| lock or offset | [main.ts:1088](../src/webview/main.ts#L1088) | `lock[unit]` when locked, else `offset[unit]` += (Δcolumn, Δrow) |
+| which units move | [main.ts:1048](../src/webview/main.ts#L1048) | a box header moves `box:<key>`; a label its unit (`vertexUnit`, `collapsed:<key>` for a collapsed container), or `topUnits` of the selection |
+| units of a selection | [main.ts:1028](../src/webview/main.ts#L1028) | each selected function with its tree, skipping one inside another selected function's tree |
+| still function | [main.ts:1079](../src/webview/main.ts#L1079) | the first seed, else any function, outside what moves; none: the drop is a pan of everything |
+| drop accepted | [main.ts:1151](../src/webview/main.ts#L1151) | a probe redraw: no more unroutable calls, `collisions` of the dropped labels and frames zero; each probe settles (step 5), so the first spot usually passes |
+| drop search | [main.ts:1153](../src/webview/main.ts#L1153) | k cells further along the drag, then sideways either way, then back; k ≤ 12 |
+| lock or offset | [main.ts:1090](../src/webview/main.ts#L1090) | `lock[unit]` when locked, else `offset[unit]` += (Δcolumn, Δrow) |
 | function offset | [place.ts:153](../src/core/place.ts#L153) | the shift of a function: its lock, else its parent's shift + its offset; the tree below inherits it |
 | moved function descent | [place.ts:178](../src/core/place.ts#L178) | labels on one row closer than 2 cells to another label of the group: down one row, at most 500 |
 | sibling order | [place.ts:251](../src/core/place.ts#L251) | locked items first, then the topological order of calls between items; "earlier" in the rows below |
@@ -239,7 +239,7 @@ drop: pointer delta in whole cells; zero cells: nothing   <a href="../src/webvie
 | collision | [settle.ts:57](../src/core/settle.ts#L57) | a label on another frame's border; closer than 4 cells to a label of its row; another label inside its frame; its frame partly over another |
 | clear offset | [settle.ts:73](../src/core/settle.ts#L73) | rings of up to 12 cells (vertical first), then straight lines up to 80; never off the canvas |
 | who moves first | [settle.ts:94](../src/core/settle.ts#L94) | distance × labels moved: a small unit yields to a large one |
-| save and pan | [main.ts:609](../src/webview/main.ts#L609) | the settled offsets become the view's offsets (at most 3 saves in a row); render pans to the still function |
+| save and pan | [main.ts:611](../src/webview/main.ts#L611) | the settled offsets become the view's offsets (at most 3 saves in a row); render pans to the still function |
 
 Consequences:
 - A group dropped onto unmoved content: the content stays; when the dropped group collides, settle moves it, or another moved unit when that displaces fewer labels.
@@ -249,4 +249,4 @@ Consequences:
 
 ## Trace
 
-Setting `gaffy.trace` records every view change to `.gaffy/trace/<view>.jsonl` ([trace.ts:26](../src/host/trace.ts#L26)): the event, its target and grid cell, the functions above that acted, the view fields changed, the labels and boxes that moved; undo and redo included. `node tools/gaffy-trace.mjs <file>` prints it as a list ([tools/gaffy-trace.mjs](../tools/gaffy-trace.mjs)).
+Setting `gaffy.trace` records every view change to `.baggy/gaffy/trace/<view>.jsonl` ([trace.ts:26](../src/host/trace.ts#L26)): the event, its target and grid cell, the functions above that acted, the view fields changed, the labels and boxes that moved; undo and redo included. `node tools/gaffy-trace.mjs <file>` prints it as a list ([tools/gaffy-trace.mjs](../tools/gaffy-trace.mjs)).

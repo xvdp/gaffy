@@ -1,6 +1,6 @@
 /** @xvdp
- * Symbolic-link guard for writes under `.gaffy/` (call cache, trace, exports, views, style.json). Threat: a cloned
- * repository ships `.gaffy/cache/calls.json` or `.gaffy/trace/<view>.jsonl` as a link to a file outside the
+ * Symbolic-link guard for writes under `.baggy/gaffy/` (call cache, trace, exports, views, style.json). Threat: a cloned
+ * repository ships `.baggy/gaffy/cache/calls.json` or `.baggy/gaffy/trace/<view>.jsonl` as a link to a file outside the
  * workspace (a shell startup file); the next write truncates or appends to it. `noLinks(base, target)` throws when
  * `target` is outside `base` or an existing segment below `base` (directory, target) is a link; the caller creates
  * missing segments as plain directories and files. `base` (workspace folder) may be a link. Check: lstat (`file`
