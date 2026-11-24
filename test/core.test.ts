@@ -6,8 +6,9 @@ import { nodeLabel } from '../src/core/labels';
 import { GNode, plain, visible } from '../src/core/model';
 import { buildScene, Scene, unitAnchor, unitMembers } from '../src/core/scene';
 import { deepMerge, DEFAULT_STYLE, glyphSet, Style } from '../src/core/style';
-import { boxUnit, collapsedUnit, dropMovesWithin, excludedBy, globMatcher, parseDoc, serializeDoc, ViewDoc } from '../src/core/viewdoc';
+import { boxUnit, collapsedUnit, dropMovesWithin, excludedBy, globMatcher, parseDoc, serializeDoc, ViewDoc, ViewSpec } from '../src/core/viewdoc';
 import { frontierOf } from '../src/core/scene';
+import { Decision } from '../src/core/explain';
 import { fixtureDoc, k, KAZOO, MOO, STAR } from './fixtures';
 
 const GOLDEN = join(__dirname, 'golden');
@@ -826,5 +827,58 @@ describe('only paths between seeds', () => {
     it('parseDoc keeps between: true only', () => {
         expect(parseDoc(JSON.stringify({ gaffy: 1, view: { between: true } })).view.between).toBe(true);
         expect(parseDoc(JSON.stringify({ gaffy: 1, view: { between: 1 } })).view.between).toBeUndefined();
+    });
+
+    // a → b → f → g → c: a path of four calls; one layer at a time opens nothing
+    const long: [string, string][] = [['m:a', 'm:b'], ['m:b', 'm:f'], ['m:f', 'm:g'], ['m:g', 'm:c'], ['m:a', 'm:d'], ['m:e', 'm:c']];
+    const grow = (v: Partial<ViewSpec>) => fixtureDoc(long, { seeds: [k('m:a'), k('m:c')], direction: 'both', arrange: 'grow', open: {}, ...v });
+
+    it('one layer at a time: between draws paths of any length, with markers on the paths', () => {
+        const sc = buildScene(grow({ between: true }), flat());
+        invariants(sc);
+        expect(names(sc)).toEqual(['a', 'b', 'c', 'f', 'g']);
+        expect(sc.hasMore(k('m:a'), 'down')).toBe(true);          // d: off the paths
+        expect([...sc.paths].map((x) => x.split('#').pop()).sort()).toEqual(['b', 'f', 'g']);
+    });
+
+    it('one layer at a time, between off: pinned paths stay, closed seeds open nothing', () => {
+        const pinned = [k('m:b'), k('m:f'), k('m:g')];
+        const sc = buildScene(grow({ pinned, open: { [k('m:a')]: 'none', [k('m:c')]: 'none' } }), flat());
+        invariants(sc);
+        expect(names(sc)).toEqual(['a', 'b', 'c', 'f', 'g']);
+        expect(parseDoc(serializeDoc(grow({ pinned }))).view.pinned).toEqual(pinned);
+        // the seeds' traversal side, without pins: one layer around each seed
+        expect(names(buildScene(grow({}), flat()))).toEqual(['a', 'b', 'c', 'd', 'e', 'g']);
+    });
+});
+
+describe('layout decisions (explain.ts)', () => {
+    const doc = () => fixtureDoc(KAZOO, { seeds: [k('kazoo.moomoo.boogaloos:scoobie')], direction: 'out' });
+    const run = (d: ViewDoc, off: string[] = []) => {
+        const log: Decision[] = [];
+        return { sc: buildScene(d, boxed(), [], true, { off: new Set(off), log: (x) => log.push(x) }), log };
+    };
+
+    it('logs the decisions of the drawn placement once, settle moves after', () => {
+        const { sc, log } = run(doc());
+        expect(text(sc, boxed())).toBe(text(buildScene(doc(), boxed()), boxed()));     // logging changes nothing
+        const rules = new Set(log.map((x) => x.rule));
+        for (const r of ['h16_item_order', 'h17_item_column', 'h18_item_row']) expect(rules.has(r)).toBe(true);
+        // one h17 per item: no decisions of discarded trial placements
+        const cols = log.filter((x) => x.rule === 'h17_item_column').map((x) => x.unit);
+        expect(new Set(cols).size).toBe(cols.length);
+        const unit = boxUnit(sc.placement.frames.find((f) => f.box.label === 'noodles')!.box.key);
+        const moved = run(fixtureDoc(KAZOO, { ...doc().view, offset: { [unit]: [-40, 0] } })).log;
+        const settle = moved.filter((x) => x.rule === 'h23_settle');
+        expect(settle.length).toBeGreaterThan(0);
+        expect(moved.indexOf(settle[0])).toBeGreaterThan(moved.findIndex((x) => x.rule === 'h19_lock_and_box_offset'));
+    });
+
+    it('a switched-off rule changes the placement; settle off keeps the offset', () => {
+        const unit = boxUnit(buildScene(doc(), boxed()).placement.frames.find((f) => f.box.label === 'noodles')!.box.key);
+        const d = fixtureDoc(KAZOO, { ...doc().view, offset: { [unit]: [-40, 0] } });
+        expect(run(d).sc.offsets[unit]).not.toEqual([-40, 0]);
+        expect(run(d, ['h23_settle']).sc.offsets[unit]).toEqual([-40, 0]);
+        expect(text(run(doc(), ['h18_item_row']).sc, boxed())).not.toBe(text(run(doc()).sc, boxed()));
     });
 });

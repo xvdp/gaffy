@@ -17,11 +17,14 @@
  *    vertex; `base`: unmoved rectangle per item).
  * 6. Frames: from the box's computed corner, grown over content moved up or left. `tight`: frame hugs its
  *    content; lanes count where drawn.
+ * Debugging (explain.ts): `debug.log` receives the decisions of the final placement (trial placements dropped);
+ * `debug.off` skips rules h13, h15, h17, h18, h20, h21.
  */
 import { BoxNode } from './boxes';
 import { layout, Layout, LayoutInput } from './layout';
 import { NodeKey } from './model';
 import { induced, VGraph } from './quotient';
+import { Debug, Decision, FLAGS, isOff } from './explain';
 import { boxUnit, Cell, collapsedUnit } from './viewdoc';
 
 export interface Pos { row: number; col: number }
@@ -61,6 +64,7 @@ export interface PlaceInput {
     lock: Record<string, Cell>;
     channel: number;
     tight?: boolean;                   // frames hug their content (view.tight)
+    debug?: Debug;                     // decision log, switched-off rules (explain.ts)
 }
 
 interface Rect { c0: number; r0: number; c1: number; r1: number }
@@ -74,6 +78,10 @@ export function place(inp: PlaceInput): Placement {
     /** Move and lock unit of a vertex: its key, or `collapsed:<key>` (collapsed container). */
     const unitOf = (k: NodeKey) => (inp.vg.nodes.get(k)?.collapsed ? collapsedUnit(k) : k);
     const { vg } = inp;
+    const dbg = inp.debug;
+    // decisions of the current placement; trial placements truncate it on restore
+    const logs: Decision[] = [];
+    const note = (d: Decision) => { if (dbg?.log) logs.push(d); };
     const P: Placement = {
         blocks: [], frames: [], blockOf: new Map(), pos: new Map(), end: new Map(), port: new Map(), text: new Map(),
         width: 0, height: 0,
@@ -101,10 +109,13 @@ export function place(inp: PlaceInput): Placement {
         // roots by (earliest, latest) outside caller row, each at its earliest free one:
         // a hub caller spreads them
         const crows = new Map<NodeKey, number[]>();
+        const unitB = `block:${box.key}`;
         for (const k of keys) {
-            const rows = callerRows(k, keys);
+            const rows = isOff(dbg, 'h13_caller_alignment') ? [] : callerRows(k, keys);
             if (rows.length) crows.set(k, rows);
         }
+        if (crows.size) note({ rule: 'h13_caller_alignment', fn: 'placeBlock', unit: unitB, text: `${crows.size} functions with callers outside the block`,
+            values: { callerRows: Object.fromEntries([...crows].slice(0, 12).map(([k, r]) => [k.slice(k.indexOf('#') + 1), r])) } });
         const rank = (k: NodeKey) => {
             const r = crows.get(k);
             return r ? r[0] * 1e5 + r[r.length - 1] : 1e12;
@@ -127,13 +138,19 @@ export function place(inp: PlaceInput): Placement {
         };
         let rowMap = rowsFrom(top);
         const rectOf = (m: number[]): Rect => ({ c0: col, r0: m[0] ?? top, c1: col + Math.max(0, L.width - 1), r1: m[m.length - 1] ?? top });
-        if (auto) {
+        if (auto && !isOff(dbg, 'h15_block_descent')) {
+            const first = rowMap[0] ?? top;
+            const hits: Rect[] = [];
             for (let guard = 0; guard < 1000; guard++) {
                 const hit = avoid.find((a) => overlaps(a, rectOf(rowMap)));
                 if (!hit) break;
+                hits.push(hit);
                 top = hit.r1 + 1;
                 rowMap = rowsFrom(top);
             }
+            const slid = (rowMap[0] ?? top) - first;
+            if (hits.length) note({ rule: 'h15_block_descent', fn: 'placeBlock', unit: unitB, text: `rows ${first} → ${first + slid}`,
+                values: { hits }, ...(slid >= FLAGS.descent ? { flag: `slid ${slid} rows below its trial row` } : {}) });
         }
 
         // subtree shifts, parents before children (layout row order)
@@ -174,7 +191,7 @@ export function place(inp: PlaceInput): Placement {
         const descendants = (k: NodeKey): NodeKey[] => [k, ...(L.children.get(k) ?? []).flatMap(descendants)];
         for (const r of L.rows) {
             const k = r.key;
-            if (r.kind !== 'node' || !inp.offset[unitOf(k)] || inp.lock[unitOf(k)]) continue;
+            if (r.kind !== 'node' || !inp.offset[unitOf(k)] || inp.lock[unitOf(k)] || isOff(dbg, 'h21_moved_function_descent')) continue;
             const mine = new Set(descendants(k));
             const others = [...keys].filter((x) => !mine.has(x));
             const clash = () => [...mine].some((m) => {
@@ -184,10 +201,14 @@ export function place(inp: PlaceInput): Placement {
                     return po.row === pm.row && po.col - 2 < em + 2 && pm.col - 2 < eo + 2;
                 });
             });
+            let down = 0;
             for (let guard = 0; guard < 500 && clash(); guard++) {
                 for (const m of mine) shift.set(m, [shift.get(m)![0], shift.get(m)![1] + 1]);
                 finalize();
+                down++;
             }
+            if (down) note({ rule: 'h21_moved_function_descent', fn: 'placeBlock', unit: unitOf(k), text: `${down} rows down, clear of its block's labels`,
+                values: { offset: inp.offset[unitOf(k)], rows: down }, ...(down >= FLAGS.fnDescent ? { flag: `slid ${down} rows past its offset` } : {}) });
         }
 
         P.blocks.push(block);
@@ -249,6 +270,9 @@ export function place(inp: PlaceInput): Placement {
         const topo = post.reverse();
         const unitOf = (i: number) => (items[i].kind === 'box' ? boxUnit((items[i] as { box: BoxNode }).box.key) : '');
         const order = [...topo.filter((i) => inp.lock[unitOf(i)]), ...topo.filter((i) => !inp.lock[unitOf(i)])];
+        const itemName = (i: number) => (items[i].kind === 'box' ? unitOf(i) : `block:${box.key}`);
+        if (order.length > 1) note({ rule: 'h16_item_order', fn: 'placeBox', unit: boxUnit(box.key), text: 'locked items first, then call order',
+            values: { order: order.map(itemName) } });
 
         const placed: { i: number; rect: Rect; base: Rect }[] = [];
         // tight: content only, no computed corner
@@ -266,11 +290,18 @@ export function place(inp: PlaceInput): Placement {
             const entering = new Set<string>();
             for (const v of inside) for (const e of vg.inc.get(v) ?? []) if (sibCallers.some((p) => itemOf.get(e.from) === p.i)) entering.add(v);
             // column, row, stacking: from unmoved earlier items
-            const col = sibCallers.length ? Math.max(...sibCallers.map((p) => p.base.c1)) + 1 + inp.channel + entering.size : cc;
+            const colOn = sibCallers.length && !isOff(dbg, 'h17_item_column');
+            const col = colOn ? Math.max(...sibCallers.map((p) => p.base.c1)) + 1 + inp.channel + entering.size : cc;
             // stacking ignores locked siblings, unless overlapped
             const stack = placed.filter((p) => !inp.lock[unitOf(p.i)]);
             const below = stack.length ? Math.max(...stack.map((p) => p.base.r1)) + 1 : cr;
-            const top = callers.length ? Math.max(cr, Math.min(...callers.map(baseRow))) : (sibCallers.length ? cr : below);
+            const rowOn = !isOff(dbg, 'h18_item_row');
+            const top = rowOn && callers.length ? Math.max(cr, Math.min(...callers.map(baseRow))) : (rowOn && sibCallers.length ? cr : below);
+            const name = itemName(i);
+            note({ rule: 'h17_item_column', fn: 'placeBox', unit: name, text: colOn ? `column ${col}: right of ${sibCallers.length} calling siblings` : `column ${col}: content column`,
+                values: colOn ? { callers: sibCallers.map((p) => itemName(p.i)), right: Math.max(...sibCallers.map((p) => p.base.c1)), channel: inp.channel, entering: entering.size } : {} });
+            note({ rule: 'h18_item_row', fn: 'placeBox', unit: name, text: rowOn && callers.length ? `row ${top}: topmost caller row` : `row ${top}: below earlier siblings`,
+                values: rowOn && callers.length ? { callerRows: [...new Set(callers.map(baseRow))].sort((a, b) => a - b).slice(0, 12) } : { below } });
             // obstacles: a sibling moved by an offset at its unmoved place (settle.ts clears collisions);
             // a locked sibling, or a frame stretched by moves inside it, where drawn
             const avoid = [...placed.map((p) => (inp.offset[unitOf(p.i)] && !inp.lock[unitOf(p.i)] ? p.base : p.rect)), ...avoidOuter];
@@ -291,18 +322,32 @@ export function place(inp: PlaceInput): Placement {
                     translate(b0, f0, inside, dc, dr);
                     if (!lock) for (const v of inside) addMove(v, dc, dr);
                     r = { ...shifted(u, dc, dr), base: lock ? shifted(u.base, dc, dr) : u.base };
+                    note({ rule: 'h19_lock_and_box_offset', fn: 'placeBox', unit, text: lock ? `locked: frame corner at (${lock[0]}, ${lock[1]})` : `moved by (${dc}, ${dr}) from row ${home}`,
+                        values: { from: [u.c0, u.r0], to: [r.c0, r.r0] } });
                 } else {
                     // trial placement; on overlap descend by max(1, hit.r1 + 1 − r.r0)
                     // (r.r0 < rr when inner content moved up)
                     let rr = Math.max(cr, top - 1);
+                    const rr0 = rr;
                     const snapshot = snapshotP();
                     r = placeBox(it.box, col, rr, []);
-                    for (let guard = 0; guard < 200; guard++) {
+                    const hits: string[] = [];
+                    let pushed: string | undefined;
+                    for (let guard = 0; guard < 200 && !isOff(dbg, 'h20_unmoved_box_descent'); guard++) {
                         const hit = avoid.find((a) => overlaps(a, r));
                         if (!hit) break;
+                        const by = placed.find((p) => p.rect === hit || p.base === hit);
+                        const who = by ? itemName(by.i) : 'outer content';
+                        hits.push(who);
+                        if (by && by.rect === hit && (by.rect.r0 !== by.base.r0 || by.rect.r1 !== by.base.r1)) pushed = who;
                         restoreP(snapshot);
                         rr += Math.max(1, hit.r1 + 1 - r.r0);
                         r = placeBox(it.box, col, rr, []);
+                    }
+                    if (hits.length) {
+                        const flag = pushed ? `pushed below ${pushed}, a frame stretched by moves inside it`
+                            : rr - rr0 >= FLAGS.descent ? `slid ${rr - rr0} rows below its trial row` : undefined;
+                        note({ rule: 'h20_unmoved_box_descent', fn: 'placeBox', unit, text: `rows ${rr0} → ${rr}`, values: { below: [...new Set(hits)] }, ...(flag ? { flag } : {}) });
                     }
                 }
             }
@@ -343,12 +388,13 @@ export function place(inp: PlaceInput): Placement {
     // trial-placement snapshots include `moved`: else retries re-add inner moves,
     // drifting `baseRow` by retries × offset
     const snapshotP = () => ({
-        blocks: P.blocks.length, frames: P.frames.length, moved: new Map(moved),
+        blocks: P.blocks.length, frames: P.frames.length, moved: new Map(moved), logs: logs.length,
         pos: new Map(P.pos), end: new Map(P.end), port: new Map(P.port), text: new Map(P.text), blockOf: new Map(P.blockOf),
     });
     const restoreP = (s: ReturnType<typeof snapshotP>) => {
         P.blocks.length = s.blocks;
         P.frames.length = s.frames;
+        logs.length = s.logs;
         moved.clear();
         for (const [k, m] of s.moved) moved.set(k, m);
         P.pos = s.pos; P.end = s.end; P.port = s.port; P.text = s.text; P.blockOf = s.blockOf;
@@ -366,5 +412,6 @@ export function place(inp: PlaceInput): Placement {
     for (const b of P.blocks) for (const l of b.L.lanes) W = Math.max(W, b.col0 + l.col + 1);
     P.width = W;
     P.height = H;
+    for (const d of logs) dbg?.log?.(d);
     return P;
 }

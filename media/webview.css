@@ -4,6 +4,7 @@
     --g-edge: var(--vscode-editorLineNumber-foreground);
     --g-highlight: var(--vscode-focusBorder);
     --g-seed: var(--vscode-textLink-foreground);
+    --g-between: #c8553d;
     --g-frame: var(--vscode-editorWidget-border);
     --g-namespace: var(--vscode-descriptionForeground);
     --g-external: var(--vscode-disabledForeground);
@@ -131,6 +132,8 @@ text { dominant-baseline: central; white-space: pre; }
 .labels text { fill: var(--g-fg); }
 .labels g.focus text { fill: var(--vscode-list-activeSelectionForeground, var(--g-fg)); }
 .labels g.seed text { fill: var(--g-seed); font-weight: 600; }
+/* functions on call paths between seeds: color, regular weight */
+.labels g.between text { fill: var(--g-between); }
 .labels g.sel .hit { fill: var(--g-selected); stroke: var(--g-selection); }
 .labels g.locked text { text-decoration: underline dotted; }
 .labels .twisty { fill: var(--g-twisty); cursor: pointer; font-weight: 600; }
@@ -164,3 +167,23 @@ text { dominant-baseline: central; white-space: pre; }
 #hovercard .param { color: var(--vscode-symbolIcon-variableForeground, #9cdcfe); }
 #hovercard .type { color: var(--vscode-symbolIcon-classForeground, #4ec9b0); }
 #hovercard .meta { white-space: pre-wrap; font-size: 12px; color: var(--vscode-descriptionForeground, #9d9d9d); }
+
+/* status line: language-server work (growing dots), refused action */
+#status.busy { color: var(--vscode-foreground); }
+#status.flash { color: var(--vscode-editorWarning-foreground, #cca700); }
+
+/* layout debugging (gaffy.debugLayout): flagged units, Why here? panel */
+.labels g.flagged text, .heads g.flagged text { text-decoration: underline wavy var(--vscode-editorWarning-foreground, #cca700); }
+#why { display: none; position: fixed; right: 8px; top: 34px; z-index: 25; max-width: min(900px, 70vw); max-height: 60vh; overflow: auto;
+    padding: 6px 8px; font-size: 12px; font-family: var(--vscode-editor-font-family, monospace);
+    background: var(--vscode-editorHoverWidget-background, var(--vscode-editorWidget-background));
+    color: var(--vscode-editorHoverWidget-foreground, var(--g-fg));
+    border: 1px solid var(--vscode-editorHoverWidget-border, var(--vscode-widget-border, #555)); }
+#why.on { display: block; }
+#why .whyhead { display: flex; gap: 8px; align-items: center; font-weight: 600; margin-bottom: 4px; }
+#why .whyhead span { flex: 1; }
+#why .whyhead button { font: inherit; font-weight: normal; cursor: pointer; color: inherit; background: none;
+    border: 1px solid var(--vscode-widget-border, #555); padding: 0 6px; }
+#why .whynote { color: var(--vscode-descriptionForeground); margin-bottom: 4px; white-space: normal; }
+#why .why { white-space: pre-wrap; padding: 1px 0; border-top: 1px solid var(--vscode-widget-border, transparent); }
+#why .why.flag { color: var(--vscode-editorWarning-foreground, #cca700); }

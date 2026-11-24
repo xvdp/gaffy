@@ -264,6 +264,7 @@ export function registerCommands(ctx: vscode.ExtensionContext, editor: GaffyEdit
     reg('gaffy.isolateSelection', forward('isolateSelection'));
     reg('gaffy.node.lock', forward('lock'));
     reg('gaffy.node.unlock', forward('unlock'));
+    reg('gaffy.node.why', forward('why'));
     reg('gaffy.node.showHidden', forward('showHidden'));
     reg('gaffy.sel.upstream', forward('upstream'));
     reg('gaffy.sel.downstream', forward('downstream'));
@@ -454,6 +455,12 @@ export function registerCommands(ctx: vscode.ExtensionContext, editor: GaffyEdit
                 break;
             }
             case 'hold': await s.hold(m.on === true); break;
+            // Options > Layout debugging > Decision log: text in an untitled editor beside the view
+            case 'openText': {
+                const doc = await vscode.workspace.openTextDocument({ content: String(m.text ?? '').slice(0, 2_000_000), language: 'plaintext' });
+                await vscode.window.showTextDocument(doc, { viewColumn: vscode.ViewColumn.Beside, preview: true });
+                break;
+            }
             // webview command missing its operand (selection, call, function): warning
             case 'warn': void vscode.window.showWarningMessage(plain(`gaffy: ${String(m.text ?? '').slice(0, 300)}`)); break;
             case 'editStyle': await vscode.commands.executeCommand('gaffy.editStyle'); break;

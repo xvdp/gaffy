@@ -149,7 +149,7 @@ Algorithms: [src/core/layout.ts](src/core/layout.ts) (rows and lanes in a block)
 
 Toolbar: **Isolate** (nothing hidden) or **Show all (n)** (something hidden), call depths (full), **zoom fit**, **Expand mode >>** / **Expand mode -+** (switch to that call expansion), **☰ Options** (pulldown, checkmarks):
 
-- Call Expansion: Individual On Graph (one layer at a time), Global Toolbar (full); Seeds: ✓ Only paths between seeds (`view.between`); Call depth by (full): shortest or longest call path
+- Call Expansion: Individual On Graph (one layer at a time), Global Toolbar (full); Seeds: ✓ Only paths between seeds (`view.between`; full: paths within the call depths; one layer at a time: every path in the graph data, any number of calls, and a marker click says the side leads to no other seed; turned off one layer at a time: the paths stay, nothing else opens); Call depth by (full): shortest or longest call path
 - Namespaces: ✓ Group namespaces, ✓ Tight groups (default on, style `boxes.tight`: frames fit their content on all sides), reset per-box grouping (moves inside changed boxes dropped)
 - Edges: glyphs (UTF box drawing) or vector; vector curve: orthogonal, rounded, sigmoid, spline. Cross-language calls dash-dot, implicit calls dotted, every style and the text export (`┈ ┊`, `─·─·`)
 - Tree parent: first caller found (dfs), nearest caller above, left merge (joint: a caller right above joins the elbow `├───┴─>`; several callers in a box join one collector from the left, `┌──┘` then `└─>`; calls between boxes arrive from the left where cells are free)
@@ -183,7 +183,7 @@ subprocess.run(["code", str(p)])
 
 ## Building, progress, cache
 
-- Progress: banner with phase, depth, definitions, language-server requests, cached answers; after 400 ms also a notification with cancel.
+- Progress: status line `⟳ language server: <phase> …` with growing dots (seed resolution `resolving seeds 3/34`, then layers, definitions, language-server requests, cached answers), the same phase in a banner over the graph; after 400 ms also a notification with cancel.
 - Cache: each language-server answer (callers or callees of one definition), in `.baggy/gaffy/cache/calls.json` (`calls-external.json` for views with external code). Depth or direction changes, expansion and view opening ask the language server only for uncached answers.
 - Invalidation: a saved, renamed or externally changed source file drops its definitions' cached outgoing calls and all cached incoming calls; files of an extension no cached definition has (logs, bytecode, build output): none. `gaffy: Clear Call Cache`: everything.
 - No answer ≠ empty answer: a definition the language server does not resolve (analyzing after a reload, renamed, removed) keeps its stored calls, uncached, unexplored; retries after 2, 4, 8, 15, 30, 60 s (`language server not ready` in the status line), then a warning with the count.
@@ -214,6 +214,19 @@ subprocess.run(["code", str(p)])
 ```
 
 Placement: views created in VS Code under the workspace folder; views written by giddy or a script under their repository (seed paths, exports and the commit hash refer to the folder holding `.baggy/`). Style and call cache: per workspace folder. Views in a `.gaffy/views/` folder still open; new files go to `.baggy/gaffy/`.
+
+## Layout debugging
+
+Setting `gaffy.debugLayout`. Right click a function or box > **Why Here?**: the placement and settle decisions that put it where it is drawn, one line each: rule (as in [docs/heuristics.md](docs/heuristics.md)), function, the unit placed, outcome, values. Decisions past a threshold are flagged (⚑, wavy underline on the graph; thresholds `FLAGS` in [src/core/explain.ts](src/core/explain.ts)): an unmoved box or block sliding ≥ 12 rows, a moved function sliding ≥ 4 rows, a settle move ≥ 12 cells, an unmoved box pushed below a frame stretched by moves inside it. Options > Layout debugging: each switchable rule on or off (h13 caller alignment, h15 block descent, h17 item column, h18 item row, h20 unmoved box descent, h21 moved function descent, h23 settle), the picture redrawn without it and nothing saved while one is off; Decision log: every decision in an editor.
+
+Offline, in this repository (code lines from the rule anchors, [scripts/rules.ts](scripts/rules.ts)):
+
+```bash
+npm run explain -- <view.gaffy>                       # every decision, with file:line
+npm run explain -- <view.gaffy> --unit <text> --flags # one unit's decisions, flagged only
+npm run explain -- <view.gaffy> --off h20_unmoved_box_descent,h23_settle   # what moves without these rules
+npm run explain -- <view.gaffy> --trace .baggy/gaffy/trace/<view>.jsonl    # replay a gaffy.trace: jumps and flags per change
+```
 
 ## Freeze on open
 
@@ -253,6 +266,7 @@ Precedence: `.baggy/gaffy/style.json` over the `gaffy.style` setting over `DEFAU
 | `selection` | active link foreground | selected calls (click on an arrow), outline of selected functions |
 | `selected` | selection background | background of selected functions |
 | `seed` | link foreground | seed functions |
+| `between` | `#c8553d` (brick red) | functions on call paths between two seeds, regular weight |
 | `twisty` | link foreground | `>>` and `└─>>` markers |
 | `frame` | widget border | namespace box lines |
 | `namespace` | description foreground | namespace box headers |

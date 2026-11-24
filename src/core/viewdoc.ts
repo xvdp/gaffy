@@ -67,6 +67,7 @@ export interface ViewSpec {
     stdlib?: boolean;                        // with external code, the standard library; default: gaffy.includeStandardLibrary
     save?: boolean;                          // file saved after every change, whatever gaffy.autoSave says (script views)
     between?: boolean;                       // drawn: only functions on call paths between seeds (scene.ts `onPaths`)
+    pinned?: NodeKey[];                      // grow: functions shown without an opener (the paths left by `between` off)
     tags: Record<NodeKey, string>;
     straight?: string[];                     // calls routed first (caller\u0000callee)
     cut?: [NodeKey, NodeKey][];              // grow: removed calls [caller, callee], neither drawn nor followed
@@ -149,6 +150,8 @@ export function parseDoc(text: string, fallbackName = 'view'): ViewDoc {
         tags: keyed(v.tags, (x) => (typeof x === 'string' ? x.slice(0, 80) : undefined)),
     };
     if (v.open) view.open = keyed(v.open, (x) => oneOf(x, ['up', 'down', 'both', 'none'] as const));
+    const pinned = strs(v.pinned);
+    if (pinned.length) view.pinned = pinned;
     const straight = strs(v.straight);
     if (straight.length) view.straight = straight;
     if (Array.isArray(v.cut)) {

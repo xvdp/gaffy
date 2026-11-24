@@ -117,7 +117,7 @@ export class Session {
         // Options panel settings
         const settings = { includeExternal: cfg.get<boolean>('includeExternal') ?? false, includeStandardLibrary: cfg.get<boolean>('includeStandardLibrary') ?? false,
             saveViews: cfg.get<boolean>('saveViews') ?? false, untitled: this.document.isUntitled, trace: cfg.get<boolean>('trace') ?? false,
-            held: this.held };
+            held: this.held, debugLayout: cfg.get<boolean>('debugLayout') ?? false };
         void this.panel.webview.postMessage({ type: 'state', text: this.document.getText(), name: this.name, style, exclude, settings, busy: this.busy });
     }
 
@@ -312,19 +312,29 @@ export class Session {
      */
     async open(): Promise<void> {
         if (this.fixed) return;
-        for (const wait of [0, 2, 5, 10]) {
-            if (wait) await new Promise((r) => setTimeout(r, wait * 1000));
-            const left = await this.resolveSeeds();
-            if (!left.retry.length) {
-                if (left.bad.length) this.badSeeds(left.bad);
-                break;
-            }
-            if (wait === 10) this.badSeeds([...left.bad, ...left.retry]);
+        const d = this.doc();
+        const named = d.view.seeds.filter((k) => !Object.hasOwn(d.graph.nodes, k)).length;
+        // status line (webview): phase and count while seeds resolve
+        if (named) {
+            await this.progress(async (show) => {
+                for (const wait of [0, 2, 5, 10]) {
+                    if (wait) {
+                        show(`not ready, seeds asked again in ${wait} s`);
+                        await new Promise((r) => setTimeout(r, wait * 1000));
+                    }
+                    const left = await this.resolveSeeds((i, n) => show(`resolving seeds ${i}/${n}`));
+                    if (!left.retry.length) {
+                        if (left.bad.length) this.badSeeds(left.bad);
+                        break;
+                    }
+                    if (wait === 10) this.badSeeds([...left.bad, ...left.retry]);
+                }
+            });
         }
         await this.revalidate();
     }
 
-    private async resolveSeeds(): Promise<{ bad: string[]; retry: string[] }> {
+    private async resolveSeeds(step?: (i: number, n: number) => void): Promise<{ bad: string[]; retry: string[] }> {
         const doc = this.doc();
         const named = doc.view.seeds.filter((k) => !Object.hasOwn(doc.graph.nodes, k));
         const bad: string[] = [], retry: string[] = [];
@@ -342,7 +352,8 @@ export class Session {
             }
             return undefined;
         };
-        for (const seed of named) {
+        for (const [i, seed] of named.entries()) {
+            step?.(i + 1, named.length);
             const spec = seedSpec(seed);
             const uri = spec ? await fileOf(spec.path) : undefined;
             if (!spec || !uri) { bad.push(seed); continue; }

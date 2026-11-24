@@ -130,7 +130,7 @@
     },
     "colors": {
       "type": "object",
-      "description": "CSS colors; keys fg, bg, edge, highlight, seed, frame, namespace, external, selected.",
+      "description": "CSS colors; keys fg, bg, edge, highlight, seed, between, frame, namespace, external, selected.",
       "additionalProperties": {
         "type": "string"
       }

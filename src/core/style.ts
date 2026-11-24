@@ -32,6 +32,7 @@ export const DEFAULT_STYLE: Style = {
         edge: 'var(--vscode-editorLineNumber-foreground)',
         highlight: '#ddaa22', // 'var(--vscode-focusBorder)'
         seed: 'var(--vscode-textLink-foreground)',
+        between: '#c8553d',
         frame: 'var(--vscode-editorWidget-border)',
         namespace: 'var(--vscode-descriptionForeground)',
         external: 'var(--vscode-disabledForeground)',

@@ -13,10 +13,11 @@ import { buildGrid, Grid } from './grid';
 import { nodeLabel } from './labels';
 import { Layout } from './layout';
 import { ancestors, GNode, isContainer, NodeKey, Subgraph, visible } from './model';
+import { Debug, Decision } from './explain';
 import { Marker, place, Placement } from './place';
 import { settleMoved, Units } from './settle';
 import { induced, quotient, VEdge, VGraph } from './quotient';
-import { cutKey, opens, reveal, Reveal, revealDepth } from './reveal';
+import { cutKey, opens, reveal, Reveal, revealDepth, revealPaths } from './reveal';
 import { Style } from './style';
 import { Cell, excludedBy, isStandard, PathTest, ViewDoc } from './viewdoc';
 
@@ -35,6 +36,7 @@ export interface Scene {
     hiddenPath: (k: NodeKey) => NodeKey[];                   // hidden functions on k's path from seeds
     decor: Map<NodeKey, Decor>;          // label affixes: disclosure marker, tag
     offsets: Record<string, Cell>;       // drawn unit moves: view offsets settled off content (settle.ts)
+    paths: Set<NodeKey>;                 // drawn functions other than seeds on call paths between two seeds (color `between`)
 }
 
 /** Label = pre + name + post. */
@@ -100,7 +102,8 @@ function excludedKeys(doc: ViewDoc, exclude: readonly PathTest[], external: bool
         .map((n) => n.key));
 }
 
-export function buildScene(doc: ViewDoc, style: Style, exclude: readonly PathTest[] = [], external: boolean | Outside = true): Scene {
+/** `debug`: decision log and switched-off rules of placement and settle (explain.ts). */
+export function buildScene(doc: ViewDoc, style: Style, exclude: readonly PathTest[] = [], external: boolean | Outside = true, debug?: Debug): Scene {
     const view = doc.view;
     const graph = doc.graph;
     const collapsed = new Set(view.collapsed);
@@ -110,8 +113,9 @@ export function buildScene(doc: ViewDoc, style: Style, exclude: readonly PathTes
     const grows = view.arrange === 'grow';
     const cut = new Set(grows ? (view.cut ?? []).map(([a, b]) => cutKey(a, b)) : []);
     const rev = revealView(vq, doc);
-    // `between`: drawn are the revealed functions on seed-to-seed call paths; fetching and markers use all revealed
-    const keep = view.between ? onPaths(vq, rev.visible, seedsIn(vq, doc)) : rev.visible;
+    // `between`, full view: drawn are the revealed functions on seed-to-seed call paths; fetching and markers use
+    // all revealed. One layer at a time: the reveal is the paths (revealPaths)
+    const keep = view.between && !grows ? onPaths(vq, rev.visible, seedsIn(vq, doc)) : rev.visible;
     let vg = keep.size < vq.nodes.size ? induced(vq, keep) : vq;
     if (cut.size) vg = dropCalls(vg, cut);
     // marker: allowed side with an off-screen neighbor (closed, beyond depth, hidden, cut)
@@ -172,7 +176,12 @@ export function buildScene(doc: ViewDoc, style: Style, exclude: readonly PathTes
         return visible(n ? `${n.name}${style.labels.parens && !isContainer(n) ? '()' : ''}` : k);
     };
 
-    const placeWith = (offset: Record<string, Cell>) => place({
+    // decision log: the last placement's decisions, then every settle move (explain.ts)
+    let placeLog: Decision[] = [];
+    const settleLog: Decision[] = [];
+    const placeDebug: Debug | undefined = debug && { off: debug.off, log: debug.log && ((d) => placeLog.push(d)) };
+    const settleDebug: Debug | undefined = debug && { off: debug.off, log: debug.log && ((d) => settleLog.push(d)) };
+    const placeWith = (offset: Record<string, Cell>) => { placeLog = []; return place({
         vg: drawn,
         tree,
         base: {
@@ -189,18 +198,20 @@ export function buildScene(doc: ViewDoc, style: Style, exclude: readonly PathTes
         lock: view.lock,
         tight: view.tight ?? style.boxes.tight,
         channel: style.route.channel,
-    });
+        debug: placeDebug,
+    }); };
     // moved units overlapped by grown content: nearest clean offset (settle.ts); ≤ 3 rounds, since the next
     // placement may differ from the measured one; webview saves these offsets
     let offsets = view.offset;
     let placement: Placement = placeWith(offsets);
     for (let round = 0; round < 3; round++) {
-        const moves = settleMoved(placement, { ...doc, view: { ...view, offset: offsets } }, unitsOn(tree, placement, vg));
+        const moves = settleMoved(placement, { ...doc, view: { ...view, offset: offsets } }, unitsOn(tree, placement, vg), settleDebug, round);
         if (!moves.length) break;
         offsets = { ...offsets };
         for (const [u, a, b] of moves) { const o = offsets[u] ?? [0, 0]; offsets[u] = [o[0] + a, o[1] + b]; }
         placement = placeWith(offsets);
     }
+    if (debug?.log) for (const d of [...placeLog, ...settleLog]) debug.log(d);
     // marker rows: tree elbow `└─`, arrowhead, then `>` in the label padding cell
     const markers: Marker[] = [];
     for (const k of owners) {
@@ -217,7 +228,10 @@ export function buildScene(doc: ViewDoc, style: Style, exclude: readonly PathTes
         joint: (view.parentRule ?? style.grid.parentRule) === 'joint',
         cost: { bend: style.route.bend, cross: style.route.cross, border: style.route.border, adjacent: style.route.adjacent },
     });
-    return { graph, vg, drawn, tree, placement, grid, seeds: new Set([...view.seeds, ...seedsIn(vq, doc)]), hiddenOf, decor, rev, hasMore, hiddenOn, hiddenPath, offsets };
+    const drawnSeeds = seedsIn(vq, doc).filter((s) => vg.nodes.has(s));
+    const paths = drawnSeeds.length > 1 ? onPaths(vg, new Set(vg.nodes.keys()), drawnSeeds) : new Set<NodeKey>();
+    for (const s of drawnSeeds) paths.delete(s);
+    return { graph, vg, drawn, tree, placement, grid, seeds: new Set([...view.seeds, ...seedsIn(vq, doc)]), hiddenOf, decor, rev, hasMore, hiddenOn, hiddenPath, offsets, paths };
 }
 
 function fallbackNode(key: NodeKey): GNode {
@@ -304,7 +318,9 @@ function revealView(vq: VGraph, doc: ViewDoc): Reveal {
     const v = doc.view;
     const seeds = seedsIn(vq, doc);
     if (v.arrange !== 'grow') return revealDepth(vq, seeds, v.depthUp, v.depthDown, v.depthRule);
-    return reveal(vq, seeds, v.open ?? {}, v.direction, new Set((v.cut ?? []).map(([a, b]) => cutKey(a, b))));
+    const cut = new Set((v.cut ?? []).map(([a, b]) => cutKey(a, b)));
+    if (v.between) return revealPaths(vq, seeds, cut);
+    return reveal(vq, seeds, v.open ?? {}, v.direction, cut, v.pinned);
 }
 
 function revealOf(doc: ViewDoc, exclude: readonly PathTest[], external: boolean | Outside): Reveal {

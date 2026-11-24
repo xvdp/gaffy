@@ -65,6 +65,7 @@ Not followed (a call trace would see them): backprop, hooks, `with` blocks, iter
 | `npm run preview` | `dist/preview.html`: the webview in a browser with fixture views; `GAFFY_PREVIEW_FILE=<view.gaffy> npm run preview` for any view |
 | `npm run heuristics` | `docs/heuristics.md`, `docs/heuristics.gaffy`, `docs/ordering.md` regenerated from the code |
 | `npm run docs:check` | `npm run heuristics`, then a failure when `docs/` differs from the commit |
+| `npm run explain -- <view.gaffy> [--unit <text>] [--flags] [--off <rules>] [--trace <trace.jsonl>]` | placement decision log with code lines, rule ablation, trace replay (README: Layout debugging) |
 | `node tools/gaffy-trace.mjs <trace.jsonl>` | view change log (setting `gaffy.trace`) as a list |
 
 
@@ -86,6 +87,7 @@ src/core/             TypeScript, no VS Code API: runs in the host (export), the
   layout.ts             rows, tree parents, lanes inside one box
   place.ts              boxes and blocks in 2D, moves, locks
   settle.ts             moved units the picture grew into: nearest clear offset, least displacement first
+  explain.ts            layout debugging: decision log, flags, rule switches of place.ts and settle.ts
   grid.ts               character grid, A* routing, glyphs (call kinds), text export
   bindings.ts           binding declarations parsed from source text (pybind11, nanobind, torch, slangpy, wasm-bindgen)
   scene.ts              pipeline: document → quotient → visibility → boxes → layout → placement → grid
@@ -110,6 +112,8 @@ test/                 vitest tests, fixtures, golden text renders
 scripts/preview.mjs   browser preview of the webview with fixtures and simulated steps (GAFFY_PREVIEW_FILE=<view> for any view file; steps=…, trace=1)
 scripts/heuristics.ts the layout heuristics as a graph: writes docs/heuristics.md and docs/heuristics.gaffy (`npm run heuristics`)
 scripts/ordering.ts   every function that changes what is shown or where: writes docs/ordering.md (`npm run heuristics`)
+scripts/rules.ts      pipeline functions, calls and rules with their code anchors (heuristics.ts, explain.ts)
+scripts/explain.ts    placement decision log of a view file (`npm run explain`; core: src/core/explain.ts)
 tools/gaffy-trace.mjs standalone, no dependencies, not packaged: prints a view trace (.baggy/gaffy/trace/<view>.jsonl, setting gaffy.trace)
 test/data/            view files reduced from real cases, names made up (runaway.gaffy: box descent drift)
 ```

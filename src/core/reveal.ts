@@ -5,7 +5,11 @@
  * Visible set: seeds, then breadth-first neighbors on open sides of visible vertices; a seed without entry opens
  * the view's traversal side. Open sides of non-visible vertices persist: reopening a parent restores lower layers.
  * `allowed`: seeds open both sides; vertices revealed via `down` only callees, via `up` only callers.
- * `view.cut`: calls not followed.
+ * `view.cut`: calls not followed. `pinned`: vertices visible without an opener, both sides allowed, closed unless
+ * opened (no traversal side).
+ *
+ * `revealPaths` (one layer at a time with `between`): every vertex on a seed-to-seed call path of the graph, any
+ * number of calls; both sides allowed (markers, neighbor requests that extend paths); open sides add nothing.
  *
  * `revealDepth` (full view): vertices within `up` caller and `down` callee levels, same `allowed`. Level, rule
  * `shortest`: breadth-first distance; rule `longest`: longest path from seeds in the DAG without DFS back edges
@@ -39,7 +43,7 @@ export function within(s: OpenSide | undefined, allowed: OpenSide | undefined): 
 
 export function reveal(
     vg: VGraph, seeds: readonly NodeKey[], open: Record<NodeKey, OpenSide> | undefined, direction: Direction,
-    cut: ReadonlySet<string> = new Set(),
+    cut: ReadonlySet<string> = new Set(), pinned: readonly NodeKey[] = [],
 ): Reveal {
     const visible = new Set<NodeKey>();
     const order: NodeKey[] = [];
@@ -47,7 +51,7 @@ export function reveal(
     const allowed = new Map<NodeKey, OpenSide>();
     const level = new Map<NodeKey, number>();
     const q: NodeKey[] = [];
-    for (const s of seeds) if (vg.nodes.has(s) && !visible.has(s)) { visible.add(s); order.push(s); q.push(s); allowed.set(s, 'both'); level.set(s, 0); }
+    for (const s of [...seeds, ...pinned]) if (vg.nodes.has(s) && !visible.has(s)) { visible.add(s); order.push(s); q.push(s); allowed.set(s, 'both'); level.set(s, 0); }
     const seedSet = new Set(seeds);
     while (q.length) {
         const k = q.shift()!;
@@ -135,4 +139,36 @@ export function revealDepth(vg: VGraph, seeds: readonly NodeKey[], up: Depth, do
         }
     }
     return { visible, order, opener, allowed, level };
+}
+
+/**
+ * Vertices on call paths between seeds, any length: reachable from a seed and reaching a seed (`cut` calls not
+ * followed); seeds always. Levels: breadth-first call distance from the seeds within the paths, both directions.
+ */
+export function revealPaths(vg: VGraph, seeds: readonly NodeKey[], cut: ReadonlySet<string> = new Set()): Reveal {
+    const start = seeds.filter((s) => vg.nodes.has(s));
+    const walk = (down: boolean) => {
+        const seen = new Set(start);
+        const stack = [...start];
+        while (stack.length) {
+            const k = stack.pop()!;
+            for (const e of (down ? vg.out.get(k) : vg.inc.get(k)) ?? []) {
+                const n = down ? e.to : e.from;
+                if (!seen.has(n) && !cut.has(cutKey(e.from, e.to))) { seen.add(n); stack.push(n); }
+            }
+        }
+        return seen;
+    };
+    const from = walk(true), to = walk(false);
+    const visible = new Set([...start, ...[...from].filter((k) => to.has(k))]);
+    const level = new Map<NodeKey, number>(start.map((s) => [s, 0] as const));
+    const order = [...start];
+    for (let i = 0; i < order.length; i++) {
+        const k = order[i];
+        for (const n of [...(vg.out.get(k) ?? []).map((e) => e.to), ...(vg.inc.get(k) ?? []).map((e) => e.from)]) {
+            if (visible.has(n) && !level.has(n)) { level.set(n, level.get(k)! + 1); order.push(n); }
+        }
+    }
+    for (const k of visible) if (!level.has(k)) { level.set(k, 0); order.push(k); }
+    return { visible, order, opener: new Map(), allowed: new Map([...visible].map((k) => [k, 'both' as const])), level };
 }

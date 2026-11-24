@@ -2,7 +2,7 @@
   "name": "gaffy",
   "displayName": "gaffy",
   "description": "Persistent, manipulable call graphs on a character grid, rendered with D3",
-  "version": "0.9.31",
+  "version": "0.9.32",
   "publisher": "xvdp",
   "license": "Apache-2.0",
   "repository": {
@@ -114,6 +114,11 @@
           "type": "boolean",
           "default": false,
           "description": "Save gaffy views: a new view is written to .baggy/gaffy/ at once and saved after every change. Off: a new view opens unsaved (bound to its .baggy/gaffy/ path); right click > Save writes it there, closing it without saving discards it."
+        },
+        "gaffy.debugLayout": {
+          "type": "boolean",
+          "default": false,
+          "description": "Layout debugging: right click a function or box > Why Here? lists the placement and settle decisions that put it there (rule, values, outcome); decisions past a threshold are flagged (⚑) on the graph; Options > Layout debugging switches rules off (the picture without them; nothing saved meanwhile) and opens the full decision log. Offline: npm run explain in the gaffy repository."
         },
         "gaffy.trace": {
           "type": "boolean",
@@ -269,6 +274,10 @@
       {
         "command": "gaffy.node.unlock",
         "title": "Unlock Position"
+      },
+      {
+        "command": "gaffy.node.why",
+        "title": "Why Here? (layout decisions)"
       },
       {
         "command": "gaffy.node.moveUp",
@@ -690,6 +699,11 @@
           "group": "6_place@2"
         },
         {
+          "command": "gaffy.node.why",
+          "when": "webviewId == 'gaffy.view' && webviewSection =~ /^(node|collapsed|box)$/ && config.gaffy.debugLayout",
+          "group": "6_place@9"
+        },
+        {
           "command": "gaffy.node.moveUp",
           "when": "webviewId == 'gaffy.view' && webviewSection =~ /^(node|collapsed)$/",
           "group": "6_place@3"
@@ -816,6 +830,10 @@
           "when": "false"
         },
         {
+          "command": "gaffy.node.why",
+          "when": "false"
+        },
+        {
           "command": "gaffy.node.moveUp",
           "when": "false"
         },
@@ -921,7 +939,8 @@
     "install:local": "code --install-extension gaffy-$npm_package_version.vsix",
     "docs:check": "npm run heuristics && git diff --exit-code -- docs",
     "preview": "npm run build && node scripts/preview.mjs",
-    "heuristics": "node scripts/heuristics.mjs"
+    "heuristics": "node scripts/heuristics.mjs",
+    "explain": "node scripts/explain.mjs"
   },
   "dependencies": {
     "d3-drag": "3.0.1",

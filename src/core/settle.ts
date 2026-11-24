@@ -17,6 +17,7 @@
  * such content: no effect). No clean offset: unit stays.
  * Cost: O(U² · (RANGE² + FAR) · M · (L + F)); U colliding units, M labels and frames per unit, L labels, F frames.
  */
+import { Debug, FLAGS, isOff } from './explain';
 import { NodeKey } from './model';
 import type { Placement } from './place';
 import { ViewDoc } from './viewdoc';
@@ -43,7 +44,8 @@ const pad = (b: Box): Box => ({ ...b, r0: b.r0 - 1, c0: b.c0 - 1, r1: b.r1 + 1, 
 const within = (s: Span, f: Box) => s.row >= f.r0 && s.row <= f.r1 && s.c1 >= f.c0 && s.c0 - 2 <= f.c1;
 
 /** Offset changes `[unit, dc, dr]` clearing colliding moved units; empty if none collide. */
-export function settleMoved(P: Placement, doc: ViewDoc, units: Units): [string, number, number][] {
+export function settleMoved(P: Placement, doc: ViewDoc, units: Units, debug?: Debug, round = 0): [string, number, number][] {
+    if (isOff(debug, 'h23_settle')) return [];
     const spans: Span[] = [...P.pos].filter(([k]) => !units.stub(k) && P.text.has(k))
         .map(([key, p]) => ({ key, row: p.row, c0: p.col, c1: p.col + P.text.get(key)!.length - 1 }));
     const boxes: Box[] = P.frames.map((f) => ({ unit: f.unit, r0: f.r0, c0: f.c0, r1: f.r1, c1: f.c1 }));
@@ -99,6 +101,9 @@ export function settleMoved(P: Placement, doc: ViewDoc, units: Units): [string, 
         const { x, to } = ranked[0];
         const [a, d] = to!;
         moves.push([x.u, a, d]);
+        debug?.log?.({ rule: 'h23_settle', fn: 'settleMoved', unit: x.u, text: `offset ${JSON.stringify(doc.view.offset[x.u])} + (${a}, ${d}): clear of other content`,
+            values: { round, collisions: hits(x, 0, 0), cost: cost(ranked[0]), waiting: ranked.length - 1 },
+            ...(Math.abs(a) + Math.abs(d) >= FLAGS.settle ? { flag: `moved ${Math.abs(a) + Math.abs(d)} cells` } : {}) });
         for (const s of x.mine) { s.row += d; s.c0 += a; s.c1 += a; }
         for (const b of x.own) { b.r0 += d; b.r1 += d; b.c0 += a; b.c1 += a; }
         todo = todo.filter((y) => y !== x && hits(y, 0, 0));

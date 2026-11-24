@@ -35,6 +35,7 @@ window.gaffyPreview = true;   // webview: hover card without delay
 const initial = JSON.parse(DATA.docs[which]);
 for (const p of ['edges', 'parentRule', 'curve']) if (params.get(p)) initial.view[p] = params.get(p);
 if (params.get('boxes')) initial.view.boxes = params.get('boxes') === 'on';
+if (params.get('between') === '1') initial.view.between = true;
 if (params.get('fill')) DATA.style.boxes.fill = params.get('fill');
 let text = JSON.stringify(initial, null, 1) + '\\n';
 const log = (m) => { const el = document.getElementById('log'); if (el) el.textContent = JSON.stringify(m).slice(0, 300); };
@@ -167,7 +168,9 @@ const simulate = () => {
 // messages to the webview are delivered synchronously, so the page is final when it finishes loading
 // settings shown in Options: external=1 includes external code, std=1 the standard library
 // trace=1: gaffy.trace on; each edit's cause and number of moved cells are listed in #log after the steps
-const settings = { includeExternal: params.get('external') === '1', includeStandardLibrary: params.get('std') === '1', saveViews: false, untitled: false, trace: params.get('trace') === '1' };
+// debug=1: gaffy.debugLayout on (Why Here?: steps cmd=why:<name>)
+// between=1: Only paths between seeds on
+const settings = { includeExternal: params.get('external') === '1', includeStandardLibrary: params.get('std') === '1', saveViews: false, untitled: false, trace: params.get('trace') === '1', held: false, debugLayout: params.get('debug') === '1' };
 const traced = [];
 const deliver = () => window.dispatchEvent(new MessageEvent('message', { data: { type: 'state', text, name: which, style: DATA.style, settings } }));
 window.acquireVsCodeApi = () => ({
