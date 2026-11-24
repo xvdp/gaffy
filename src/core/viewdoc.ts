@@ -68,6 +68,7 @@ export interface ViewSpec {
     save?: boolean;                          // file saved after every change, whatever gaffy.autoSave says (script views)
     between?: boolean;                       // drawn: only functions on call paths between seeds (scene.ts `onPaths`)
     pinned?: NodeKey[];                      // grow: functions shown without an opener (the paths left by `between` off)
+    pinPaths?: boolean;                      // grow + between: after the first build, the paths pinned, `between` off (giddy)
     tags: Record<NodeKey, string>;
     straight?: string[];                     // calls routed first (caller\u0000callee)
     cut?: [NodeKey, NodeKey][];              // grow: removed calls [caller, callee], neither drawn nor followed
@@ -152,6 +153,7 @@ export function parseDoc(text: string, fallbackName = 'view'): ViewDoc {
     if (v.open) view.open = keyed(v.open, (x) => oneOf(x, ['up', 'down', 'both', 'none'] as const));
     const pinned = strs(v.pinned);
     if (pinned.length) view.pinned = pinned;
+    if (v.pinPaths === true) view.pinPaths = true;
     const straight = strs(v.straight);
     if (straight.length) view.straight = straight;
     if (Array.isArray(v.cut)) {
@@ -183,6 +185,9 @@ export function parseDoc(text: string, fallbackName = 'view'): ViewDoc {
     if (typeof raw.commit === 'string' && /^[0-9a-f]{4,40}$/.test(raw.commit)) doc.commit = raw.commit;
     return doc;
 }
+
+/** Built: the view holds language-server answers (a new view holds only its seed's records). */
+export const isBuilt = (d: ViewDoc) => !!d.updated || Object.keys(d.explored ?? {}).length > 0;
 
 const PROTO = new Set(['__proto__', 'constructor', 'prototype']);
 

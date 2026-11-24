@@ -2,19 +2,21 @@
  * Custom text editor for `*.gaffy` views: the TextDocument holds the view JSON (VS Code tabs, dirty state, undo,
  * redo, save, hot exit); the webview renders it and posts whole-document edits.
  *
- * Freeze on open: a view holding a graph when its document opens is frozen (no language-server requests, settle
- * results not written) until Unfreeze, a document edit `view.live = <id of this opening>`; Ctrl+Z freezes again.
- * The id is new at every opening of the document, so a saved `live` from an earlier opening does not count. A view
- * built during this opening carries the id with its first data.
+ * Freeze on open: a view built earlier (language-server data in it: `updated`, `explored`), saved and opened again
+ * is frozen (no language-server requests, settle results not written) until Unfreeze, a document edit
+ * `view.live = <id of this opening>`; Ctrl+Z freezes again. The id is new at every opening of the document, so a
+ * saved `live` from an earlier opening does not count. Not frozen: a new view (its seed records only), a view
+ * without data (giddy, scripts), an unsaved or restored-dirty document; a view built during this opening carries
+ * the id with its first data.
  */
 import { randomBytes } from 'node:crypto';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { GNode, isContainer, NodeKey, plain } from '../core/model';
 import { Style } from '../core/style';
-import { globMatcher, parseDoc, serializeDoc, ViewDoc, ViewSpec } from '../core/viewdoc';
+import { globMatcher, isBuilt, parseDoc, serializeDoc, ViewDoc, ViewSpec } from '../core/viewdoc';
 import { BuildMode, extendGraph, Extension, Pair } from './build';
-import { frontierOf, visibleOf } from '../core/scene';
+import { frontierOf, pinPaths, visibleOf } from '../core/scene';
 import { CallCache } from './cache';
 import { viewScope } from './context';
 import { gitShort } from './git';
@@ -24,7 +26,7 @@ import { seedSpec } from './seedspec';
 import { folderOf, gaffyDir, homeOf, StyleService } from './style';
 import { Trace } from './trace';
 
-/** One opening of a view document (all its panels): id written by Unfreeze; graph present at opening. */
+/** One opening of a view document (all its panels): id written by Unfreeze; built and saved at opening. */
 export interface Opening { id: string; built: boolean; panels: number }
 
 /**
@@ -53,14 +55,14 @@ export class Session {
     ) {}
 
     /**
-     * Frozen: the view held a graph at opening, still holds one (a file rewritten without a graph, e.g. by giddy,
-     * builds), and no Unfreeze of this opening is in the document.
+     * Frozen: the view was built and saved at opening, is still built (a file rewritten without data, e.g. by
+     * giddy, builds), and no Unfreeze of this opening is in the document.
      */
     get held(): boolean {
         if (!this.opening.built) return false;
         try {
             const d = this.doc();
-            return Object.keys(d.graph.nodes).length > 0 && d.view.live !== this.opening.id;
+            return isBuilt(d) && d.view.live !== this.opening.id;
         } catch { return true; }
     }
 
@@ -116,7 +118,8 @@ export class Session {
         const exclude = cfg.get<string[]>('exclude') ?? [];
         // Options panel settings
         const settings = { includeExternal: cfg.get<boolean>('includeExternal') ?? false, includeStandardLibrary: cfg.get<boolean>('includeStandardLibrary') ?? false,
-            saveViews: cfg.get<boolean>('saveViews') ?? false, untitled: this.document.isUntitled, trace: cfg.get<boolean>('trace') ?? false,
+            saveViews: cfg.get<boolean>('saveViews') ?? false, untitled: this.document.isUntitled, unsaved: this.document.isUntitled || this.document.isDirty,
+            trace: cfg.get<boolean>('trace') ?? false,
             held: this.held, debugLayout: cfg.get<boolean>('debugLayout') ?? false };
         void this.panel.webview.postMessage({ type: 'state', text: this.document.getText(), name: this.name, style, exclude, settings, busy: this.busy });
     }
@@ -210,7 +213,7 @@ export class Session {
         if (this.fixed) return undefined;
         const now = this.doc();
         const before = signature(now);
-        const first = !this.opening.built || !Object.keys(now.graph.nodes).length;
+        const first = !this.opening.built || !isBuilt(now);
         now.graph = r.graph;
         now.explored = r.explored;
         if (signature(now) !== before) {
@@ -411,6 +414,13 @@ export class Session {
                     }
                 } finally { bg.end(); }
             });
+            // giddy's view: built with the paths between seeds, then left one layer at a time with the paths pinned
+            const d = this.doc();
+            if (d.view.pinPaths && d.view.between && !this.fixed) {
+                const o = this.opts();
+                pinPaths(d, o.exclude, o.outside);
+                await this.write(d);
+            }
             this.settle();
         });
     }
@@ -568,8 +578,9 @@ export class GaffyEditor implements vscode.CustomTextEditorProvider {
         const uri = document.uri.toString();
         let opening = this.openings.get(uri);
         if (!opening) {
+            // frozen at opening: built, saved (not untitled, not restored with unsaved changes)
             let built = false;
-            try { built = Object.keys(parseDoc(document.getText()).graph.nodes).length > 0; } catch { /* invalid JSON: shown as an error */ }
+            try { built = !document.isUntitled && !document.isDirty && isBuilt(parseDoc(document.getText())); } catch { /* invalid JSON: shown as an error */ }
             this.openings.set(uri, (opening = { id: randomBytes(8).toString('hex'), built, panels: 0 }));
         }
         opening.panels++;
@@ -587,6 +598,8 @@ export class GaffyEditor implements vscode.CustomTextEditorProvider {
             vscode.workspace.onDidChangeTextDocument((e) => {
                 if (e.document.uri.toString() === document.uri.toString() && e.contentChanges.length) void s.post();
             }),
+            // status line `Unsaved` clears on save
+            vscode.workspace.onDidSaveTextDocument((d) => { if (d.uri.toString() === document.uri.toString()) void s.post(); }),
             panel.onDidChangeViewState(() => { if (panel.active) this.active = s; }),
             panel.webview.onDidReceiveMessage(async (m) => {
                 try {

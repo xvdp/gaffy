@@ -6,8 +6,8 @@ import { nodeLabel } from '../src/core/labels';
 import { GNode, plain, visible } from '../src/core/model';
 import { buildScene, Scene, unitAnchor, unitMembers } from '../src/core/scene';
 import { deepMerge, DEFAULT_STYLE, glyphSet, Style } from '../src/core/style';
-import { boxUnit, collapsedUnit, dropMovesWithin, excludedBy, globMatcher, parseDoc, serializeDoc, ViewDoc, ViewSpec } from '../src/core/viewdoc';
-import { frontierOf } from '../src/core/scene';
+import { boxUnit, collapsedUnit, dropMovesWithin, excludedBy, globMatcher, isBuilt, parseDoc, serializeDoc, ViewDoc, ViewSpec } from '../src/core/viewdoc';
+import { frontierOf, pinPaths } from '../src/core/scene';
 import { Decision } from '../src/core/explain';
 import { fixtureDoc, k, KAZOO, MOO, STAR } from './fixtures';
 
@@ -839,6 +839,23 @@ describe('only paths between seeds', () => {
         expect(names(sc)).toEqual(['a', 'b', 'c', 'f', 'g']);
         expect(sc.hasMore(k('m:a'), 'down')).toBe(true);          // d: off the paths
         expect([...sc.paths].map((x) => x.split('#').pop()).sort()).toEqual(['b', 'f', 'g']);
+    });
+
+    it('pinPaths: the paths of the graph pinned, seeds closed, between off (giddy views after the first build)', () => {
+        const d = grow({ between: true, pinPaths: true });
+        pinPaths(d);
+        expect([d.view.between, d.view.pinPaths]).toEqual([undefined, undefined]);
+        expect(d.view.pinned!.map((x) => x.split('#').pop()).sort()).toEqual(['b', 'f', 'g']);
+        expect(d.view.open).toEqual({ [k('m:a')]: 'none', [k('m:c')]: 'none' });
+        expect(names(buildScene(d, flat()))).toEqual(['a', 'b', 'c', 'f', 'g']);
+        expect(parseDoc(serializeDoc(grow({ pinPaths: true }))).view.pinPaths).toBe(true);
+    });
+
+    it('isBuilt: language-server answers, not the seed records of a new view', () => {
+        const d = grow({});
+        expect(isBuilt({ ...d, explored: {}, updated: undefined })).toBe(false);
+        expect(isBuilt({ ...d, explored: { [k('m:a')]: 'out' } })).toBe(true);
+        expect(isBuilt({ ...d, explored: {}, updated: '2026-11-24T00:00:00Z' })).toBe(true);
     });
 
     it('one layer at a time, between off: pinned paths stay, closed seeds open nothing', () => {

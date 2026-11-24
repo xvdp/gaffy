@@ -466,10 +466,12 @@ export function registerCommands(ctx: vscode.ExtensionContext, editor: GaffyEdit
             case 'editStyle': await vscode.commands.executeCommand('gaffy.editStyle'); break;
             case 'openSettings': await vscode.commands.executeCommand('workbench.action.openSettings', `@ext:${ctx.extension.id}`); break;
             case 'setting': {
-                // Options > File > Autosave Graphs: workspace setting (user setting without a workspace); boolean only
-                if (m.key !== 'saveViews' || typeof m.value !== 'boolean') break;
+                // Options > File > Autosave Graphs, Options > Arrange > Layout debug: workspace setting (user setting
+                // without a workspace); listed keys, boolean only
+                const key = m.key as string;
+                if ((key !== 'saveViews' && key !== 'debugLayout') || typeof m.value !== 'boolean') break;
                 const target = vscode.workspace.workspaceFolders?.length ? vscode.ConfigurationTarget.Workspace : vscode.ConfigurationTarget.Global;
-                await vscode.workspace.getConfiguration('gaffy').update('saveViews', m.value, target);
+                await vscode.workspace.getConfiguration('gaffy').update(key, m.value, target);
                 break;
             }
             case 'hiddenNeighbors': {

@@ -52,28 +52,28 @@ Toolbar and Options:
 
 | entry | code | calls |
 |---|---|---|
-| call depth `all` `+` `−` (full layout) | [main.ts:1671](../src/webview/main.ts#L1671) | `setDepth(side, …)` |
-| **Show all (n)** | [main.ts:1681](../src/webview/main.ts#L1681) | `runCmd('showAll')` |
-| **Expand mode >>**, **Expand mode -+** | [main.ts:1691](../src/webview/main.ts#L1691) | `setArrange('auto' | 'grow')`: switches to the mode it names |
-| **Isolate** | [main.ts:1682](../src/webview/main.ts#L1682) | `runCmd('isolateSelection')` |
-| Options > Call Expansion: Individual On Graph, Global Toolbar | [main.ts:1697](../src/webview/main.ts#L1697) | `setArrange('grow' | 'auto')` |
-| Options > Seeds > Only paths between seeds | [main.ts:1703](../src/webview/main.ts#L1703) | `between`: full view, drawn functions filtered to seed-to-seed call paths (`onPaths`); one layer at a time, the reveal is the paths of the whole graph (`revealPaths`); off: the paths become `pinned`, every side closed (`toggleBetween`) |
-| marker click, one layer at a time with Only paths between seeds | [main.ts:784](../src/webview/main.ts#L784) | refused, status line: the side leads to no other seed |
-| Options > Layout debugging (gaffy.debugLayout) | [main.ts:1760](../src/webview/main.ts#L1760) | rules switched off (`rulesOff`, webview state): the picture without them, nothing saved meanwhile; Why Here? and the decision log read `decisions` (explain.ts) |
-| Options > Call depth by: shortest, longest path | [main.ts:1709](../src/webview/main.ts#L1709) | `depthRule` |
-| Options > Namespaces > Group namespaces | [main.ts:1713](../src/webview/main.ts#L1713) | `boxes` |
-| Options > Namespaces > Tight groups | [main.ts:1715](../src/webview/main.ts#L1715) | `tight` |
-| Options > Namespaces > Reset grouping | [main.ts:1717](../src/webview/main.ts#L1717) | `group`, `ungroup` = [], `dropMovesWithin` for each |
-| Options > Tree parent: first caller found, nearest caller above, left merge | [main.ts:1727](../src/webview/main.ts#L1727) | `parentRule` |
-| Options > Arrange > Reset graph: seeds, depth, direction | [main.ts:1733](../src/webview/main.ts#L1733) | `runCmd('resetView')` |
-| Options > Arrange > Reset Layout: moves, locks, order | [main.ts:1736](../src/webview/main.ts#L1736) | `runCmd('resetLayout')` |
-| Options > Arrange > Re-arrange | [main.ts:1737](../src/webview/main.ts#L1737) | `runCmd('rearrangeSelection' | 'rearrange')` |
-| Options > Arrange > Unlock all | [main.ts:1740](../src/webview/main.ts#L1740) | `runCmd('unlockAll')` |
-| Options > Arrange > Expand collapsed | [main.ts:1741](../src/webview/main.ts#L1741) | `runCmd('expandAll')` |
-| Options > Folders > Include external code, Include standard library | [main.ts:1744](../src/webview/main.ts#L1744) | host setting; the webview redraws; their folders leave the list when off |
-| Options > Folders > a folder | [main.ts:1749](../src/webview/main.ts#L1749) | `exclude`, `include` |
-| Options > File > Save (.gaffy), Autosave Graphs, Save as Text, Refresh Language Server | [main.ts:1767](../src/webview/main.ts#L1767) | host: save, setting `gaffy.saveViews`, export, `refresh` (new data) |
-| Options > File > Frozen; toolbar Unfreeze | [main.ts:1771](../src/webview/main.ts#L1771) | host `hold`: Unfreeze writes `live` (this opening) and the Options values into the view; Freeze removes `live`. A view holding a graph opens frozen |
+| call depth `all` `+` `−` (full layout) | [main.ts:1668](../src/webview/main.ts#L1668) | `setDepth(side, …)` |
+| **Show all (n)** | [main.ts:1678](../src/webview/main.ts#L1678) | `runCmd('showAll')` |
+| **Switch expand mode to >>**, **Switch expand mode to -+** | [main.ts:1688](../src/webview/main.ts#L1688) | `setArrange('auto' | 'grow')`: switches to the mode it names |
+| **Isolate** | [main.ts:1679](../src/webview/main.ts#L1679) | `runCmd('isolateSelection')` |
+| Options > Call Expansion: Individual On Graph, Global Toolbar | [main.ts:1694](../src/webview/main.ts#L1694) | `setArrange('grow' | 'auto')` |
+| Options > Call Expansion > Paths between seeds only | [main.ts:1698](../src/webview/main.ts#L1698) | `between`: full view, drawn functions filtered to seed-to-seed call paths (`onPaths`); one layer at a time, the reveal is the paths of the whole graph (`revealPaths`); off: the paths become `pinned`, every side closed (`toggleBetween`) |
+| marker click, one layer at a time with Paths between seeds only | [main.ts:784](../src/webview/main.ts#L784) | refused, status line: the side leads to no other seed |
+| Options > Arrange > Layout debug (gaffy.debugLayout) | [main.ts:1737](../src/webview/main.ts#L1737) | rules switched off (`rulesOff`, webview state): the picture without them, nothing saved meanwhile; Why Here? and the decision log read `decisions` (explain.ts) |
+| Options > Call depth by: shortest, longest path | [main.ts:1704](../src/webview/main.ts#L1704) | `depthRule` |
+| Options > Grouping > by Namespace | [main.ts:1708](../src/webview/main.ts#L1708) | `boxes` |
+| Options > Grouping > Tight | [main.ts:1710](../src/webview/main.ts#L1710) | `tight` |
+| Options > Grouping > Reset grouping | [main.ts:1712](../src/webview/main.ts#L1712) | `group`, `ungroup` = [], `dropMovesWithin` for each |
+| Options > Parenting: first caller found, nearest caller above, left merge | [main.ts:1716](../src/webview/main.ts#L1716) | `parentRule` |
+| Options > Arrange > Reset graph: seeds, depth, direction | [main.ts:1728](../src/webview/main.ts#L1728) | `runCmd('resetView')` |
+| Options > Arrange > Reset Layout: moves, locks, order | [main.ts:1731](../src/webview/main.ts#L1731) | `runCmd('resetLayout')` |
+| Options > Arrange > Re-arrange | [main.ts:1732](../src/webview/main.ts#L1732) | `runCmd('rearrangeSelection' | 'rearrange')` |
+| Options > Arrange > Unlock all | [main.ts:1735](../src/webview/main.ts#L1735) | `runCmd('unlockAll')` |
+| Options > Arrange > Expand collapsed | [main.ts:1736](../src/webview/main.ts#L1736) | `runCmd('expandAll')` |
+| Options > Folders > Include external code, Include standard library | [main.ts:1748](../src/webview/main.ts#L1748) | host setting; the webview redraws; their folders leave the list when off |
+| Options > Folders > a folder | [main.ts:1753](../src/webview/main.ts#L1753) | `exclude`, `include` |
+| Options > File > Save (.gaffy), Autosave Graphs, Save as Text, Refresh Language Server | [main.ts:1766](../src/webview/main.ts#L1766) | host: save, setting `gaffy.saveViews`, export, `refresh` (new data) |
+| Options > File > Frozen; toolbar Unfreeze | [main.ts:1770](../src/webview/main.ts#L1770) | host `hold`: Unfreeze writes `live` (this opening) and the Options values into the view; Freeze removes `live`. A view holding a graph opens frozen |
 
 Context menu (`webview/context` entry, host registration; *forwarded* entries post `cmd` to the webview):
 
@@ -101,7 +101,7 @@ Outside the view:
 |---|---|---|
 | editor: gaffy> Call Hierarchy (up, dn); explorer: Call Hierarchies | [commands.ts:181](../src/host/commands.ts#L181), [commands.ts:194](../src/host/commands.ts#L194) | `createView`: a new view |
 | editor: gaffy> Add to Call Graph | [commands.ts:184](../src/host/commands.ts#L184) | seed added, `Session.refresh` |
-| VS Code undo, redo; an edit of the .gaffy text | [editor.ts:587](../src/host/editor.ts#L587) | the webview receives the text (`state`) and redraws |
+| VS Code undo, redo; an edit of the .gaffy text | [editor.ts:601](../src/host/editor.ts#L601) | the webview receives the text (`state`) and redraws |
 | saving a source file; renaming a file | [extension.ts:58](../src/host/extension.ts#L58) | refresh of the views that show it |
 
 ## 2. Interpreters
@@ -122,7 +122,7 @@ Outside the view:
 | `lockUnit`, `unlockUnit` | [main.ts:1204](../src/webview/main.ts#L1204) | `lock`, `offset` | lock: the anchor cell becomes absolute; unlock: the offset from the computed place |
 | `moveSibling` | [main.ts:1449](../src/webview/main.ts#L1449) | `sibling` | swaps the focused function with its neighbor under one tree parent |
 | `collapseInnermost` | [main.ts:1461](../src/webview/main.ts#L1461) | `collapsed` | collapses the innermost container not collapsed yet |
-| `setArrange`, `setDepth` | [main.ts:1552](../src/webview/main.ts#L1552) | `arrange`, `open`, `depthUp`, `depthDown` | switches one layer at a time ⇄ full, keeping what is on screen; call depths per side |
+| `setArrange`, `setDepth` | [main.ts:1553](../src/webview/main.ts#L1553) | `arrange`, `open`, `depthUp`, `depthDown` | switches one layer at a time ⇄ full, keeping what is on screen; call depths per side |
 | `runCmd` | [main.ts:1249](../src/webview/main.ts#L1249) | per case | command dispatch: the cases below |
 | `runCmd: 'remove'` | [main.ts:1311](../src/webview/main.ts#L1311) | `cut` or `hidden` | cuts selected calls (one layer at a time), else hides the selection |
 | `runCmd: 'showAll'` | [main.ts:1297](../src/webview/main.ts#L1297) | `hidden`, `cut`, `collapsed` | shows everything hidden, removed or collapsed |
@@ -135,9 +135,9 @@ Outside the view:
 | `afterRender`: adopt | [main.ts:655](../src/webview/main.ts#L655) | `offset` | offset handover: the new tree parent of a moved function takes its offset (h34) |
 | `afterRender`: settle | [main.ts:666](../src/webview/main.ts#L666) | `offset` | saves the offsets settle drew with, ≤ 3 saves in a row (h35) |
 | `anchorAt`, `render` | [main.ts:732](../src/webview/main.ts#L732) | - | no view change: pans so the function acted on keeps its screen spot (h30, h31) |
-| host `Session.update`, `write` | [editor.ts:102](../src/host/editor.ts#L102) | any | replaces the document text (host commands, language server data) |
+| host `Session.update`, `write` | [editor.ts:107](../src/host/editor.ts#L107) | any | replaces the document text (host commands, language server data) |
 | host `collapse`, `expandContainer`, `move`, group commands | [commands.ts:367](../src/host/commands.ts#L367) | `collapsed`, `sibling`, `group`, `ungroup` | context menu changes made on the host |
-| host `Session.revalidate`, `expand`, `ask` | [editor.ts:436](../src/host/editor.ts#L436) | `graph`, `explored` | new calls from the language server: new functions appear where their sides are open |
+| host `Session.revalidate`, `expand`, `ask` | [editor.ts:449](../src/host/editor.ts#L449) | `graph`, `explored` | new calls from the language server: new functions appear where their sides are open |
 
 ## 3. Layout
 

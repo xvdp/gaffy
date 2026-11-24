@@ -14,7 +14,7 @@ import { cellId, cellRC, charRows, EdgePath, Grid, LabelSpan } from '../core/gri
 import { ancestors, GNode, isContainer, NodeKey, visible } from '../core/model';
 import type { BoxNode } from '../core/boxes';
 import { Debug, Decision, decisionLine, decisionsOf, SWITCHES, TITLES } from '../core/explain';
-import { buildScene, isStub, Scene, siblingsOf, unitAnchor, unitMembers } from '../core/scene';
+import { buildScene, isStub, pinPaths, Scene, siblingsOf, unitAnchor, unitMembers } from '../core/scene';
 import { Curve, E, glyphSet, N, S, Style, W } from '../core/style';
 import { splitTop } from '../core/langs';
 import { collapsedUnit, Depth, dropMovesWithin, excludedBy, globMatcher, isStandard, OpenSide, parseDoc, PathTest, ROOTS, serializeDoc, ViewDoc } from '../core/viewdoc';
@@ -33,7 +33,7 @@ let styleText = '';
 let excludeGlobs: string[] = [];
 let excludes: PathTest[] = [];        // `gaffy.exclude` path tests for buildScene
 // VS Code settings (`trace`: gaffy.trace); `held`: the view is frozen (editor.ts, freeze on open)
-let settings = { includeExternal: false, includeStandardLibrary: false, saveViews: false, untitled: false, trace: false, held: false, debugLayout: false };
+let settings = { includeExternal: false, includeStandardLibrary: false, saveViews: false, untitled: false, unsaved: false, trace: false, held: false, debugLayout: false };
 // layout debugging (gaffy.debugLayout, explain.ts): decisions of the drawn picture, flagged units, switched-off rules
 let decisions: Decision[] = [];
 let flagged = new Set<string>();
@@ -779,10 +779,10 @@ const markerLive = (k: NodeKey, side: 'up' | 'down') => opensHere(k, side) || !!
  */
 function markerClick(k: NodeKey, side: 'up' | 'down') {
     why('markerClick', { key: k, side });
-    // one layer at a time with Only paths between seeds: the paths are all on screen; a side off them adds nothing
+    // one layer at a time with Paths between seeds only: the paths are all on screen; a side off them adds nothing
     if (doc?.view.between && doc.view.arrange === 'grow' && !scene?.hiddenOn(k, side).length) {
         flash(`cannot expand ${scene?.graph.nodes[k]?.name ?? k}(): its ${side === 'up' ? 'callers lead' : 'calls lead'} to no other seed `
-            + '(Only paths between seeds is on: Options > Seeds)');
+            + '(Paths between seeds only is on: Options > Call Expansion)');
         return;
     }
     if (opensHere(k, side)) { setSide(k, side, true, true); return; }
@@ -1055,8 +1055,8 @@ function tooltip(d: LabelSpan): string {
     const lv = scene!.rev.level.get(d.key);
     if (lv) lines.push(`${scene!.rev.allowed.get(d.key) === 'up' ? 'caller' : 'callee'} level ${lv}`);
     lines.push(doc!.view.arrange === 'grow'
-        ? '>> or └─>> open a side · an arrowhead closes the level it points into · double click: open or close · Delete: remove the selection'
-        : 'full: the call depth buttons choose the levels shown · Delete hides the selection');
+        ? 'Click >> to extend graph; > arrowhead to close graph path; Delete selection hides nodes'
+        : 'full:  Toolbar + - extend or close caller level; Delete selection hides nodes');
     if (doc!.view.lock[vertexUnit(d.key)]) lines.push('locked');
     return lines.map(visible).join('\n');
 }
@@ -1505,7 +1505,8 @@ svg.on('keydown', (ev: KeyboardEvent) => {
 
 // ---- toolbar and options pulldown ----------------------------------------------------------------
 // d3-selection HTML: bar buttons, pulldown panel of checkable items.
-type Btn = { label: string; title: string; on?: boolean; act: () => void; disabled?: boolean; text?: boolean };
+// `check`: a checkbox in a radio section; `sub`: indented under the entry above
+type Btn = { label: string; title: string; on?: boolean; act: () => void; disabled?: boolean; text?: boolean; check?: boolean; sub?: boolean };
 type Section = { caption: string; items: Btn[]; radio?: boolean };
 
 /** Library roots of external paths (langs.ts `externalPath`); their folders hold external code. */
@@ -1559,7 +1560,7 @@ function setArrange(to: 'grow' | 'auto') {
         return;
     }
     const v = doc.view;
-    // Only paths between seeds: the reveal is the paths (revealPaths), open sides wait for it to turn off
+    // Paths between seeds only: the reveal is the paths (revealPaths), open sides wait for it to turn off
     if (v.between) { commit((x) => { x.view.arrange = 'grow'; }); return; }
     const within = (l: number, d: Depth) => d === 'all' || l < d;
     const open: Record<NodeKey, OpenSide> = {};
@@ -1624,21 +1625,17 @@ function toggleRule(rule: string) {
 }
 
 /**
- * Only paths between seeds. One layer at a time, turned off: the paths on screen stay (`pinned`), every side
+ * Paths between seeds only. One layer at a time, turned off: the paths on screen stay (`pinned`), every side
  * closed, so nothing opens by itself; turned on: the paths of the whole graph, `pinned` dropped.
  */
 function toggleBetween() {
     if (!doc || !scene) return;
     why('toggleBetween', { on: !doc.view.between });
     const grow = doc.view.arrange === 'grow';
-    const shown = [...scene.vg.nodes.keys()].filter((k) => !isStub(k));
     commit((x) => {
         if (!x.view.between) { x.view.between = true; delete x.view.pinned; return; }
-        delete x.view.between;
-        if (!grow) return;
-        const seeds = new Set(x.view.seeds);
-        x.view.pinned = shown.filter((k) => !seeds.has(k));
-        x.view.open = Object.fromEntries(x.view.seeds.map((s) => [s, 'none' as const]));
+        if (grow) pinPaths(x, excludes, outside());
+        else delete x.view.between;
     });
 }
 
@@ -1688,8 +1685,8 @@ function toolbar() {
         { label: 'zoom fit', title: 'fit to window (0)', act: fit },
         // the expansion mode a click switches to (Options > Call Expansion)
         v.arrange === 'grow'
-            ? { label: 'Expand mode -+', title: 'switch to Global Toolbar: caller and callee levels from the toolbar (+ - call depth - +)', act: () => setArrange('auto') }
-            : { label: 'Expand mode >>', title: 'switch to Individual On Graph: >> and └─>> open one side, one layer at a time', act: () => setArrange('grow') },
+            ? { label: 'Switch expand mode to -+', title: 'switch to Global Toolbar: caller and callee levels from the toolbar (+ - call depth - +)', act: () => setArrange('auto') }
+            : { label: 'Switch expand mode to >>', title: 'switch to Individual On Graph: >> and └─>> open one side, one layer at a time', act: () => setArrange('grow') },
     ];
     const fl = folders();
     const sections: Section[] = [
@@ -1698,10 +1695,8 @@ function toolbar() {
                 act: () => setArrange('grow') },
             { label: 'Global Toolbar: + - call depth - +', title: 'caller and callee levels from the toolbar; the same picture, no opening or closing of single functions', on: v.arrange !== 'grow',
                 act: () => setArrange('auto') },
-        ] },
-        { caption: 'Seeds', items: [
-            { label: 'Only paths between seeds', title: v.arrange === 'grow'
-                ? 'draw only functions on call paths from one seed to another, any number of calls, as far as the graph data reaches; seeds always. Off: the paths stay, nothing else opens'
+            { label: 'Paths between seeds only', check: true, title: v.arrange === 'grow'
+                ? 'draw only functions on call paths from one seed to another, any number of calls, as far as the graph data reaches; seeds always; >> opens nothing. Off: the paths stay, nothing else opens'
                 : 'draw only functions on call paths from one seed to another (the call depths set how far paths are searched); seeds always',
             on: !!v.between, act: toggleBetween },
         ] },
@@ -1709,26 +1704,26 @@ function toolbar() {
             label: r === 'shortest' ? 'Shortest call path' : 'Longest call path',
             title: r === 'shortest' ? 'a function sits at the fewest calls from the seeds' : 'a function sits at the most calls from the seeds (loops not counted)',
             on: v.depthRule === r, act: () => commit((x) => { x.view.depthRule = r; }) })) } as Section] : []),
-        { caption: 'Namespaces', items: [
-            { label: 'Group namespaces', title: 'boxes per package and folder (b); right click a box or function to group or ungroup one', on: boxes,
+        { caption: 'Grouping', items: [
+            { label: 'by Namespace', title: 'boxes per package and folder (b); right click a box or function to group or ungroup one', on: boxes,
                 act: () => commit((x) => { x.view.boxes = !boxes; }) },
-            { label: 'Tight groups', title: 'namespace frames hug their content: functions moved right or down pull the frame edges along', on: v.tight ?? style!.boxes.tight,
+            { label: 'Tight', title: 'namespace frames hug their content: functions moved right or down pull the frame edges along', on: v.tight ?? style!.boxes.tight,
                 act: () => commit((x) => { x.view.tight = !(v.tight ?? style!.boxes.tight); }) },
             ...(v.group.length || v.ungroup.length ? [{ label: `Reset grouping (${v.group.length + v.ungroup.length})`, title: 'drop per-box group and ungroup choices',
                 act: () => commit((x) => { for (const c of [...x.view.group, ...x.view.ungroup]) dropMovesWithin(x, c); x.view.group = []; x.view.ungroup = []; }) }] : []),
         ] },
-        { caption: 'Edges', radio: true, items: (['glyph', 'vector'] as const).map((m) => ({
-            label: m === 'glyph' ? 'ASCII (UTF) Style' : 'D3 Vector Style', title: 'edge drawing (g)', on: mode === m, act: () => commit((x) => { x.view.edges = m; }),
-        })) },
-        ...(mode === 'vector' ? [{ caption: 'Curve', radio: true, items: (['orthogonal', 'rounded', 'sigmoid', 'spline'] as Curve[]).map((c) => ({
-            label: c, title: 'curve style of vector edges', on: curve === c, act: () => commit((x) => { x.view.curve = c; }),
-        })) } as Section] : []),
-        { caption: 'Tree parent', radio: true, items: (['dfs', 'nearest', 'joint'] as const).map((m) => ({
+        { caption: 'Parenting', radio: true, items: (['dfs', 'nearest', 'joint'] as const).map((m) => ({
             label: m === 'dfs' ? 'First caller found' : m === 'nearest' ? 'Nearest caller above' : 'Left merge incoming calls',
             title: m === 'joint' ? 'no caller privileged: a caller right above joins the elbow (├───┴─>), several callers join one collector (┌──┘ └─>)'
                 : 'which caller a shared function hangs under', on: rule === m,
             act: () => commit((x) => { x.view.parentRule = m; }) })) },
-        // mirrors the canvas context menu: entries, names, order (package.json, group 3_arrange)
+        { caption: 'Edge Style', radio: true, items: (['glyph', 'vector'] as const).map((m) => ({
+            label: m === 'glyph' ? 'ASCII (UTF)' : 'D3 Vector', title: 'edge drawing (g)', on: mode === m, act: () => commit((x) => { x.view.edges = m; }),
+        })) },
+        ...(mode === 'vector' ? [{ caption: 'Vector Style', radio: true, items: (['orthogonal', 'rounded', 'sigmoid', 'spline'] as Curve[]).map((c) => ({
+            label: c, title: 'curve style of vector edges', on: curve === c, act: () => commit((x) => { x.view.curve = c; }),
+        })) } as Section] : []),
+        // mirrors the canvas context menu: entries, names, order (package.json, group 3_arrange); then layout debugging
         { caption: 'Arrange', items: [
             { label: 'Reset graph: seeds, depth, direction', title: v.arrange === 'grow'
                 ? 'back to the seeds and their first layer: close every side, drop hidden and removed, collapsed, moves, locks, grouping'
@@ -1739,6 +1734,15 @@ function toolbar() {
                 act: () => runCmd(selected.size ? 'rearrangeSelection' : 'rearrange') },
             { label: `Unlock all (${Object.keys(v.lock).length})`, title: 'unlock every locked function and box', act: () => runCmd('unlockAll') },
             { label: `Expand collapsed (${v.collapsed.length})`, title: 'expand every collapsed container', act: () => runCmd('expandAll') },
+            { label: 'Layout debug', on: settings.debugLayout,
+                title: 'gaffy.debugLayout: right click a function or box > Why Here? lists the decisions that placed it; flagged decisions (⚑) underlined; rule switches below',
+                act: () => api.postMessage({ type: 'setting', key: 'debugLayout', value: !settings.debugLayout }) },
+            ...(settings.debugLayout ? [
+                ...Object.entries(SWITCHES).map(([r, without]) => ({ label: `${r.slice(0, 3)} ${TITLES[r]}`, on: !rulesOff.has(r), sub: true,
+                    title: `rule ${r}: on; click to switch off (${without}); nothing is saved while a rule is off`, act: () => toggleRule(r) })),
+                { label: `Decision log (${decisions.length}, ${decisions.filter((d) => d.flag).length} flagged)`, sub: true,
+                    title: 'every placement and settle decision of this picture, in an editor', act: openLog },
+            ] : []),
         ] },
         { caption: 'Folders', items: [
             { label: 'Include external code', title: 'this view: installed packages, system headers, build output (new views: gaffy.includeExternal); turning it on asks the language server again',
@@ -1757,11 +1761,6 @@ function toolbar() {
                 }
             }) })),
         ] },
-        ...(settings.debugLayout ? [{ caption: 'Layout debugging', items: [
-            ...Object.entries(SWITCHES).map(([r, without]) => ({ label: `${r.slice(0, 3)} ${TITLES[r]}`, on: !rulesOff.has(r),
-                title: `rule ${r}: on; click to switch off (${without}); nothing is saved while a rule is off`, act: () => toggleRule(r) })),
-            { label: `Decision log (${decisions.length}, ${decisions.filter((d) => d.flag).length} flagged)`, title: 'every placement and settle decision of this picture, in an editor', act: openLog },
-        ] } as Section] : []),
         // first four mirror the canvas context menu (package.json, group 1_file)
         { caption: 'File', items: [
             ...(settings.saveViews ? [] : [{ label: 'Save (.gaffy)', title: 'save this graph (.baggy/gaffy/)', act: () => api.postMessage({ type: 'save' }) }]),
@@ -1796,8 +1795,9 @@ function toolbar() {
         for (const sec of sections) {
             panel.append('div').attr('class', 'caption').text(sec.caption);
             for (const it of sec.items) {
-                const row = panel.append('div').attr('class', 'item').attr('title', it.title).on('click', () => it.act());
-                row.append('span').attr('class', 'check').text(it.on === undefined ? '' : it.on ? (sec.radio ? '●' : '✓') : (sec.radio ? '○' : ''));
+                const radio = sec.radio && !it.check;
+                const row = panel.append('div').attr('class', it.sub ? 'item sub' : 'item').attr('title', it.title).on('click', () => it.act());
+                row.append('span').attr('class', 'check').text(it.on === undefined ? '' : it.on ? (radio ? '●' : '✓') : (radio ? '○' : ''));
                 row.append('span').text(it.label);
             }
         }
@@ -1806,31 +1806,34 @@ function toolbar() {
 
 document.addEventListener('click', () => { if (optsOpen) { optsOpen = false; toolbar(); } });
 
+/**
+ * Status line: language-server work, a refused action, counts, selection, the expansion mode, layout debugging,
+ * then states that change behavior (frozen, unsaved, truncated, unrouted calls) and the last build.
+ */
 function status() {
     const el = select('#status');
     const working = busy ? `⟳ language server: ${phase || 'working'} ${'.'.repeat(dots)}` : '';
     el.classed('busy', busy).classed('flash', !!flashText);
     if (!scene || !doc) { el.text(working); return; }
+    const v = doc.view;
     const parts = [...(flashText ? [`⚠ ${flashText}`] : []), ...(working ? [working] : []), `${scene.vg.nodes.size} nodes`, `${scene.vg.edges.length} calls`];
-    if (settings.debugLayout && decisions.length) {
-        const n = decisions.filter((d) => d.flag).length;
-        parts.push(`layout: ${decisions.length} decisions, ${n} flagged${n ? ' (⚑, right click > Why here?)' : ''}${rulesOff.size ? `, ${rulesOff.size} rules off` : ''}`);
-    }
     if (selected.size) parts.push(`${selected.size} selected`);
     if (selCalls.size === 1) {
         const { caller, callee } = asCall(unkey([...selCalls][0]));
         parts.push(`call ${scene.graph.nodes[caller]?.name ?? caller}() → ${scene.graph.nodes[callee]?.name ?? callee}()`);
-    } else if (selCalls.size) parts.push(`${selCalls.size} calls selected (Enter: isolate)`);
-    if (scene.grid.unrouted) parts.push(`${scene.grid.unrouted} calls unrouted`);
+    } else if (selCalls.size) parts.push(`${selCalls.size} calls selected`);
+    parts.push(v.between ? 'Locked: paths between seeds' : v.arrange === 'grow' ? '>> Individual' : '+ - Full layer');
+    if (settings.debugLayout) {
+        const n = decisions.filter((d) => d.flag).length;
+        parts.push(`Layout Debug: ${decisions.length} decisions, ${n} ⚑${rulesOff.size ? `, ${rulesOff.size} rules off` : ''}`);
+    }
+    if (v.static) parts.push('Static');
+    else if (settings.held) parts.push('Frozen');
+    if (settings.unsaved) parts.push('Unsaved');
     if (doc.truncated) parts.push('truncated at gaffy.maxNodes');
-    if (settings.untitled) parts.push('unsaved view: right click > Save keeps it');
-    if (doc.view.static) parts.push('static view: no language server');
-    else if (settings.held) parts.push('frozen: Unfreeze in the toolbar');
+    if (scene.grid.unrouted) parts.push(`${scene.grid.unrouted} calls unrouted`);
     if (note) parts.push(note);
     if (!busy && doc.updated) parts.push(`built ${new Date(doc.updated).toLocaleString()}${doc.commit ? ` at ${doc.commit}` : ''}`);
-    parts.push(doc.view.arrange === 'grow'
-        ? '>> └─>> open · arrowhead: close its level · click a line: select · Delete remove · dblclick toggle · drag move · right-click menu'
-        : 'full: call depth in the toolbar · click open · ctrl/shift+click select · Delete hide · drag move · right-click menu');
     el.text(parts.join(' · '));
 }
 

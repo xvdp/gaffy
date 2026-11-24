@@ -2,7 +2,7 @@
   "name": "gaffy",
   "displayName": "gaffy",
   "description": "Persistent, manipulable call graphs on a character grid, rendered with D3",
-  "version": "0.9.32",
+  "version": "0.9.33",
   "publisher": "xvdp",
   "license": "Apache-2.0",
   "repository": {

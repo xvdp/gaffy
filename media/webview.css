@@ -72,6 +72,7 @@ body { display: flex; flex-direction: column; }
 #toolbar .panel .item { display: flex; gap: 8px; padding: 3px 12px; cursor: pointer; white-space: nowrap; }
 #toolbar .panel .item:hover { background: var(--vscode-menu-selectionBackground, var(--vscode-list-hoverBackground)); color: var(--vscode-menu-selectionForeground, inherit); }
 #toolbar .panel .check { width: 1em; text-align: center; }
+#toolbar .panel .item.sub { padding-left: 1.6em; }
 
 #banner {
     position: absolute;

@@ -328,6 +328,19 @@ function revealOf(doc: ViewDoc, exclude: readonly PathTest[], external: boolean 
     return revealView(quotient(doc.graph, new Set(v.collapsed), new Set([...v.hidden, ...excludedKeys(doc, exclude, external)]), v.seeds), doc);
 }
 
+/**
+ * Paths between seeds only, turned off one layer at a time: the paths on screen stay (`pinned`), every seed side
+ * closed, so nothing opens by itself; `between` and `pinPaths` dropped.
+ */
+export function pinPaths(doc: ViewDoc, exclude: readonly PathTest[] = [], external: boolean | Outside = true): void {
+    const shown = revealOf(doc, exclude, external).visible;
+    const seeds = new Set(doc.view.seeds);
+    doc.view.pinned = [...shown].filter((k) => !seeds.has(k));
+    doc.view.open = Object.fromEntries(doc.view.seeds.map((s) => [s, 'none' as const]));
+    delete doc.view.between;
+    delete doc.view.pinPaths;
+}
+
 /** Vertices with call requests: definitions, classes (construction runs `__init__`, implicit.ts). */
 const asked = (n: GNode | undefined) => !isContainer(n) || n?.kind === 'class';
 
