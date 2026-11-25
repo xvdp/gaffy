@@ -1,58 +1,95 @@
 # gaffy
-*VS Code extension* that generates persistent, editable call graphs, leveraging D3 and can be exported to ASCII (UTF) style.
+## Call Hierarchy graph.
+One of the hammers in my bag to understand code tangles. Persistent data saved to `<vscode-root>/.baggy/`.
 
-This sketch uses the character grid logic of ASCII, the clean looks of D3, to extend VS Code call graphs.
+Extends vscode `Call Hierarchy` upstream with `downstream` calls in the form of `editable`, `persistent`, `exportable` as ASCII (UTF) graph style.
 
-Supports Python, TypeScript, JavaScript, Rust, C++, CUDA, Objective-C, Go, Java, C#, Kotlin, Swift, Dart, relying on their language servers, partial support for Slang. Some cross language support across pybind11, nanobind, wasm-bindgen. More info in [docs/development.md](docs/development.md).
+Supports `Python`, `TypeScript`, `JavaScript`, `Java`, `Rust`, `C`,`C++`, `CUDA`, `C#`, `Go`, `Kotlin`, `Swift`, `Dart`, relying on their language servers. Partial support for `Slang`.  Partial cross language support across `pybind11`, `nanobind`, `wasm-bindgen`. More info in [docs/development.md](docs/development.md).
 
+Generates .json graphs saved as  `<vscode-root>/.baggy/gaffy/<symbol>_<commit>.gaffy`.
 
-Graphs are .json (.gaffy) files saved as  `<vscode-root>/.baggy/gaffy/<symbol>_<commit>.gaffy`; views written by [giddy](https://github.com/xvdp/giddy) live in their repository, `<repo>/.baggy/gaffy/`, beside giddy's reports in `<repo>/.baggy/giddy/`.
-
-## Install from vscode marketplace
-Stupid MS locked my account so not yet published. I suppose if i were an agent i would have the patience to go thru with their byzantine mating rituals to unlock an account.
+### Not published as vscode extension because...
+MS appears to think that I am not human, ergo my accounts get locked when i try to publish. Perhaps I need an ai assisstant to pass the "are you human" tests.
 
 
 ## Install from Source
 
 ```bash
 npm install
-npm run package         # typecheck, tests, bundles, gaffy-<version>.vsix
-npm run install:local   # also:  code --install-extension gaffy-<version>.vsix
+npm run package
+npm run install:local   # ≡:  code --install-extension "gaffy-$(node -p "require('./package.json').version").vsix"
+
+# reenter vscode or reload
+`Ctrl+Shift+P` > Developer: Reload Window
 ```
-### Test installed .vsix extension
-`Ctrl+Shift+P > **Developer: Reload Window**`
 
-### Access points:
-Function context and file explorer file content.
+### Usage: 1. Code tab > RMB over a symbol >  menu > 
 
-`gaffy> Call hierarchy (up)` is similar to VS Code `Show Call Hierarchy` with several differences beyond the gaffy view:
-* partial cross language support [`src/host/bridges.ts`](src/host/bridges.ts) 
-* call hierarchy can be exapanded to called functions as well.
+```
+gaffy> Call hierarchy (up)  # similar to VS Code Show Call Hierarchy: upstream callers
+gaffy> Call hierarchy (dn)  # downstream calls
+gaffy> Add to Call graph    # calls and callers in an existing call graph.
+```
+
 
 <p align="center">
-  <img src="images/gaffy_func_ctxt.png" alt="Editor right click on a function: gaffy> Call Hierarchy (up)" width="48%" align="middle">
-  &nbsp;<b> --> </b>&nbsp;
-  <img src="images/gaffy_cross_lang.png" alt="The gaffy view it opens: Python callers reaching the CUDA function coord2Morton" width="48%" align="middle">
-</p>
+  <img src="images/gaffy_func_ctxt.png" alt="Editor right click on a function: gaffy> Call Hierarchy (up)" width="32.2%" align="middle">
+  &nbsp;<b> -> generates editable vectors </b>&nbsp;
+  <img src="images/gaffy_cross_lang.png" alt="The gaffy view it opens: Python callers reaching the CUDA function coord2Morton" width="45%" align="middle">
+  &nbsp;<b> -> exports </b>&nbsp;
+</p> 
+<small>Example reference on https://github.com/Anttwo/MILo </small>
 
+- Expandable modes: `>>` traverse individual calls, or `switch to -+ mode` a call depth step at once.
+- Link types: `───` regular callers, `┈┈` class members,  `·─·─` cross language calls.
 
 ```
-╭┄ scene ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄╮
-┆  >> __init__.Scene()                                    ┆
-┆  └┈> __init__.Scene.__init__()                          ┆
-┆      └─> gaussian_model.GaussianModel.create_from_pcd() ·┐
-┆  >> gaussian_model.GaussianModel.reinitial_pts() ─┐     ┆│
-╰┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄·┄┄┄┄┄╯·
-                                    ┌─·─·─·─·─·─·─·─┴─·─·─·┘
-                                    ·╭┄ submodules/simple-knn ┄╮
-                                    └─> spatial.distCUDA2()    ┆
-                                     ┆  └─> simple_knn.knn()   ┆
-                                     ┆      └─>>               ┆
-                                     ╰┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄╯
+╭┄ scene ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄╮
+┆  __init__.__init__()                                ┆
+┆  └─> gaussian_model.GaussianModel.create_from_pcd() ·┐
+┆  >> gaussian_model.GaussianModel.reinitial_pts() ─┐ ┆·
+╰┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄│┄╯│
+                    ┌─·─·─·─·─·─·─·─·─·─·─·─·─·─·─·─┴─·┘
+                    │╭┄ submodules/simple-knn ┄┄┄┄┄┄┄┄┄┄┄┄╮
+                    └─> spatial.distCUDA2()               ┆
+                     ┆  └─> simple_knn.knn()              ┆
+                     ┆      ├─> simple_knn.coord2Morton() ┆
+                     ┆      ├─> simple_knn.boxMinMax()    ┆
+                     ┆      └─> simple_knn.boxMeanDist()  ┆
+                     ┆          └─>>                      ┆
+                     ╰┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄╯
 ```
 
 
 ![demo](images/demo.gif)
+
+## General usage
+Most interactions are intuitive albeit some may be arcanely named.
+
+Saving a `.gaffy`, exporting to UTF, `.txt`, `.md`, or debug trace creates `<vscode root>/.baggy/`.
+
+Default .gaffy vscode config declared in `package.json`, is accessble accessible thru the gaffy window `Options` menu. 
+
+
+
+* Defaults: `Autosave []`, cross language `Bridges [✓]`, `Debug Layout []`, prefetch `Depth [3]`, `Exclude []` folders,  
+
+`gaffy.depth`: 3, `gaffy.maxNodes`: 400, `gaffy.includeExternal`: false, `gaffy.includeStandardLibrary`: false, `gaffy.autoSave`: true, `gaffy.refreshOnSave`: 'touched', `gaffy.openDefinitions`: true, `gaffy.style`:  {}, `gaffy.exclude`: [],`gaffy.openCallHierarchy`: true,`gaffy.bridges`: true,`gaffy.saveViews`:`default`: false, `gaffy.debugLayout`: `default`: false,`gaffy.trace`: false
+
+
+
+
+
+Layout
+
+ or  Unsaved graphs prompt user decision on close. Graphs can be set to Autosave in vscode .gaffy settings which is accessible thru the Options menu. Other gaffy vscode settings are self explanatory.
+
+There are several graph layout options
+
+
+
+This setting can be changed thru the Options menu (top right), the vscode .gaffy settings accessible thru vscode or the options menu.
+
 
 
 Development: `gaffy/` in VS Code, F5 (Extension Development Host); `npm run watch` rebuilds on change.
@@ -65,105 +102,6 @@ Development: `gaffy/` in VS Code, F5 (Extension Development Host); `npm run watc
 
 
 
-`style.json` `view.traverse: "both"`: new views start with callers and calls. Explorer right click on a file > **gaffy** > Call Hierarchies (all, up): each function of the file with one caller level, full layout. `gaffy: Check Language Servers`: workspace languages, extension providing each call hierarchy, missing installs; a notification once per version when a required extension is missing (Install, Show Report, Don't Show Again).
-
-New view: unsaved, bound to `.baggy/gaffy/<symbol>_<short commit hash>.gaffy` (`<symbol>_<YYYYMMDD-HHMM>` outside git); right click > Save (.gaffy) writes it; Autosave Graphs (`gaffy.saveViews`) saves new views at once. Save as Text (key `x`): `.baggy/gaffy/<symbol>_<commit>.md` and `.txt` in the view's project, named in a notification.
-
-Options values belong to the view: edge style, curve, tree parent, grouping, tight groups, external code and standard library are stored in it when it is created (or unfrozen); `style.json` and the settings are defaults for new views only.
-
-Build: one layer, drawn at once; in the background, callers and calls of each function on screen (for the markers) and `gaffy.depth` layers prefetched along the traversal direction. Reopened view: the stored graph at once ([Building, progress, cache](#building-progress-cache)).
-
-## One layer at a time
-
-```
-                 up_sym_3() ─────┐
-    up_sym_2() ──┐               │
- >> up_sym_1() ─┴─> my_symbol() <┘
-                    ├─> downsym_1()
-                    └─> downsym_2()
-                        └─>>
-```
-
-- Markers: `>> name()` (callers off screen), `└─>>` (calls off screen); a click shows one more layer; no marker on a side with nothing more.
-- Direction: a seed opens both sides; a callee only its calls; a caller only its callers. Other callers of a callee: a view seeded at that callee (editor right click > gaffy> Call Hierarchy (up)).
-- Arrowhead click (arrowhead cell, blank before the name; hover highlights its calls): closes the level it points into (a function's callers, or the calls of the caller showing it); the owner of the closed side keeps its place.
-- **Delete** (or Backspace): selected calls cut (with the branch below unless another call shows it), selected functions hidden; a box header click selects its functions. Hidden or removed neighbors keep a `└─>>` or `>> ` marker, both layouts, either side; where the marker opens no side (full layout, or a side the direction rule keeps closed), a click restores those neighbors and the hidden functions on their path from the seeds. **Show all (n)** and Esc (nothing selected): everything removed back, every collapsed container expanded.
-- Layout: tree (caller above callee, `A └─> B`; by namespace box, left to right, top to bottom, callers to calls), rerun after each change. Anchor: the function last opened, closed or removed keeps its screen position. Closed sides stay recorded; reopening restores the layers below.
-- Moves: kept while sides open and data arrives; content grown onto a moved unit moves it to the nearest clear spot (12 cells around, else straight up to 80; [src/core/settle.ts](src/core/settle.ts)), saved in the view. Opening the callers of a moved function hands its move to the new tree parent right above it (`prev()`, then `└─> fun()`). Details: [docs/ordering.md](docs/ordering.md), section 5.
-- Label end: receives or sends, never both; a function sending from its end receives from the left, one receiving at its end sends from under or over its name, else dashed.
-- Drop repulsion: a drop closer to a label than `name() ─> next()` needs, onto a box border, or cutting a route steps along the drag (then sideways, then back) to the nearest clean spot, at most 12 cells. A call with no route: dashed, with its arrowhead.
-- Options > Call Expansion > Global Toolbar (**Full**): every function within the toolbar call depths `all` `+` `−` *n* `call depth` *m* `−` `+` `all` (*n* caller levels left, *m* callee levels right, `all`: every level in the data). Call depth by: **shortest call path** (fewest calls from a seed) or **longest call path** (most calls, loop back edges excluded). Switching keeps the picture: Full adopts the deepest levels on screen; one layer at a time opens the sides within those depths. Closed sides and removed calls: one layer at a time only.
-
-Editor submenu `gaffy` (defined, unused: `contributes.submenus`, `contributes.menus["gaffy.editor"]`): replace the three `editor/context` entries by `{ "submenu": "gaffy.editor", "group": "z_gaffy@1" }`.
-
-## Layout
-
-```
-┌─ kazoo ─────────────────────────────────────────────────────────────────┐
-│  ┌─ moomoo.boogaloos ────────────┐         ┌─ noodles ────────────────┐ │
-│  │  scoobie() ───────────────────┼──┬─────┬┼> wibbles.to_magoo() ↻    │ │
-│  │  ├─> resolve_patatas() ──┐    │  │     ││  ├─> wibbles._zoink()    │ │
-│  │  ├─> _in_shoo() <────────┘    │  │     ││                          │ │
-│  │  ├─> _from_jinkie() ──────────┼──┘     ││                          │ │
-│  │  ├─> _from_noodles() ────┐    │        ││                          │ │
-│  │  │   └─> _stacked() ─────│────┼────────┴┼> wibbles.to_mooch()      │ │
-```
-
-- Callers above their callees; `└─>` points to the callee.
-- Namespace boxes (optional, key `b`): packages and folders; a package with one module merges with it (`moomoo.boogaloos`); labels relative to their box. Callee boxes right of caller boxes; top-level functions of a box take the rows of their outside callers (level calls). A moved box or function displaces nothing: later boxes take columns and rows from its unmoved position.
-- `>> name()`, `└─>>`: callers, calls off screen (closed, beyond the call depth, hidden, or removed).
-- `├─>`, `└─>`: tree edge from the caller's stem. `──┐ ──┤ <──┘`: lane inside a box. `──> f()`: routed call from the left, across box borders. Merge, fork: calls into, or from, one function on one line; unrelated calls never share a line.
-- Vector mode: horizontal call hops over a crossed vertical one (orthogonal, rounded); branches of a merge or fork curve in the call direction.
-- `↻`: direct recursion; `↻ f()`: call back to `f` higher in the same chain.
-- `[moomoo.boogaloos] (6)`: collapsed container, member count; its move or lock applies only while collapsed (unit `collapsed:<key>`); expanding restores the layout from before the collapse.
-
-Algorithms: [src/core/layout.ts](src/core/layout.ts) (rows and lanes in a block), [src/core/boxes.ts](src/core/boxes.ts), [src/core/place.ts](src/core/place.ts) (2D placement, moves, locks), [src/core/grid.ts](src/core/grid.ts) (routing). Rules with code links: [docs/heuristics.md](docs/heuristics.md) (layout heuristics; the same graph as a gaffy view: [docs/heuristics.gaffy](docs/heuristics.gaffy)), [docs/ordering.md](docs/ordering.md) (triggers, interpreters, layout functions, drawing of one call, what a drag moves).
-
-## Interaction
-
-| input | action |
-|---|---|
-| click a function | select; definition opened next to the graph (`gaffy.openDefinitions`) |
-| Shift+click a function | selection toggle |
-| Shift+drag on the background | selection window: every label touched |
-| `>> name()` / `└─>>` (one layer at a time) | open callers / calls, removed ones included |
-| click an arrowhead (one layer at a time) | close the level it points into |
-| double click a function (one layer at a time) | close both sides, or open every side with more |
-| double click a collapsed container; a box header | expand it; collapse the box |
-| drag a function | move with its tree children, or all selected; calls re-route; its namespace box grows around it |
-| drag a box header | move the box and its content |
-| hover a function name | card (not over the `>> ` of callers off screen, which keeps its own title): the language server's signature (as VS Code's hover, return types included where the server infers them), one parameter per line, VS Code hover colors; then qualified name, `path:line`, levels |
-| hover an arrow | highlight every call through the cell, end to end |
-| click an arrow | select every call through the cell (whole fork or merge); Shift toggles |
-| double click an arrow | isolate: selected calls' callers and everything below their callees |
-| Enter | isolate selected calls or functions; one focused function: open it |
-| Esc | clear the selection; nothing selected: show all |
-| right click a function | VS Code: editor context menu, peek references, call hierarchy, reveal in explorer, copy path or name, go to definition (`gaffy.openDefinitions` off); open or close callers, calls (one layer at a time); make or remove a seed (place kept; missing side asked); select upstream, downstream, through, between two or more, clear; isolate selection, hide selection (else the function clicked; seeds stay), show hidden neighbors; collapse class, module, package; group its module; re-arrange selected, lock, unlock, move among siblings, tag |
-| right click the canvas | Options > File entries except Edit style.json and Settings; Isolate Selection, Clear Selection; ✓ Group namespaces, ✓ Tight groups; Options > Arrange entries |
-| right click a box header | collapse, ungroup (box dissolved, inner moves dropped, content at computed places in the enclosing box), group the modules inside, lock, unlock, reveal, copy path |
-| right click an arrow | **Straighten This Call (route it first)**, isolate this call, isolate the path through it, go to call site, go to callee |
-| ↑ ↓, Alt+↑ ↓ | move focus; move the focused function among its siblings |
-| e, c or ←, → | open the focused function's sides that have more (one layer at a time); collapse innermost container; expand collapsed |
-| Delete or Backspace, h, i, k | remove selection (calls cut, functions hidden; full: hide functions); hide selection; isolate selection; lock or unlock the focused function |
-| u, g, b, r, 0, x | unhide all; glyph or vector edges; group namespaces; refresh from language server; zoom fit; export |
-
-Toolbar: **Isolate** (nothing hidden) or **Show all (n)** (something hidden), call depths (full), **zoom fit**, **Expand mode >>** / **Expand mode -+** (switch to that call expansion), **☰ Options** (pulldown, checkmarks):
-
-- Call Expansion: Individual On Graph (one layer at a time), Global Toolbar (full); ✓ Paths between seeds only (`view.between`; full: paths within the call depths; one layer at a time: every path in the graph data, any number of calls, and a marker click says the side leads to no other seed; turned off one layer at a time: the paths stay, nothing else opens); Call depth by (full): shortest or longest call path
-- Grouping: ✓ by Namespace, ✓ Tight (default on, style `boxes.tight`: frames fit their content on all sides), reset per-box grouping (moves inside changed boxes dropped)
-- Parenting: first caller found (dfs), nearest caller above, left merge (joint: a caller right above joins the elbow `├───┴─>`; several callers in a box join one collector from the left, `┌──┘` then `└─>`; calls between boxes arrive from the left where cells are free)
-- Edge Style: ASCII (UTF) (box drawing glyphs) or D3 Vector; Vector Style: orthogonal, rounded, sigmoid, spline. Cross-language calls dash-dot, implicit calls dotted, every style and the text export (`┈ ┊`, `─·─·`)
-- Arrange, also on canvas right click (key `a`: re-arrange): **Reset graph**: seeds, depth, direction (one layer at a time: seeds and first layer; full: starting call depths), **Reset Layout**: moves, locks, order (sibling order, straightened calls), Re-arrange (selected functions to their computed place; no selection: every unlocked move dropped), Unlock all, Expand collapsed; ✓ Layout debug (`gaffy.debugLayout`, [Layout debugging](#layout-debugging)), with the rule switches and the decision log below it while on
-- Folders: ✓ Include external code (this view; new views: `gaffy.includeExternal`; on: language server asked again; off: hidden at once), ✓ Include standard library (this view; new views: `gaffy.includeStandardLibrary`), then each top-level folder, included or excluded (external and standard library folders listed only while included). Draw-time filters: calls into an excluded folder stay stored, so including it shows them without the language server.
-- File: Save (.gaffy) (Autosave Graphs off), ✓ Frozen (see [Freeze on open](#freeze-on-open); also `gaffy: Freeze or Unfreeze View`), ✓ Autosave Graphs (`gaffy.saveViews`), Save as Text (.txt, .md), Refresh Language Server, Edit style.json, Settings (filtered to gaffy)
-
-Status line: nodes, calls, selection; expansion mode (`>> Individual`, `+ - Full layer`, `Locked: paths between seeds`); `Layout Debug` with decision and flag counts; `Frozen`, `Unsaved`, truncated, unrouted calls, last build; while the language server works, `⟳ language server: <phase>` with growing dots.
-
-Toolbar, pulldown: HTML built with d3-selection, VS Code theme variables (`--vscode-menu-*`). Graph: SVG drawn with D3.
-
-Locks: a locked function or box keeps its absolute position; unlocked items placed around it.
-
-"Editor Context Menu…": the definition in an editor, with VS Code's editor context menu at its cursor (entries of every installed extension). Explorer context menu of a file: no VS Code command; "Reveal in Explorer" selects the file, Shift+F10 opens its menu.
 
 ## Views from scripts
 

@@ -96,7 +96,7 @@ function bends(cells: number[]): [number, number][] {
     for (let i = 1; i < cells.length - 1; i++) {
         const [r0, c0] = cellRC(cells[i - 1]), [r1, c1] = cellRC(cells[i]), [r2, c2] = cellRC(cells[i + 1]);
         if ((r1 - r0 !== r2 - r1) || (c1 - c0 !== c2 - c1)) out.push([c1 + 0.5, r1 + 0.5]);
-    }
+    }                                                                                                                                                                       
     return out;
 }
 

@@ -1,8 +1,5 @@
 # gaffy dev
 
-## Extension not yet published
-
-
 
 ## Languages Supported
 
