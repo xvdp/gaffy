@@ -81,7 +81,7 @@ describe('addendum 1a: scoobie and its callees', () => {
         expect(rt.c0).toBeGreaterThan(rh.c1);
         expect(sc.grid.labels.find((l) => l.key === k('kazoo.moomoo.boogaloos:scoobie'))!.text).toBe('scoobie()');
         expect(sc.grid.labels.find((l) => l.key === k('kazoo.noodles.wibbles:mister_magoos'))!.text).toBe('wibbles.mister_magoos()');
-        // callee level with its caller: _lasagna() → jumbles.to_wacky() drawn on one row
+        // callee level with its caller: _lasagna() => jumbles.to_wacky() drawn on one row
         expect(sc.placement.pos.get(k('kazoo.noodles.jumbles:to_wacky'))!.row)
             .toBe(sc.placement.pos.get(k('kazoo.moomoo.boogaloos:_lasagna'))!.row);
         golden('kazoo_boxes', text(sc, boxed()));
@@ -556,7 +556,7 @@ describe('collapse around a seed', () => {
 });
 
 describe('hidden functions leave markers', () => {
-    // magoo → shoo → scoobie, and boo → scoobie; seed magoo
+    // magoo => shoo => scoobie, and boo => scoobie; seed magoo
     const n = (q: string): GNode => ({ key: `py:foo.py#${q}`, kind: 'function', name: q, qual: q, module: 'foo', parent: 'py:foo.py', path: 'foo.py' });
     const doc = (view: object) => {
         const d = parseDoc(JSON.stringify({ gaffy: 1, name: 'h', view: { seeds: ['py:foo.py#magoo'], ...view } }), 'h');
@@ -767,7 +767,7 @@ describe('view files are data', () => {
 });
 
 describe('only paths between seeds', () => {
-    // a → b → c with seeds a and c; d (called by a) and e (calling c) lie on no seed-to-seed path
+    // a => b => c with seeds a and c; d (called by a) and e (calling c) lie on no seed-to-seed path
     const edges: [string, string][] = [['m:a', 'm:b'], ['m:b', 'm:c'], ['m:a', 'm:d'], ['m:e', 'm:c']];
     const doc = (between: boolean) => fixtureDoc(edges, { seeds: [k('m:a'), k('m:c')], direction: 'both', arrange: 'auto', depthUp: 'all', depthDown: 'all', ...(between ? { between } : {}) });
     const names = (sc: Scene) => [...sc.vg.nodes.keys()].filter((x) => !x.startsWith('⋯')).map((x) => x.split('#').pop()).sort();
@@ -784,7 +784,7 @@ describe('only paths between seeds', () => {
         expect(parseDoc(JSON.stringify({ gaffy: 1, view: { between: 1 } })).view.between).toBeUndefined();
     });
 
-    // a → b → f → g → c: a path of four calls; one layer at a time opens nothing
+    // a => b => f => g => c: a path of four calls; one layer at a time opens nothing
     const long: [string, string][] = [['m:a', 'm:b'], ['m:b', 'm:f'], ['m:f', 'm:g'], ['m:g', 'm:c'], ['m:a', 'm:d'], ['m:e', 'm:c']];
     const grow = (v: Partial<ViewSpec>) => fixtureDoc(long, { seeds: [k('m:a'), k('m:c')], direction: 'both', arrange: 'grow', open: {}, ...v });
 

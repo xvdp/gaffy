@@ -110,7 +110,7 @@ export function emptyDoc(name: string, view: Partial<ViewSpec> = {}): ViewDoc {
 export const MAX_OFFSET = 1000, MAX_LOCK = 2000;
 
 /**
- * `.gaffy` JSON text → view document; empty text → empty view, missing fields → defaults, unknown fields dropped.
+ * `.gaffy` JSON text => view document; empty text => empty view, missing fields => defaults, unknown fields dropped.
  * Untrusted (cloned repositories): lists keep strings; keyed records drop `__proto__`, `constructor`, `prototype`
  * keys and wrongly typed values; offsets, locks: integer cells in ±MAX_OFFSET, [0, MAX_LOCK]; enumerations keep
  * known values. Migration: per-side depths from `direction`, `depth`.
@@ -209,7 +209,7 @@ export function serializeDoc(doc: ViewDoc): string {
 /**
  * Builtin and standard-library paths, keyed by `externalPath` (langs.ts): Python typeshed `stdlib/`, `pythonX.Y/`
  * (nested `site-packages` keys from `site-packages/`), Rust `library/` (core, alloc, std), TypeScript
- * `…/typescript/lib/lib.*.d.ts`, C++ `include/c++/`. External nodes only: workspace folders may share these names.
+ * `.../typescript/lib/lib.*.d.ts`, C++ `include/c++/`. External nodes only: workspace folders may share these names.
  */
 const STANDARD = /^(stdlib|python\d+(\.\d+)?)\/|^library\/|(^|\/)typescript\/lib\/lib\.[^/]*\.d\.ts$|^include\/c\+\+\//;
 export const isStandard = (path: string | undefined): boolean => !!path && STANDARD.test(path);
@@ -229,7 +229,7 @@ export function excludedBy(view: ViewSpec, globs: readonly PathTest[]) {
 export interface PathTest { test(path: string): boolean }
 
 /**
- * Glob → whole-path test, `/`-separated: `**` any characters, `**` + `/` zero or more segments, `*` within one
+ * Glob => whole-path test, `/`-separated: `**` any characters, `**` + `/` zero or more segments, `*` within one
  * segment, `?` one non-`/` character, others literal. Reachable-position set per token, no backtracking:
  * O(tokens · path length). Equivalent regex: exponential backtracking in `**` count on near-matches (41 s measured,
  * 8 `**a`, 60 characters); globs come from workspace settings.

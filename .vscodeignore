@@ -28,6 +28,7 @@ dist/ffprofile/**
 
 dist/heuristics.cjs
 dist/ordering.cjs
+dist/examples.cjs
 dist/explain.cjs
 dist/providers.cjs
 dist/metrics.cjs

@@ -143,7 +143,7 @@
     "module": "src/webview/main",
     "parent": "ts:src/webview/main.ts",
     "path": "src/webview/main.ts",
-    "line": 435,
+    "line": 438,
     "detail": "code"
    },
    "ts:src/webview/main.ts#afterRender": {
@@ -154,7 +154,7 @@
     "module": "src/webview/main",
     "parent": "ts:src/webview/main.ts",
     "path": "src/webview/main.ts",
-    "line": 686,
+    "line": 689,
     "detail": "code"
    },
    "ts:src/webview/main.ts#setSide": {
@@ -165,7 +165,7 @@
     "module": "src/webview/main",
     "parent": "ts:src/webview/main.ts",
     "path": "src/webview/main.ts",
-    "line": 788,
+    "line": 791,
     "detail": "code"
    },
    "ts:src/webview/main.ts#anchorAt": {
@@ -176,7 +176,7 @@
     "module": "src/webview/main",
     "parent": "ts:src/webview/main.ts",
     "path": "src/webview/main.ts",
-    "line": 773,
+    "line": 776,
     "detail": "code"
    },
    "ts:src/webview/main.ts#dragUnit": {
@@ -187,7 +187,7 @@
     "module": "src/webview/main",
     "parent": "ts:src/webview/main.ts",
     "path": "src/webview/main.ts",
-    "line": 1124,
+    "line": 1127,
     "detail": "code"
    },
    "ts:src/webview/main.ts#topUnits": {
@@ -198,7 +198,7 @@
     "module": "src/webview/main",
     "parent": "ts:src/webview/main.ts",
     "path": "src/webview/main.ts",
-    "line": 1115,
+    "line": 1118,
     "detail": "code"
    },
    "ts:src/webview/main.ts#settleDrop": {
@@ -209,7 +209,7 @@
     "module": "src/webview/main",
     "parent": "ts:src/webview/main.ts",
     "path": "src/webview/main.ts",
-    "line": 1225,
+    "line": 1228,
     "detail": "code"
    },
    "ts:src/webview/main.ts#runCmd": {
@@ -220,7 +220,7 @@
     "module": "src/webview/main",
     "parent": "ts:src/webview/main.ts",
     "path": "src/webview/main.ts",
-    "line": 1294,
+    "line": 1297,
     "detail": "code"
    },
    "ts:src/core/scene.ts#buildScene": {
@@ -253,7 +253,7 @@
     "module": "src/core/scene",
     "parent": "ts:src/core/scene.ts",
     "path": "src/core/scene.ts",
-    "line": 327,
+    "line": 329,
     "detail": "code"
    },
    "ts:src/core/reveal.ts#reveal": {
@@ -297,7 +297,7 @@
     "module": "src/core/place",
     "parent": "ts:src/core/place.ts",
     "path": "src/core/place.ts",
-    "line": 81,
+    "line": 82,
     "detail": "code"
    },
    "ts:src/core/place.ts#placeBox": {
@@ -308,7 +308,7 @@
     "module": "src/core/place",
     "parent": "ts:src/core/place.ts",
     "path": "src/core/place.ts",
-    "line": 269,
+    "line": 270,
     "detail": "code"
    },
    "ts:src/core/place.ts#placeBlock": {
@@ -319,7 +319,7 @@
     "module": "src/core/place",
     "parent": "ts:src/core/place.ts",
     "path": "src/core/place.ts",
-    "line": 115,
+    "line": 116,
     "detail": "code"
    },
    "ts:src/core/layout.ts#layout": {
@@ -363,7 +363,7 @@
     "module": "src/core/reveal",
     "parent": "ts:src/core/reveal.ts",
     "path": "docs/heuristics.md",
-    "line": 74,
+    "line": 75,
     "detail": "First revealer: code src/core/reveal.ts:69"
    },
    "ts:src/core/reveal.ts#h02_call_depth_by_path": {
@@ -374,7 +374,7 @@
     "module": "src/core/reveal",
     "parent": "ts:src/core/reveal.ts",
     "path": "docs/heuristics.md",
-    "line": 80,
+    "line": 81,
     "detail": "Call depth by path: code src/core/reveal.ts:88"
    },
    "ts:src/core/boxes.ts#h03_box_order": {
@@ -385,7 +385,7 @@
     "module": "src/core/boxes",
     "parent": "ts:src/core/boxes.ts",
     "path": "docs/heuristics.md",
-    "line": 90,
+    "line": 91,
     "detail": "Box first-appearance order: code src/core/boxes.ts:53"
    },
    "ts:src/core/scene.ts#h04_sort_key": {
@@ -396,7 +396,7 @@
     "module": "src/core/scene",
     "parent": "ts:src/core/scene.ts",
     "path": "docs/heuristics.md",
-    "line": 98,
+    "line": 99,
     "detail": "Sort key: code src/core/scene.ts:80"
    },
    "ts:src/core/scene.ts#h05_marker_row_first": {
@@ -407,7 +407,7 @@
     "module": "src/core/scene",
     "parent": "ts:src/core/scene.ts",
     "path": "docs/heuristics.md",
-    "line": 104,
+    "line": 105,
     "detail": "Marker row first: code src/core/scene.ts:201"
    },
    "ts:src/core/layout.ts#h06_root_order": {
@@ -418,7 +418,7 @@
     "module": "src/core/layout",
     "parent": "ts:src/core/layout.ts",
     "path": "docs/heuristics.md",
-    "line": 110,
+    "line": 111,
     "detail": "Root order: code src/core/layout.ts:93"
    },
    "ts:src/core/layout.ts#h07_child_order": {
@@ -429,7 +429,7 @@
     "module": "src/core/layout",
     "parent": "ts:src/core/layout.ts",
     "path": "docs/heuristics.md",
-    "line": 116,
+    "line": 117,
     "detail": "Child order: code src/core/layout.ts:102"
    },
    "ts:src/core/layout.ts#h08_row_order": {
@@ -440,7 +440,7 @@
     "module": "src/core/layout",
     "parent": "ts:src/core/layout.ts",
     "path": "docs/heuristics.md",
-    "line": 124,
+    "line": 125,
     "detail": "Row order: code src/core/layout.ts:152"
    },
    "ts:src/core/layout.ts#tree_parent_rule": {
@@ -451,7 +451,7 @@
     "module": "src/core/layout",
     "parent": "ts:src/core/layout.ts",
     "path": "docs/heuristics.md",
-    "line": 130,
+    "line": 131,
     "detail": "Decision: tree parent rule: code src/core/layout.ts:173"
    },
    "ts:src/core/layout.ts#h09_joint_parent": {
@@ -462,7 +462,7 @@
     "module": "src/core/layout",
     "parent": "ts:src/core/layout.ts",
     "path": "docs/heuristics.md",
-    "line": 138,
+    "line": 139,
     "detail": "Joint parent: code src/core/layout.ts:173"
    },
    "ts:src/core/layout.ts#h10_dfs_nearest_parent": {
@@ -473,7 +473,7 @@
     "module": "src/core/layout",
     "parent": "ts:src/core/layout.ts",
     "path": "docs/heuristics.md",
-    "line": 146,
+    "line": 147,
     "detail": "dfs / nearest parent: code src/core/layout.ts:190"
    },
    "ts:src/core/layout.ts#h11_port_row": {
@@ -484,7 +484,7 @@
     "module": "src/core/layout",
     "parent": "ts:src/core/layout.ts",
     "path": "docs/heuristics.md",
-    "line": 155,
+    "line": 156,
     "detail": "Port row: code src/core/layout.ts:234"
    },
    "ts:src/core/layout.ts#h12_lane_packing": {
@@ -495,7 +495,7 @@
     "module": "src/core/layout",
     "parent": "ts:src/core/layout.ts",
     "path": "docs/heuristics.md",
-    "line": 161,
+    "line": 162,
     "detail": "Lane packing: code src/core/layout.ts:261"
    },
    "ts:src/core/place.ts#h13_caller_alignment": {
@@ -506,8 +506,8 @@
     "module": "src/core/place",
     "parent": "ts:src/core/place.ts",
     "path": "docs/heuristics.md",
-    "line": 172,
-    "detail": "Caller alignment: code src/core/place.ts:135"
+    "line": 173,
+    "detail": "Caller alignment: code src/core/place.ts:136"
    },
    "ts:src/core/place.ts#h14_monotone_rows": {
     "key": "ts:src/core/place.ts#h14_monotone_rows",
@@ -517,8 +517,8 @@
     "module": "src/core/place",
     "parent": "ts:src/core/place.ts",
     "path": "docs/heuristics.md",
-    "line": 180,
-    "detail": "Monotone rows: code src/core/place.ts:148"
+    "line": 181,
+    "detail": "Monotone rows: code src/core/place.ts:149"
    },
    "ts:src/core/place.ts#h15_block_descent": {
     "key": "ts:src/core/place.ts#h15_block_descent",
@@ -528,8 +528,8 @@
     "module": "src/core/place",
     "parent": "ts:src/core/place.ts",
     "path": "docs/heuristics.md",
-    "line": 186,
-    "detail": "Block descent: code src/core/place.ts:172"
+    "line": 187,
+    "detail": "Block descent: code src/core/place.ts:173"
    },
    "ts:src/core/place.ts#h21_moved_function_descent": {
     "key": "ts:src/core/place.ts#h21_moved_function_descent",
@@ -539,8 +539,8 @@
     "module": "src/core/place",
     "parent": "ts:src/core/place.ts",
     "path": "docs/heuristics.md",
-    "line": 195,
-    "detail": "Moved function descent: code src/core/place.ts:223"
+    "line": 196,
+    "detail": "Moved function descent: code src/core/place.ts:224"
    },
    "ts:src/core/place.ts#h16_item_order": {
     "key": "ts:src/core/place.ts#h16_item_order",
@@ -550,8 +550,8 @@
     "module": "src/core/place",
     "parent": "ts:src/core/place.ts",
     "path": "docs/heuristics.md",
-    "line": 205,
-    "detail": "Item order: code src/core/place.ts:300"
+    "line": 206,
+    "detail": "Item order: code src/core/place.ts:301"
    },
    "ts:src/core/place.ts#h17_item_column": {
     "key": "ts:src/core/place.ts#h17_item_column",
@@ -561,8 +561,8 @@
     "module": "src/core/place",
     "parent": "ts:src/core/place.ts",
     "path": "docs/heuristics.md",
-    "line": 211,
-    "detail": "Item column: code src/core/place.ts:323"
+    "line": 212,
+    "detail": "Item column: code src/core/place.ts:336"
    },
    "ts:src/core/place.ts#h18_item_row": {
     "key": "ts:src/core/place.ts#h18_item_row",
@@ -572,8 +572,19 @@
     "module": "src/core/place",
     "parent": "ts:src/core/place.ts",
     "path": "docs/heuristics.md",
-    "line": 220,
-    "detail": "Item row: code src/core/place.ts:328"
+    "line": 221,
+    "detail": "Item row: code src/core/place.ts:342"
+   },
+   "ts:src/core/place.ts#h41_callee_below": {
+    "key": "ts:src/core/place.ts#h41_callee_below",
+    "kind": "function",
+    "name": "h41_callee_below",
+    "qual": "h41_callee_below",
+    "module": "src/core/place",
+    "parent": "ts:src/core/place.ts",
+    "path": "docs/heuristics.md",
+    "line": 229,
+    "detail": "Callee group below its caller: code src/core/place.ts:327"
    },
    "ts:src/core/place.ts#item_state": {
     "key": "ts:src/core/place.ts#item_state",
@@ -583,8 +594,8 @@
     "module": "src/core/place",
     "parent": "ts:src/core/place.ts",
     "path": "docs/heuristics.md",
-    "line": 228,
-    "detail": "Decision: locked, moved or unmoved item: code src/core/place.ts:343"
+    "line": 237,
+    "detail": "Decision: locked, moved or unmoved item: code src/core/place.ts:358"
    },
    "ts:src/core/place.ts#h19_lock_and_box_offset": {
     "key": "ts:src/core/place.ts#h19_lock_and_box_offset",
@@ -594,8 +605,8 @@
     "module": "src/core/place",
     "parent": "ts:src/core/place.ts",
     "path": "docs/heuristics.md",
-    "line": 234,
-    "detail": "Lock and box offset: code src/core/place.ts:351"
+    "line": 243,
+    "detail": "Lock and box offset: code src/core/place.ts:366"
    },
    "ts:src/core/place.ts#h20_unmoved_box_descent": {
     "key": "ts:src/core/place.ts#h20_unmoved_box_descent",
@@ -605,8 +616,8 @@
     "module": "src/core/place",
     "parent": "ts:src/core/place.ts",
     "path": "docs/heuristics.md",
-    "line": 240,
-    "detail": "Unmoved box descent: code src/core/place.ts:363"
+    "line": 249,
+    "detail": "Unmoved box descent: code src/core/place.ts:378"
    },
    "ts:src/core/place.ts#h22_frame_extent": {
     "key": "ts:src/core/place.ts#h22_frame_extent",
@@ -616,8 +627,8 @@
     "module": "src/core/place",
     "parent": "ts:src/core/place.ts",
     "path": "docs/heuristics.md",
-    "line": 252,
-    "detail": "Frame extent: code src/core/place.ts:412"
+    "line": 261,
+    "detail": "Frame extent: code src/core/place.ts:427"
    },
    "ts:src/core/settle.ts#h23_settle": {
     "key": "ts:src/core/settle.ts#h23_settle",
@@ -627,7 +638,7 @@
     "module": "src/core/settle",
     "parent": "ts:src/core/settle.ts",
     "path": "docs/heuristics.md",
-    "line": 260,
+    "line": 269,
     "detail": "Settle: code src/core/settle.ts:104"
    },
    "ts:src/core/place.ts#h38_frame_overlap": {
@@ -638,8 +649,8 @@
     "module": "src/core/place",
     "parent": "ts:src/core/place.ts",
     "path": "docs/heuristics.md",
-    "line": 273,
-    "detail": "Frame overlap: code src/core/place.ts:368"
+    "line": 282,
+    "detail": "Frame overlap: code src/core/place.ts:383"
    },
    "ts:src/core/grid.ts#h24_tree_lines_first": {
     "key": "ts:src/core/grid.ts#h24_tree_lines_first",
@@ -649,7 +660,7 @@
     "module": "src/core/grid",
     "parent": "ts:src/core/grid.ts",
     "path": "docs/heuristics.md",
-    "line": 284,
+    "line": 293,
     "detail": "Tree lines first: code src/core/grid.ts:352"
    },
    "ts:src/core/grid.ts#h25_routing_order": {
@@ -660,7 +671,7 @@
     "module": "src/core/grid",
     "parent": "ts:src/core/grid.ts",
     "path": "docs/heuristics.md",
-    "line": 292,
+    "line": 301,
     "detail": "Routing order: code src/core/grid.ts:424"
    },
    "ts:src/core/grid.ts#h26_arrival_side": {
@@ -671,7 +682,7 @@
     "module": "src/core/grid",
     "parent": "ts:src/core/grid.ts",
     "path": "docs/heuristics.md",
-    "line": 300,
+    "line": 309,
     "detail": "Arrival side: code src/core/grid.ts:448"
    },
    "ts:src/core/grid.ts#h27_departure_reservation": {
@@ -682,7 +693,7 @@
     "module": "src/core/grid",
     "parent": "ts:src/core/grid.ts",
     "path": "docs/heuristics.md",
-    "line": 306,
+    "line": 315,
     "detail": "Departure reservation: code src/core/grid.ts:465"
    },
    "ts:src/core/grid.ts#h28_departure_point": {
@@ -693,7 +704,7 @@
     "module": "src/core/grid",
     "parent": "ts:src/core/grid.ts",
     "path": "docs/heuristics.md",
-    "line": 314,
+    "line": 323,
     "detail": "Departure point: code src/core/grid.ts:579"
    },
    "ts:src/core/grid.ts#h29_route_cost": {
@@ -704,8 +715,8 @@
     "module": "src/core/grid",
     "parent": "ts:src/core/grid.ts",
     "path": "docs/heuristics.md",
-    "line": 322,
-    "detail": "Route cost: code src/core/grid.ts:653"
+    "line": 331,
+    "detail": "Route cost: code src/core/grid.ts:655"
    },
    "ts:src/core/grid.ts#h39_reroute": {
     "key": "ts:src/core/grid.ts#h39_reroute",
@@ -715,7 +726,7 @@
     "module": "src/core/grid",
     "parent": "ts:src/core/grid.ts",
     "path": "docs/heuristics.md",
-    "line": 338,
+    "line": 347,
     "detail": "Reroute: code src/core/grid.ts:134"
    },
    "ts:src/core/grid.ts#h40_lookahead": {
@@ -726,7 +737,7 @@
     "module": "src/core/grid",
     "parent": "ts:src/core/grid.ts",
     "path": "docs/heuristics.md",
-    "line": 348,
+    "line": 357,
     "detail": "Lookahead: code src/core/grid.ts:487"
    },
    "ts:src/core/grid.ts#h36_call_kind_style": {
@@ -737,8 +748,8 @@
     "module": "src/core/grid",
     "parent": "ts:src/core/grid.ts",
     "path": "docs/heuristics.md",
-    "line": 356,
-    "detail": "Call kind style: code src/core/grid.ts:780"
+    "line": 365,
+    "detail": "Call kind style: code src/core/grid.ts:782"
    },
    "ts:src/webview/main.ts#h37_hops": {
     "key": "ts:src/webview/main.ts#h37_hops",
@@ -748,8 +759,8 @@
     "module": "src/webview/main",
     "parent": "ts:src/webview/main.ts",
     "path": "docs/heuristics.md",
-    "line": 366,
-    "detail": "Hops: code src/webview/main.ts:511"
+    "line": 375,
+    "detail": "Hops: code src/webview/main.ts:514"
    },
    "ts:src/webview/main.ts#h30_action_anchor": {
     "key": "ts:src/webview/main.ts#h30_action_anchor",
@@ -759,8 +770,8 @@
     "module": "src/webview/main",
     "parent": "ts:src/webview/main.ts",
     "path": "docs/heuristics.md",
-    "line": 375,
-    "detail": "Action anchor: code src/webview/main.ts:462"
+    "line": 384,
+    "detail": "Action anchor: code src/webview/main.ts:465"
    },
    "ts:src/webview/main.ts#h31_still_anchor": {
     "key": "ts:src/webview/main.ts#h31_still_anchor",
@@ -770,8 +781,8 @@
     "module": "src/webview/main",
     "parent": "ts:src/webview/main.ts",
     "path": "docs/heuristics.md",
-    "line": 383,
-    "detail": "Still anchor: code src/webview/main.ts:1167"
+    "line": 392,
+    "detail": "Still anchor: code src/webview/main.ts:1170"
    },
    "ts:src/webview/main.ts#h32_multi_unit_drag": {
     "key": "ts:src/webview/main.ts#h32_multi_unit_drag",
@@ -781,8 +792,8 @@
     "module": "src/webview/main",
     "parent": "ts:src/webview/main.ts",
     "path": "docs/heuristics.md",
-    "line": 391,
-    "detail": "Multi-unit drag: code src/webview/main.ts:1118"
+    "line": 400,
+    "detail": "Multi-unit drag: code src/webview/main.ts:1121"
    },
    "ts:src/webview/main.ts#h33_drop_repulsion": {
     "key": "ts:src/webview/main.ts#h33_drop_repulsion",
@@ -792,8 +803,8 @@
     "module": "src/webview/main",
     "parent": "ts:src/webview/main.ts",
     "path": "docs/heuristics.md",
-    "line": 397,
-    "detail": "Drop repulsion: code src/webview/main.ts:1240"
+    "line": 406,
+    "detail": "Drop repulsion: code src/webview/main.ts:1243"
    },
    "ts:src/webview/main.ts#h34_offset_handover": {
     "key": "ts:src/webview/main.ts#h34_offset_handover",
@@ -803,8 +814,8 @@
     "module": "src/webview/main",
     "parent": "ts:src/webview/main.ts",
     "path": "docs/heuristics.md",
-    "line": 407,
-    "detail": "Offset handover: code src/webview/main.ts:698"
+    "line": 416,
+    "detail": "Offset handover: code src/webview/main.ts:701"
    },
    "ts:src/webview/main.ts#h35_save_what_is_drawn": {
     "key": "ts:src/webview/main.ts#h35_save_what_is_drawn",
@@ -814,20 +825,20 @@
     "module": "src/webview/main",
     "parent": "ts:src/webview/main.ts",
     "path": "docs/heuristics.md",
-    "line": 415,
-    "detail": "Save what is drawn: code src/webview/main.ts:705"
+    "line": 424,
+    "detail": "Save what is drawn: code src/webview/main.ts:708"
    }
   },
   "edges": [
    {
     "from": "ts:src/webview/main.ts#render",
     "to": "ts:src/core/scene.ts#buildScene",
-    "line": 447
+    "line": 450
    },
    {
     "from": "ts:src/webview/main.ts#render",
     "to": "ts:src/webview/main.ts#afterRender",
-    "line": 672
+    "line": 675
    },
    {
     "from": "ts:src/core/scene.ts#buildScene",
@@ -842,12 +853,12 @@
    {
     "from": "ts:src/core/scene.ts#revealView",
     "to": "ts:src/core/reveal.ts#reveal",
-    "line": 339
+    "line": 341
    },
    {
     "from": "ts:src/core/scene.ts#revealView",
     "to": "ts:src/core/reveal.ts#revealDepth",
-    "line": 335
+    "line": 337
    },
    {
     "from": "ts:src/core/scene.ts#buildScene",
@@ -862,57 +873,57 @@
    {
     "from": "ts:src/core/scene.ts#buildScene",
     "to": "ts:src/core/settle.ts#settleMoved",
-    "line": 214
+    "line": 216
    },
    {
     "from": "ts:src/core/scene.ts#buildScene",
     "to": "ts:src/core/grid.ts#buildGrid",
-    "line": 230
+    "line": 232
    },
    {
     "from": "ts:src/core/place.ts#place",
     "to": "ts:src/core/place.ts#placeBox",
-    "line": 491
+    "line": 506
    },
    {
     "from": "ts:src/core/place.ts#placeBox",
     "to": "ts:src/core/place.ts#placeBlock",
-    "line": 339
+    "line": 354
    },
    {
     "from": "ts:src/core/place.ts#placeBox",
     "to": "ts:src/core/place.ts#placeBox",
-    "line": 363
+    "line": 378
    },
    {
     "from": "ts:src/core/place.ts#placeBlock",
     "to": "ts:src/core/layout.ts#layout",
-    "line": 138
+    "line": 139
    },
    {
     "from": "ts:src/webview/main.ts#setSide",
     "to": "ts:src/webview/main.ts#anchorAt",
-    "line": 791
+    "line": 794
    },
    {
     "from": "ts:src/webview/main.ts#dragUnit",
     "to": "ts:src/webview/main.ts#topUnits",
-    "line": 1135
+    "line": 1138
    },
    {
     "from": "ts:src/webview/main.ts#dragUnit",
     "to": "ts:src/webview/main.ts#settleDrop",
-    "line": 1168
+    "line": 1171
    },
    {
     "from": "ts:src/webview/main.ts#dragUnit",
     "to": "ts:src/webview/main.ts#anchorAt",
-    "line": 1167
+    "line": 1170
    },
    {
     "from": "ts:src/webview/main.ts#runCmd",
     "to": "ts:src/webview/main.ts#anchorAt",
-    "line": 1433
+    "line": 1436
    },
    {
     "from": "ts:src/core/reveal.ts#reveal",
@@ -982,57 +993,62 @@
    {
     "from": "ts:src/core/place.ts#placeBlock",
     "to": "ts:src/core/place.ts#h13_caller_alignment",
-    "line": 134
+    "line": 135
    },
    {
     "from": "ts:src/core/place.ts#placeBlock",
     "to": "ts:src/core/place.ts#h14_monotone_rows",
-    "line": 147
+    "line": 148
    },
    {
     "from": "ts:src/core/place.ts#placeBlock",
     "to": "ts:src/core/place.ts#h15_block_descent",
-    "line": 171
+    "line": 172
    },
    {
     "from": "ts:src/core/place.ts#placeBlock",
     "to": "ts:src/core/place.ts#h21_moved_function_descent",
-    "line": 222
+    "line": 223
    },
    {
     "from": "ts:src/core/place.ts#placeBox",
     "to": "ts:src/core/place.ts#h16_item_order",
-    "line": 299
+    "line": 300
    },
    {
     "from": "ts:src/core/place.ts#placeBox",
     "to": "ts:src/core/place.ts#h17_item_column",
-    "line": 322
+    "line": 335
    },
    {
     "from": "ts:src/core/place.ts#placeBox",
     "to": "ts:src/core/place.ts#h18_item_row",
-    "line": 327
+    "line": 341
+   },
+   {
+    "from": "ts:src/core/place.ts#placeBox",
+    "to": "ts:src/core/place.ts#h41_callee_below",
+    "line": 326
    },
    {
     "from": "ts:src/core/place.ts#placeBox",
     "to": "ts:src/core/place.ts#item_state",
-    "line": 342
+    "line": 357
    },
    {
     "from": "ts:src/core/place.ts#item_state",
     "to": "ts:src/core/place.ts#h19_lock_and_box_offset",
-    "line": 350
+    "line": 365
    },
    {
     "from": "ts:src/core/place.ts#item_state",
     "to": "ts:src/core/place.ts#h20_unmoved_box_descent",
-    "line": 362
+    "line": 377
    },
    {
     "from": "ts:src/core/place.ts#placeBox",
     "to": "ts:src/core/place.ts#h22_frame_extent",
-    "line": 411
+    "line": 426
    },
    {
     "from": "ts:src/core/settle.ts#settleMoved",
@@ -1042,7 +1058,7 @@
    {
     "from": "ts:src/core/place.ts#placeBox",
     "to": "ts:src/core/place.ts#h38_frame_overlap",
-    "line": 367
+    "line": 382
    },
    {
     "from": "ts:src/core/settle.ts#settleMoved",
@@ -1077,7 +1093,7 @@
    {
     "from": "ts:src/core/grid.ts#buildGrid",
     "to": "ts:src/core/grid.ts#h29_route_cost",
-    "line": 652
+    "line": 654
    },
    {
     "from": "ts:src/core/grid.ts#buildGrid",
@@ -1092,57 +1108,57 @@
    {
     "from": "ts:src/core/grid.ts#buildGrid",
     "to": "ts:src/core/grid.ts#h36_call_kind_style",
-    "line": 779
+    "line": 781
    },
    {
     "from": "ts:src/webview/main.ts#render",
     "to": "ts:src/webview/main.ts#h37_hops",
-    "line": 510
+    "line": 513
    },
    {
     "from": "ts:src/webview/main.ts#render",
     "to": "ts:src/webview/main.ts#h30_action_anchor",
-    "line": 461
+    "line": 464
    },
    {
     "from": "ts:src/webview/main.ts#anchorAt",
     "to": "ts:src/webview/main.ts#h30_action_anchor",
-    "line": 774
+    "line": 777
    },
    {
     "from": "ts:src/webview/main.ts#dragUnit",
     "to": "ts:src/webview/main.ts#h31_still_anchor",
-    "line": 1166
+    "line": 1169
    },
    {
     "from": "ts:src/webview/main.ts#runCmd",
     "to": "ts:src/webview/main.ts#h31_still_anchor",
-    "line": 1432
+    "line": 1435
    },
    {
     "from": "ts:src/webview/main.ts#topUnits",
     "to": "ts:src/webview/main.ts#h32_multi_unit_drag",
-    "line": 1117
+    "line": 1120
    },
    {
     "from": "ts:src/webview/main.ts#settleDrop",
     "to": "ts:src/webview/main.ts#h33_drop_repulsion",
-    "line": 1239
+    "line": 1242
    },
    {
     "from": "ts:src/webview/main.ts#afterRender",
     "to": "ts:src/webview/main.ts#h34_offset_handover",
-    "line": 697
+    "line": 700
    },
    {
     "from": "ts:src/webview/main.ts#setSide",
     "to": "ts:src/webview/main.ts#h34_offset_handover",
-    "line": 793
+    "line": 796
    },
    {
     "from": "ts:src/webview/main.ts#afterRender",
     "to": "ts:src/webview/main.ts#h35_save_what_is_drawn",
-    "line": 704
+    "line": 707
    }
   ]
  },
@@ -1198,6 +1214,7 @@
   "ts:src/core/place.ts#h16_item_order": "both",
   "ts:src/core/place.ts#h17_item_column": "both",
   "ts:src/core/place.ts#h18_item_row": "both",
+  "ts:src/core/place.ts#h41_callee_below": "both",
   "ts:src/core/place.ts#item_state": "both",
   "ts:src/core/place.ts#h19_lock_and_box_offset": "both",
   "ts:src/core/place.ts#h20_unmoved_box_descent": "both",

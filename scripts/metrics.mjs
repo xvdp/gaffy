@@ -1,4 +1,4 @@
-// npm run metrics -- <view.gaffy> [rules JSON …]: bundles and runs scripts/metrics.ts (edge metrics per rule configuration)
+// npm run metrics -- <view.gaffy> [rules JSON ...]: bundles and runs scripts/metrics.ts (edge metrics per rule configuration)
 import { execFileSync } from 'node:child_process';
 import { mkdirSync } from 'node:fs';
 import * as esbuild from 'esbuild';

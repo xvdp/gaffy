@@ -123,7 +123,7 @@ export function registerCommands(ctx: vscode.ExtensionContext, editor: GaffyEdit
         const ed = vscode.window.activeTextEditor;
         if (!ed) throw new Error('no active editor');
         const items = await vscode.window.withProgress(
-            { location: vscode.ProgressLocation.Notification, title: 'gaffy: asking the language server about the symbol at the cursor…' },
+            { location: vscode.ProgressLocation.Notification, title: 'gaffy: asking the language server about the symbol at the cursor...' },
             () => provider.prepare(ed.document.uri, ed.selection.active));
         if (!items.length) await noProvider(ed.document.uri, 'no call hierarchy at the cursor');
         const acc: Record<NodeKey, GNode> = {};
@@ -200,7 +200,7 @@ export function registerCommands(ctx: vscode.ExtensionContext, editor: GaffyEdit
         const sess = active();
         const s = await seedAtCursor();
         await showCallHierarchy(sess.doc().view.direction === 'out' ? 'out' : 'in');
-        // joined seed: closed, drawn with its call paths to the other seeds (scene.ts revealView, Session.joinData)
+        // joined seed: closed, drawn with its call paths to the other seeds (scene.ts revealView, Session.pathData)
         await sess.refresh((d) => {
             Object.assign(d.graph.nodes, s.acc);
             if (!d.view.seeds.includes(s.key)) { d.view.seeds.push(s.key); d.view.joins = [...(d.view.joins ?? []), s.key]; }
@@ -312,7 +312,7 @@ export function registerCommands(ctx: vscode.ExtensionContext, editor: GaffyEdit
         const md = `# ${doc.name}\n\n<pre>\n${toHtmlPre(sc.grid, gs, href, (k) => doc.view.seeds.includes(k))}\n</pre>\n`;
         const seed = doc.view.seeds[0];
         const sym = ((seed && nodeOf(doc, seed)?.name) || s.name).replace(/[^\w.-]+/g, '_');
-        // <project>/.baggy/gaffy/<symbol>_<short commit hash, or date>.md, .txt; repeats per symbol and commit: _2, _3, …
+        // <project>/.baggy/gaffy/<symbol>_<short commit hash, or date>.md, .txt; repeats per symbol and commit: _2, _3, ...
         const base = `${sym}_${(await gitShort(s.home.fsPath)) ?? dateSlug()}`;
         let n = 0;
         try {
@@ -341,7 +341,7 @@ export function registerCommands(ctx: vscode.ExtensionContext, editor: GaffyEdit
         const s = active();
         if (!(await vscode.workspace.save(s.document.uri))) throw new Error(`${s.name} was not saved`);
     });
-    // one command for the canvas menu (two entries, `✓ …` when on: webview menus show no checkmark for `toggled`)
+    // one command for the canvas menu (two entries, `✓ ...` when on: webview menus show no checkmark for `toggled`)
     // and Options > File > Autosave Graphs (`value`); VS Code Settings edit the same key
     const toggleAutoSave = async (value?: unknown) => {
         const folder = editor.active?.folder;

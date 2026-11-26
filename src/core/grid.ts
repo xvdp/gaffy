@@ -12,8 +12,8 @@
  *    turning on another net. Departure: label end (`f() ──`), or at cost 2 below or above the first character
  *    (`├─>`, `┌─>`; callee above caller). Arrival: left (`──> f()`) without a drawn tree elbow, else right (`f() <──`).
  *
- * Cell glyph: one net → its mask glyph; several → union mask, or `GlyphSet.cross` for a pure crossing (masks
- * N|S and E|W only). Straight cells of implicit-only or cross-language-only calls (`Grid.kinds`) →
+ * Cell glyph: one net => its mask glyph; several => union mask, or `GlyphSet.cross` for a pure crossing (masks
+ * N|S and E|W only). Straight cells of implicit-only or cross-language-only calls (`Grid.kinds`) =>
  * `GlyphSet.kinds`: dotted, or dash and dot alternating by cell.
  */
 import { NodeKey } from './model';
@@ -68,7 +68,7 @@ export interface Grid {
     unrouted: number;          // calls without a route
     failed: [NodeKey, NodeKey][];
     markers: { row: number; col: number; text: string; key: NodeKey; side: 'up' | 'down' }[];
-    arrowTo: Map<number, NodeKey>;      // arrowhead cell → target
+    arrowTo: Map<number, NodeKey>;      // arrowhead cell => target
     kinds: Map<number, CallKind>;       // cells of one call kind only (`bridge` where both meet)
     routes: RouteRecord[];              // one record per drawn call: how it was routed (edge log, h39 reroute)
     reroutes: number;                   // h39 rounds kept
@@ -582,8 +582,10 @@ function gridOnce(P: Placement, vg: VGraph, opts: GridOpts, R: Rules, last: Read
             for (const [r, d] of [[pu.row + 1, 1], [pu.row - 1, 0]] as const) {
                 const id = cellId(r, pu.col);
                 const rsv = reserved.get(id);
-                if (r >= 0 && r < RH && !blocked.has(id) && !pad.has(id) && !markAt.has(id) && !border.has(id) && (rsv === undefined || rsv === `src:${u}`)) {
-                    starts.push({ id: sid(r, pu.col, d), r, c: pu.col, d, cost: UNDER });
+                // a horizontal frame border is crossed at right angles (the caller last or first in its group)
+                const b = border.get(id);
+                if (r >= 0 && r < RH && !blocked.has(id) && !pad.has(id) && !markAt.has(id) && b !== 'v' && (rsv === undefined || rsv === `src:${u}`)) {
+                    starts.push({ id: sid(r, pu.col, d), r, c: pu.col, d, cost: UNDER + (b ? cost.border : 0) });
                 }
             }
         }

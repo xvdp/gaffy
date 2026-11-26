@@ -13,7 +13,7 @@ const root = resolve(process.argv[2] ?? '.');
 const SKIP = new Set(['node_modules', '.git', '.venv', 'venv', 'site-packages', 'target', '_deps', '__pycache__', 'dist', 'build']);
 const BUILT_IN = new Set(['vscode.typescript-language-features']);
 
-/** Installed extension ids (lower case) → version, and where the list came from. */
+/** Installed extension ids (lower case) => version, and where the list came from. */
 function installed(): { ids: Map<string, string>; from: string } {
     const ids = new Map<string, string>();
     try {

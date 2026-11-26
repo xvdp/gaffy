@@ -34,7 +34,7 @@ const T_MOUSE: Row[] = [
     ['click `>> ` before a label', at(MAIN, "markerClick(d.key, 'up'); })"), "`markerClick(key, 'up')`"],
     ['click `>` of a `└─>>` row', at(MAIN, '.on(\'click\', (ev: MouseEvent, m) => { ev.stopPropagation(); markerClick(m.key, m.side); })'), '`markerClick(key, side)`'],
     ['click the elbow of a `└─>>` row', at(MAIN, ".on('click', (ev: MouseEvent, p) => {"), "`markerClick(caller, 'down')`"],
-    ['click an arrowhead', at(MAIN, '.on(\'click\', (ev: MouseEvent, h) => { ev.stopPropagation(); h.act!.run(); })'), '`closingOf(…).run` → `setSide(…, false)`: closes the level it points into'],
+    ['click an arrowhead', at(MAIN, '.on(\'click\', (ev: MouseEvent, h) => { ev.stopPropagation(); h.act!.run(); })'), '`closingOf(...).run` → `setSide(..., false)`: closes the level it points into'],
     ['double click a call', at(MAIN, ".on('dblclick', (ev: MouseEvent, p) => {"), '`isolateCalls` (the selection holding the call, else the calls through the cell)'],
     ['double click a box header', at(MAIN, "heads.on('dblclick'"), 'collapse the container (`collapsed` push)'],
     ['drag a box header', at(MAIN, 'heads.call(dragUnit('), '`dragUnit` (unit `box:<key>`)'],
@@ -56,7 +56,7 @@ const T_KEYS: Row[] = [
     ['r', at(MAIN, "case 'r': api.postMessage({ type: 'refresh' })"), 'host `refresh`: new data from the language server'],
 ];
 const T_BAR: Row[] = [
-    ['call depth `all` `+` `−` (full layout)', at(MAIN, "const all: Btn = { label: 'all'"), '`setDepth(side, …)`'],
+    ['call depth `all` `+` `−` (full layout)', at(MAIN, "const all: Btn = { label: 'all'"), '`setDepth(side, ...)`'],
     ['**Show all (n)**', at(MAIN, 'label: `Show all (${removed})`'), "`runCmd('showAll')`"],
     ['**Switch expand mode to >>**, **Switch expand mode to -+**', at(MAIN, "label: 'Switch expand mode to -+'"), "`setArrange('auto' | 'grow')`: switches to the mode it names"],
     ['**Isolate**', at(MAIN, "{ label: 'Isolate', title:"), "`runCmd('isolateSelection')`"],
@@ -81,16 +81,16 @@ const T_BAR: Row[] = [
 ];
 const T_MENU: Row[] = [
     ['Make Seed, Remove Seed', `${menu('gaffy.node.makeSeed')}, ${reg('gaffy.node.makeSeed')}`, "forwarded: `runCmd('makeSeed' | 'removeSeed')`"],
-    ['Open Callers / Open Called / Close Callers / Close Called (one layer)', `${menu('gaffy.node.openCallers')}, ${reg('gaffy.node.openCallers')}`, "forwarded: `runCmd('openUp' …)` → `setSide`"],
+    ['Open Callers / Open Called / Close Callers / Close Called (one layer)', `${menu('gaffy.node.openCallers')}, ${reg('gaffy.node.openCallers')}`, "forwarded: `runCmd('openUp' ...)` → `setSide`"],
     ['Isolate Selection, Hide Selection', `${at(PKG, '"command": "gaffy.isolateSelection"', '"group": "2_selection@1"')}, ${reg('gaffy.sel.hide')}`, "forwarded: `runCmd('isolateSelection' | 'hideSelection')` (the selection, else the function right clicked; seeds stay)"],
-    ['Show Hidden Neighbors…', `${menu('gaffy.node.showHidden')}, ${reg('gaffy.node.showHidden')}`, 'host quick pick: `hidden` minus the picked'],
+    ['Show Hidden Neighbors...', `${menu('gaffy.node.showHidden')}, ${reg('gaffy.node.showHidden')}`, 'host quick pick: `hidden` minus the picked'],
     ['Collapse Class / Module / Package', `${menu('gaffy.node.collapseClass')}, ${reg('gaffy.node.collapseClass')}`, 'host `collapse(kinds)`: `collapsed` push'],
     ['Expand Container', `${menu('gaffy.node.expandContainer')}, ${reg('gaffy.node.expandContainer')}`, 'host: `collapsed` filter'],
     ['Group Module, Ungroup Module, Group Submodules', `${menu('gaffy.node.groupModule')}, ${reg('gaffy.node.groupModule')}`, 'host: `group`, `ungroup`; `dropMovesWithin` the container'],
     ['Re-arrange selected', `${menu('gaffy.sel.rearrange')}, ${reg('gaffy.sel.rearrange')}`, "forwarded: `runCmd('rearrangeSelection')`"],
     ['Lock Position, Unlock Position', `${menu('gaffy.node.lock')}, ${reg('gaffy.node.lock')}`, "forwarded: `runCmd('lock' | 'unlock')`"],
     ['Move Up One, Move Down One', `${menu('gaffy.node.moveUp')}, ${reg('gaffy.node.moveUp')}`, 'host `move(±1)`: `sibling`'],
-    ['Tag…', `${menu('gaffy.node.tag')}, ${reg('gaffy.node.tag')}`, 'host: `tags` (a longer label widens its column)'],
+    ['Tag...', `${menu('gaffy.node.tag')}, ${reg('gaffy.node.tag')}`, 'host: `tags` (a longer label widens its column)'],
     ['Straighten This Call', `${menu('gaffy.edge.straighten')}, ${reg('gaffy.edge.straighten')}`, "forwarded: `runCmd('straighten')` (routing order only)"],
     ['Isolate This Call, Isolate the Path Through This Call', `${menu('gaffy.edge.subtree')}, ${reg('gaffy.edge.subtree')}`, "forwarded: `runCmd('callSubtree' | 'callPath')`"],
     ['canvas: Save (.gaffy), Autosave Graphs, Save as Text (.txt, .md), Refresh Language Server', `${menu('gaffy.view.save')}, ${reg('gaffy.view.save')}`, 'host: save, setting, export, `refresh`'],
@@ -98,7 +98,7 @@ const T_MENU: Row[] = [
 ];
 const T_OUT: Row[] = [
     ['editor: gaffy> Call Hierarchy (up, dn); explorer: Call Hierarchies', `${reg('gaffy.graphCallers')}, ${reg('gaffy.graphFile')}`, '`createView`: a new view'],
-    ['editor: gaffy> Add to Call Graph', reg('gaffy.addToView'), 'seed added and joined (`view.joins`: closed, drawn with its call paths to the other seeds), `Session.refresh`, `Session.joinData`'],
+    ['editor: gaffy> Add to Call Graph', reg('gaffy.addToView'), 'seed added and joined (`view.joins`: closed, drawn with its call paths to the other seeds), `Session.refresh`, `Session.pathData`'],
     ['VS Code undo, redo; an edit of the .gaffy text', at(EDIT, 'vscode.workspace.onDidChangeTextDocument((e) => {', 'async resolveCustomTextEditor('), 'the webview receives the text (`state`) and redraws'],
     ['saving a source file; renaming a file', at('src/host/extension.ts', 'onDidSaveTextDocument'), 'refresh of the views that show it'],
 ];

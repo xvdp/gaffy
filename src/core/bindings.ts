@@ -6,21 +6,21 @@
  * Native side (C++, CUDA), `scanNative`:
  * - pybind11 `PYBIND11_MODULE(mod, m)`, nanobind `NB_MODULE(mod, m)`: `m.def("name", &fn)`,
  *   `m.def_submodule("sub")`, `py::class_<T>(m, "Name").def("meth", &T::meth)` (chained or via a variable),
- *   `def_static`; targets `&fn`, `&ns::fn`, `py::overload_cast<…>(&fn)`, bare name. Skipped: lambdas,
- *   `py::init<…>`.
+ *   `def_static`; targets `&fn`, `&ns::fn`, `py::overload_cast<...>(&fn)`, bare name. Skipped: lambdas,
+ *   `py::init<...>`.
  * - PyTorch `TORCH_LIBRARY(ns, m)` / `TORCH_LIBRARY_IMPL(ns, Key, m)`: `m.def("op", &fn)`, `m.impl("op", &fn)`,
- *   `TORCH_FN(fn)` → Python `torch.ops.ns.op(…)`.
+ *   `TORCH_FN(fn)` => Python `torch.ops.ns.op(...)`.
  * Python side:
- * - imports (`import a.b as x`, `from a import b as c`) resolve `x.fn(…)`, `fn(…)` to module paths;
- * - torch extensions (`load(name="ext", sources=[…])`, setup.py `CUDAExtension("pkg.ext", […])`): module =
+ * - imports (`import a.b as x`, `from a import b as c`) resolve `x.fn(...)`, `fn(...)` to module paths;
+ * - torch extensions (`load(name="ext", sources=[...])`, setup.py `CUDAExtension("pkg.ext", [...])`): module =
  *   `TORCH_EXTENSION_NAME` of the sources;
  * - slangpy `spy.Module.load_from_file(device, "x.slang")`, `device.load_module("x")`, slangtorch
- *   `slangtorch.loadModule("x.slang")`: `….fn(…)` in the loading file calls `fn` if x.slang defines it;
- *   `getattr(holder, …)` on a module holder (same last segment: `module = …load_from_file(…)`,
+ *   `slangtorch.loadModule("x.slang")`: `....fn(...)` in the loading file calls `fn` if x.slang defines it;
+ *   `getattr(holder, ...)` on a module holder (same last segment: `module = ...load_from_file(...)`,
  *   `getattr(self.module, name)`) reaches every x.slang function named by a string literal in the file
  *   (kernels by name), marked approximate. Tracked: file and name only, not the module object.
  * Match: dotted call path, resolved through file imports, ends with the binding's module (last segment) and
- * Python path. Instance calls (`obj.meth(…)`) unmatched: type unknown in text.
+ * Python path. Instance calls (`obj.meth(...)`) unmatched: type unknown in text.
  */
 import { mask } from './textcalls';
 
@@ -61,7 +61,7 @@ function statements(m: string, from: number, to: number): [number, number][] {
     return out;
 }
 
-/** Bound function in `.def(`/`.impl(` arguments: `&fn`, `overload_cast<…>(&fn)`, `TORCH_FN(fn)`, `fn`. */
+/** Bound function in `.def(`/`.impl(` arguments: `&fn`, `overload_cast<...>(&fn)`, `TORCH_FN(fn)`, `fn`. */
 function targetOf(m: string, from: number, to: number): { name: string; at: number } | undefined {
     const args = m.slice(from, to);
     const r = /^\s*,\s*(?:(?:py|nb|pybind11|nanobind)::overload_cast\s*<[^>]*>\s*\(\s*|TORCH_FN\s*\(\s*|static_cast\s*<[^>]*>\s*\(\s*)?&?\s*((?:\w+\s*::\s*)*~?\w+)/.exec(args);
@@ -94,14 +94,14 @@ export function scanNative(text: string): Binding[] {
         }
         const via: Via = kind === 'NB_MODULE' ? 'nanobind' : 'pybind11';
         const modVar = args[1];
-        const modules = new Map<string, string>([[modVar, args[0]]]);                    // variable → module path
-        const classes = new Map<string, { module: string; name: string }>();             // variable → bound class
+        const modules = new Map<string, string>([[modVar, args[0]]]);                    // variable => module path
+        const classes = new Map<string, { module: string; name: string }>();             // variable => bound class
         for (const [s0, s1] of statements(m, body0 + 1, body1 - 1)) {
             const st = m.slice(s0, s1);
             // submodule: auto sub = m.def_submodule("sub")
             const sub = /^\s*(?:auto|\w+(?:::\w+)*)\s+(\w+)\s*=\s*(\w+)\s*\.\s*def_submodule\s*\(\s*"([^"]+)"/.exec(st);
             if (sub && modules.has(sub[2])) { modules.set(sub[1], `${modules.get(sub[2])}.${sub[3]}`); continue; }
-            // class: [auto v =] py::class_<T, …>(m, "Name") with chained .def(…)
+            // class: [auto v =] py::class_<T, ...>(m, "Name") with chained .def(...)
             const cls = /^\s*(?:(?:auto|[\w:<>, ]+?)\s+(\w+)\s*=\s*)?(?:py|nb|pybind11|nanobind)::class_\s*<[^(]*?>\s*\(\s*(\w+)\s*,\s*"([^"]+)"/.exec(st);
             let owner: { module: string; cls?: string } | undefined;
             let chainFrom = 0;
@@ -131,7 +131,7 @@ export function scanNative(text: string): Binding[] {
 
 // ---- Python ---------------------------------------------------------------------------------------
 
-/** Python comments and string literals → spaces (offsets kept); `keepStrings` keeps strings. */
+/** Python comments and string literals => spaces (offsets kept); `keepStrings` keeps strings. */
 export function maskPy(text: string, keepStrings = false): string {
     const out = text.split('');
     const blank = (a: number, b: number) => { for (let i = a; i < b; i++) if (out[i] !== '\n') out[i] = ' '; };
@@ -152,7 +152,7 @@ export function maskPy(text: string, keepStrings = false): string {
     return out.join('');
 }
 
-/** Local names bound by imports → dotted module or member paths. */
+/** Local names bound by imports => dotted module or member paths. */
 export function pyImports(text: string): Map<string, string> {
     const m = maskPy(text);
     const out = new Map<string, string>();
@@ -174,7 +174,7 @@ export function pyImports(text: string): Map<string, string> {
 
 const PY_KEYWORDS = new Set(['if', 'elif', 'while', 'for', 'return', 'yield', 'not', 'and', 'or', 'in', 'is', 'lambda', 'with', 'assert', 'del', 'print', 'await']);
 
-/** Dotted callees written in `text[from, to)`: `a.b.c(` → `a.b.c`. */
+/** Dotted callees written in `text[from, to)`: `a.b.c(` => `a.b.c`. */
 export function pyCallSites(text: string, from = 0, to = text.length): { dotted: string; at: number }[] {
     const m = maskPy(text).slice(from, to);
     const out: { dotted: string; at: number }[] = [];
@@ -187,7 +187,7 @@ export function pyCallSites(text: string, from = 0, to = text.length): { dotted:
 }
 
 /**
- * Base classes of a Python class header; `text` starts after the class name: `(A, m.B, metaclass=M):` → `A`, `m.B`,
+ * Base classes of a Python class header; `text` starts after the class name: `(A, m.B, metaclass=M):` => `A`, `m.B`,
  * each with the offset of its last name segment (go-to-definition point). Skipped: keyword arguments, subscripted
  * bases (`Generic[T]`), `object`.
  */
@@ -198,7 +198,7 @@ export function pyBases(text: string): { name: string; at: number }[] {
     let off = head[0].indexOf('(') + 1;
     for (const part of head[1].split(',')) {
         const m = /^\s*([A-Za-z_][\w.]*)\s*$/.exec(part);
-        // each base once: no repeats from `class A(B, B, …)` in the base walk (host/implicit.ts)
+        // each base once: no repeats from `class A(B, B, ...)` in the base walk (host/implicit.ts)
         if (m && m[1].split('.').pop() !== 'object' && !out.some((o) => o.name === m[1])) out.push({ name: m[1], at: off + part.indexOf(m[1]) + m[1].lastIndexOf('.') + 1 });
         off += part.length + 1;
     }
@@ -207,7 +207,7 @@ export function pyBases(text: string): { name: string; at: number }[] {
 
 export interface ExtModule { name: string; sources: string[]; local?: string }
 
-/** Torch C++/CUDA extensions declared in Python: `x = load(name=…, sources=[…])`, `CUDAExtension("pkg.ext", […])`. */
+/** Torch C++/CUDA extensions declared in Python: `x = load(name=..., sources=[...])`, `CUDAExtension("pkg.ext", [...])`. */
 export function extModules(text: string): ExtModule[] {
     const m = maskPy(text, true);
     const out: ExtModule[] = [];
@@ -249,7 +249,7 @@ export function slangLoads(text: string): SlangLoad[] {
 
 /**
  * Slang functions in `names` (from .slang files the file loads) reached by the Python function in `text[from, to)`:
- * method calls `….fn(…)`; with `getattr(h, …)`, `h` ending in a `holders` name, every string-literal name in the
+ * method calls `....fn(...)`; with `getattr(h, ...)`, `h` ending in a `holders` name, every string-literal name in the
  * file (`dynamic`).
  */
 export function slangCalls(text: string, from: number, to: number, names: ReadonlySet<string>, holders: ReadonlySet<string>): { name: string; at: number; dynamic: boolean }[] {
@@ -269,7 +269,7 @@ export function slangCalls(text: string, from: number, to: number, names: Readon
     return out;
 }
 
-/** Dotted callee resolved through its file's imports: first name → its import path. */
+/** Dotted callee resolved through its file's imports: first name => its import path. */
 export function resolveDotted(dotted: string, imports: ReadonlyMap<string, string>): string[] {
     const parts = dotted.split('.');
     const head = imports.get(parts[0]);
@@ -289,7 +289,7 @@ export function matchBindings<B extends Binding>(path: string[], bindings: reado
 
 // ---- wasm-bindgen: Rust exported to JavaScript and TypeScript -------------------------------------
 
-/** Rust comments, and string literals unless `keepStrings`, → spaces (offsets kept). */
+/** Rust comments, and string literals unless `keepStrings`, => spaces (offsets kept). */
 export function maskRust(text: string, keepStrings = false): string {
     const out = text.split('');
     const blank = (a: number, b: number) => { for (let i = a; i < b; i++) if (out[i] !== '\n') out[i] = ' '; };
@@ -322,7 +322,7 @@ export interface WasmExport {
 
 /**
  * `#[wasm_bindgen]` exports: module-level `pub fn` (function); each `pub fn` of an exported `impl T`: constructor
- * (`#[wasm_bindgen(constructor)]`, `new T(…)`), method (`self` receiver), static (none). Skipped: `getter` and
+ * (`#[wasm_bindgen(constructor)]`, `new T(...)`), method (`self` receiver), static (none). Skipped: `getter` and
  * `setter` (JavaScript property access, not calls); other attributes between `#[wasm_bindgen]` and the item.
  */
 export function scanWasm(text: string): WasmExport[] {
@@ -389,7 +389,7 @@ export function jsImports(text: string): JsImport[] {
 
 const JS_KEYWORDS = new Set(['if', 'for', 'while', 'switch', 'catch', 'function', 'return', 'typeof', 'await', 'super', 'import', 'require']);
 
-/** Calls in `text[from, to)`: `a.b.c(` → `a.b.c`, `new C(` (`ctor`); excludes declarations `function f(`. */
+/** Calls in `text[from, to)`: `a.b.c(` => `a.b.c`, `new C(` (`ctor`); excludes declarations `function f(`. */
 export function jsCallSites(text: string, from = 0, to = text.length): { dotted: string; at: number; ctor: boolean }[] {
     const m = mask(text).slice(from, to);
     const out: { dotted: string; at: number; ctor: boolean }[] = [];
@@ -401,7 +401,7 @@ export function jsCallSites(text: string, from = 0, to = text.length): { dotted:
     return out;
 }
 
-/** Exports reached by a JavaScript call through one wasm module's imports: `f(…)`, `ns.f(…)`, `new C(…)`, `C.s(…)`. */
+/** Exports reached by a JavaScript call through one wasm module's imports: `f(...)`, `ns.f(...)`, `new C(...)`, `C.s(...)`. */
 export function matchWasm(call: { dotted: string; ctor: boolean }, imports: readonly JsImport[], exports: readonly WasmExport[]): WasmExport[] {
     const parts = call.dotted.split('.');
     const imp = imports.find((i) => i.local === parts[0]);

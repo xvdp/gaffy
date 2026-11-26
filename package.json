@@ -2,7 +2,7 @@
   "name": "gaffy",
   "displayName": "gaffy",
   "description": "Persistent, manipulable call graphs on a character grid, rendered with D3",
-  "version": "0.9.34",
+  "version": "0.9.35",
   "publisher": "xvdp",
   "license": "Apache-2.0",
   "repository": {
@@ -113,7 +113,7 @@
         "gaffy.debugLayout": {
           "type": "boolean",
           "default": false,
-          "description": "Layout debugging: right click a function or box > Why Here? lists the placement and settle decisions that put it there (rule, values, outcome); decisions past a threshold are flagged (⚑) on the graph; Options > Arrange opens the debugging panel: Rules (every layout rule: switch, alternative, parameters, saved with the graph; links to its explanation and code), Actions (running log of what moved where and the rules behind it), Edges (routing record per call: order, arrival, cost, crossings). Offline: npm run explain in the gaffy repository."
+          "description": "Layout debugging: right click a function or box > Why Here? lists the placement and settle decisions that put it there (rule, values, outcome); decisions past a threshold are flagged on the graph; Options > Arrange opens the debugging panel: Rules (every layout rule: switch, alternative, parameters, saved with the graph; links to its explanation and code), Actions (running log of what moved where and the rules behind it), Edges (routing record per call: order, arrival, cost, crossings). Offline: npm run explain in the gaffy repository."
         },
         "gaffy.trace": {
           "type": "boolean",
@@ -196,7 +196,7 @@
       },
       {
         "command": "gaffy.node.editorMenu",
-        "title": "Editor Context Menu…"
+        "title": "Editor Context Menu"
       },
       {
         "command": "gaffy.node.references",
@@ -244,7 +244,7 @@
       },
       {
         "command": "gaffy.node.showHidden",
-        "title": "Show Hidden Neighbors…"
+        "title": "Show Hidden Neighbors"
       },
       {
         "command": "gaffy.node.collapseClass",
@@ -284,7 +284,7 @@
       },
       {
         "command": "gaffy.node.tag",
-        "title": "Tag…"
+        "title": "Tag"
       },
       {
         "command": "gaffy.node.revealInExplorer",

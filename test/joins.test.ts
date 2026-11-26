@@ -1,11 +1,14 @@
 import { describe, expect, it } from 'vitest';
+import { pathPairs, unconnected } from '../src/core/paths';
 import { buildScene } from '../src/core/scene';
+import { extendGraph } from '../src/host/build';
+import type { LspProvider } from '../src/host/lsp';
 import { DEFAULT_STYLE } from '../src/core/style';
 import { ViewDoc, ViewSpec } from '../src/core/viewdoc';
 import { fixtureDoc, k } from './fixtures';
 import { invariants } from './invariants';
 
-// shoo → magoo → patata → doo; magoo → zoinks, patata → jinkies (siblings off the path); doo → snack (beyond doo)
+// shoo => magoo => patata => doo; magoo => zoinks, patata => jinkies (siblings off the path); doo => snack (beyond doo)
 const PATH: [string, string][] = [
     ['foo.ghoul:shoo', 'foo.ghoul:magoo'],
     ['foo.ghoul:magoo', 'aloo.patata:patata'],
@@ -48,7 +51,7 @@ describe('a seed added to a view (view.joins)', () => {
 
 describe('Delete: removed functions, groups and calls leave the view with their islands, and come back through markers', () => {
     const style = { ...DEFAULT_STYLE, boxes: { ...DEFAULT_STYLE.boxes, enabled: true } };
-    // shoo → magoo → patata → doo (seeds shoo and doo); shoo → zoinks; magoo → jinkies (a branch below magoo)
+    // shoo => magoo => patata => doo (seeds shoo and doo); shoo => zoinks; magoo => jinkies (a branch below magoo)
     const E: [string, string][] = [
         ['foo.ghoul:shoo', 'foo.ghoul:magoo'], ['foo.ghoul:magoo', 'aloo.patata:patata'], ['aloo.patata:patata', 'scoobie:doo'],
         ['foo.ghoul:shoo', 'foo.ghoul:zoinks'], ['foo.ghoul:magoo', 'foo.ghoul:jinkies'],
@@ -100,5 +103,69 @@ describe('Delete: removed functions, groups and calls leave the view with their 
         expect(names(back.vg.nodes.keys())).toEqual(['doo', 'magoo', 'patata', 'shoo', 'zoinks']);
         expect(names(back.paths)).toEqual(['magoo', 'patata']);
         invariants(back);
+    });
+});
+
+describe('paths between seeds: calls asked around the seeds until they connect (core/paths.ts)', () => {
+    // doo (joined) -> magoo -> patata -> zoinks -> shoo (the first seed); the view knows doo -> magoo and zoinks -> shoo only
+    const E: [string, string][] = [['scoobie:doo', 'foo.ghoul:magoo'], ['foo.ghoul:magoo', 'aloo.patata:patata'], ['aloo.patata:patata', 'foo.ghoul:zoinks'], ['foo.ghoul:zoinks', 'foo.ghoul:shoo'],
+        ['foo.ghoul:magoo', 'foo.ghoul:jinkies']];
+    const shoo = k('foo.ghoul:shoo'), doo = k('scoobie:doo'), magoo = k('foo.ghoul:magoo'), zoinks = k('foo.ghoul:zoinks');
+    const style = { ...DEFAULT_STYLE, boxes: { ...DEFAULT_STYLE.boxes, enabled: false } };
+    const full = fixtureDoc(E, {});
+    /** Language-server stand-in: every (definition, direction) answered from the full call list. */
+    const lsp = {
+        outgoing: async (key: string) => full.graph.edges.filter((e) => e.from === key),
+        incoming: async (key: string) => full.graph.edges.filter((e) => e.to === key),
+        clampOf: () => undefined,
+    } as unknown as LspProvider;
+    const known = (between: boolean) => {
+        const d = fixtureDoc(E, { arrange: 'grow', seeds: [shoo, doo], joins: between ? undefined : [doo], between, open: { [shoo]: 'up' }, depth: 3 });
+        d.graph.edges = d.graph.edges.filter((e) => (e.from === doo && e.to === magoo) || (e.from === zoinks && e.to === shoo));
+        d.explored = { [shoo]: 'both', [doo]: 'both' };
+        return d;
+    };
+    const fetch = async (d: ViewDoc) => {
+        let rounds = 0;
+        for (let qs = pathPairs(d); qs.length && rounds < 6; qs = pathPairs(d), rounds++) {
+            const r = await extendGraph(lsp, d, qs, { mode: 'fresh' });
+            d.graph = r.graph; d.explored = r.explored;
+        }
+        return rounds;
+    };
+
+    for (const between of [false, true]) {
+        it(`${between ? 'Paths between seeds only' : 'a joined seed'}: the missing calls are asked, nearest level first; the path is drawn, its siblings are not`, async () => {
+            const d = known(between);
+            expect(unconnected(d)).toEqual(between ? [shoo, doo] : [doo]);
+            expect(names(buildScene(d, style).paths)).toEqual([]);
+            const rounds = await fetch(d);
+            expect(rounds).toBeGreaterThan(0);
+            expect(unconnected(d)).toEqual([]);
+            expect(pathPairs(d)).toEqual([]);
+            const sc = buildScene(d, style);
+            expect(names(sc.paths)).toEqual(['magoo', 'patata', 'zoinks']);
+            expect(names(sc.vg.nodes.keys())).not.toContain('jinkies');
+        });
+    }
+});
+
+describe('h41: opening the callers of a function in another group', () => {
+    // magoo (seed, group aloo.patata) calls doo; callers: shoo (same group), scoobie_doo (group zoinks.jinkies)
+    const E: [string, string][] = [['aloo.patata:shoo', 'aloo.patata:magoo'], ['aloo.patata:magoo', 'aloo.patata:doo'], ['zoinks.jinkies:scoobie_doo', 'aloo.patata:magoo']];
+    const magoo = k('aloo.patata:magoo'), caller = k('zoinks.jinkies:scoobie_doo');
+    const doc = (off: string[] = []) => fixtureDoc(E, { arrange: 'grow', seeds: [magoo], open: { [magoo]: 'both' }, rules: { off } });
+
+    it('the caller group sits above, the callee group below it, one indent right of the caller; switched off, side by side', () => {
+        const sc = buildScene(doc(), DEFAULT_STYLE);
+        invariants(sc);
+        const P = sc.placement;
+        const fa = P.frames.find((f) => f.unit === 'box:py:zoinks/jinkies.py' || f.box.label.includes('zoinks'))!;
+        const fb = P.frames.find((f) => f.box.label.includes('patata'))!;
+        expect(fb.r0).toBeGreaterThan(fa.r1);                                       // below
+        expect(fb.c0 + 3).toBe(P.pos.get(caller)!.col + 4);                          // content one indent right of the caller
+        const side = buildScene(doc(['h41_callee_below']), DEFAULT_STYLE).placement;
+        const sa = side.frames.find((f) => f.box.label.includes('zoinks'))!, sb = side.frames.find((f) => f.box.label.includes('patata'))!;
+        expect(sb.c0).toBeGreaterThan(sa.c1);                                       // right of the caller group
     });
 });

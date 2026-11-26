@@ -171,10 +171,8 @@ describe('random operation sequences (T-d)', () => {
         return sc;
     };
 
-    // seed 2 (open, rules-plan.md): a function moved inside a group moved by an offset lands on a locked label of
-    // the group; settle does not clear it within 3 saves. `it.fails` turns red once it is fixed.
     for (const seed of [1, 2, 3, 4, 5]) {
-        (seed === 2 ? it.fails : it)(`seed ${seed}: 25 operations (open, close, drag, lock, unlock, group, ungroup, collapse, expand, hide); invariants, bounded jumps`, () => {
+        it(`seed ${seed}: 25 operations (open, close, drag, lock, unlock, group, ungroup, collapse, expand, hide); invariants, bounded jumps`, () => {
             const r = rng(seed);
             const d = structuredClone(view);
             let sc = settled(d);

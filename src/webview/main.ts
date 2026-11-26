@@ -1,6 +1,6 @@
 /** @xvdp
- * Webview renderer: host view text, style, exclude globs → core pipeline (quotient, boxes, placement, routing)
- * → D3 grid.
+ * Webview renderer: host view text, style, exclude globs => core pipeline (quotient, boxes, placement, routing)
+ * => D3 grid.
  *   glyph mode:  one box-drawing <text> per edge or frame cell
  *   vector mode: frame rectangles; call paths, orthogonal from the grid masks or curved along each call
  *                polyline (`edges.curve`)
@@ -212,6 +212,9 @@ const dbg = new DebugPanel({
     doc: () => doc, style: () => style, scene: () => scene, decisions: () => decisions, boxChain: (u) => boxChain(u),
     setRules: (mut, what) => {
         why('setRules', { what });
+        // the picture stays where it is on screen: the focused function, else the first seed drawn, keeps its spot
+        const still = [focusKey, ...(doc?.view.seeds ?? [])].find((x) => x && scene?.placement.pos.has(x));
+        if (still) anchorAt(still);
         commit((x) => {
             const r: RuleConfig = structuredClone(x.view.rules ?? {});
             mut(r);
@@ -477,9 +480,9 @@ function render() {
 
     if (!g.labels.length) {
         root.append('text').attr('class', 'empty').attr('x', 0).attr('y', ch)
-            .text(busy ? 'building…' : doc.view.seeds.length
+            .text(busy ? 'building...' : doc.view.seeds.length
                 ? 'nothing on screen: the seeds are hidden, in an excluded folder, or not resolved yet (Show all, Options > Folders, Refresh)'
-                : 'empty view: right click a function > gaffy > New View…');
+                : 'empty view: right click a function > gaffy > New View...');
     }
 
     // frames: hue fill (optional), vector rectangles
@@ -1064,7 +1067,7 @@ function cardRender() {
     el.selectAll('*').remove();
     const code = hoverText.get(card.key);
     const name = scene.graph.nodes[card.key]?.name ?? '';
-    if (code === '') el.append('div').attr('class', 'sig').text('…');
+    if (code === '') el.append('div').attr('class', 'sig').text('...');
     else if (code) {
         const sig = el.append('div').attr('class', 'sig');
         for (const line of signatureLines(code, name)) {
@@ -1409,7 +1412,7 @@ function runCmd(cmd: string, key?: NodeKey, unit?: string, to?: NodeKey) {
         }
         case 'makeSeed':
             // joined seed (scene.ts revealView): closed until a side opens, drawn with its call paths to the other
-            // seeds; the host fetches along both directions to the view's depth (Session.joinData)
+            // seeds; the host asks around the seeds until they connect, within the view's depth (Session.pathData)
             if (need(k, NO_FN) && need(!doc.view.seeds.includes(k!), `makeSeed: ${k!.split('#').pop()} is a seed already`)) {
                 anchorAt(k!);
                 commit((x) => { x.view.seeds.push(k!); x.view.joins = [...(x.view.joins ?? []), k!]; });
@@ -1676,6 +1679,9 @@ function hideWhy() { select('#why').classed('on', false).selectAll('*').remove()
 function toggleBetween() {
     if (!doc || !scene) return;
     why('toggleBetween', { on: !doc.view.between });
+    // the focused function, else the first seed drawn, keeps its spot on screen
+    const still = [focusKey, ...doc.view.seeds].find((x) => x && scene!.placement.pos.has(x));
+    if (still) anchorAt(still);
     const grow = doc.view.arrange === 'grow';
     commit((x) => {
         if (!x.view.between) { x.view.between = true; delete x.view.pinned; return; }
@@ -1780,12 +1786,12 @@ function toolbar() {
             { label: `Unlock all (${Object.keys(v.lock).length})`, title: 'unlock every locked function and box', act: () => runCmd('unlockAll') },
             { label: `Expand collapsed (${v.collapsed.length})`, title: 'expand every collapsed container', act: () => runCmd('expandAll') },
             { label: 'Layout debug', on: settings.debugLayout,
-                title: 'gaffy.debugLayout: right click a function or box > Why Here? lists the decisions that placed it; flagged decisions (⚑) underlined; rule switches below',
+                title: 'gaffy.debugLayout: right click a function or box > Why Here? lists the decisions that placed it; flagged decisions underlined; rule switches below',
                 act: () => api.postMessage({ type: 'setting', key: 'debugLayout', value: !settings.debugLayout }) },
             ...(settings.debugLayout ? [
-                { label: `Rules… (${rulesOff().size} off)`, sub: true, on: dbg.open && dbg.tab === 'rules',
+                { label: `Rules... (${rulesOff().size} off)`, sub: true, on: dbg.open && dbg.tab === 'rules',
                     title: 'every layout rule: switch, alternative, parameters, explanation and code; saved with the graph', act: () => dbg.toggle('rules') },
-                { label: `Actions log (${decisions.filter((d) => d.flag).length} ⚑)`, sub: true, on: dbg.open && dbg.tab === 'actions',
+                { label: `Actions log (${decisions.filter((d) => d.flag).length} flagged)`, sub: true, on: dbg.open && dbg.tab === 'actions',
                     title: 'running log: each change, what moved where, the rules that placed it, code links', act: () => dbg.toggle('actions') },
                 { label: `Edges log (${scene?.grid.routes.filter((r) => r.received).length ?? 0} crossed)`, sub: true, on: dbg.open && dbg.tab === 'edges',
                     title: 'each call: routing order, arrival, cost parts, crossings paid and received, reroutes', act: () => dbg.toggle('edges') },
@@ -1873,7 +1879,7 @@ function status() {
     if (settings.debugLayout) {
         const n = decisions.filter((d) => d.flag).length;
         const off = rulesOff();
-        parts.push(`Layout Debug: ${decisions.length} decisions, ${n} ⚑${off.size ? `, ${off.size} rules off` : ''}`);
+        parts.push(`Layout Debug: ${decisions.length} decisions, ${n} flagged${off.size ? `, ${off.size} rules off` : ''}`);
     }
     if (v.static) parts.push('Static');
     else if (settings.held) parts.push('Frozen');

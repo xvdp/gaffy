@@ -122,21 +122,24 @@ subprocess.run(["code", str(p)])
     <symbol>_<commit>.txt      saved on exported text
     cache/calls.json           cached language-server answers
     trace/<view>.jsonl         gaffy.trace log
-    style.json                 saved in folder if any changes to default were made
+    style.json                 appearance: font, colors, labels, frames, edges (Options set the rest per view)
 ```
 
 Placement: views created in VS Code under the workspace folder; views written by giddy or a script under their repository (seed paths, exports and the commit hash refer to the folder holding `.baggy/`). Style and call cache: per workspace folder. Views in a `.gaffy/views/` folder still open; new files go to `.baggy/gaffy/`.
 
 ## Layout debugging
 
-Setting `gaffy.debugLayout` (Options > Arrange > Layout debug). Right click a function or box > **Why Here?**: the placement and settle decisions that put it where it is drawn, one line each: rule (as in [docs/heuristics.md](docs/heuristics.md)), function, the unit placed, outcome, values. Decisions past a threshold are flagged (⚑, wavy underline on the graph; thresholds `FLAGS` in [src/core/explain.ts](src/core/explain.ts)): an unmoved box or block sliding ≥ 12 rows, a moved function sliding ≥ 4 rows, a settle move ≥ 12 cells, an unmoved box pushed below a frame stretched by moves inside it. Options > Arrange > Layout debug turns it on; below it, each switchable rule on or off (h13 caller alignment, h15 block descent, h17 item column, h18 item row, h20 unmoved box descent, h21 moved function descent, h23 settle), the picture redrawn without it and nothing saved while one is off; Decision log: every decision in an editor.
+Options > Arrange > Layout debug (setting `gaffy.debugLayout`). Right click a function or group > **Why Here?**: the decisions that placed it. The panel under the graph:
+- **Rules**: every layout rule with its switch, choice and parameters, saved with the graph; links to [docs/heuristics.md](docs/heuristics.md) and the code.
+- **Actions**: each change, what moved where, the rule that moved it.
+- **Edges**: each call, routing order, crossings, cost.
 
-Offline, in this repository (code lines from the rule anchors, [scripts/rules.ts](scripts/rules.ts)):
+Offline, in this repository:
 
 ```bash
-npm run explain -- <view.gaffy>                       # every decision, with file:line
-npm run explain -- <view.gaffy> --unit <text> --flags # one unit's decisions, flagged only
+npm run explain -- <view.gaffy>                        # every decision, with file:line
+npm run explain -- <view.gaffy> --unit <text> --flags  # one unit's decisions, flagged only
 npm run explain -- <view.gaffy> --off h20_unmoved_box_descent,h23_settle   # what moves without these rules
-npm run explain -- <view.gaffy> --trace .baggy/gaffy/trace/<view>.jsonl    # replay a gaffy.trace: jumps and flags per change
+npm run explain -- <view.gaffy> --trace .baggy/gaffy/trace/<view>.jsonl    # replay a gaffy.trace
+npm run metrics -- <view.gaffy> '{"alt":{"h25_routing_order":"longest"}}'  # crossings, bends, time per rule choice
 ```
-

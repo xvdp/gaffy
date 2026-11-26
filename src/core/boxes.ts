@@ -3,8 +3,8 @@
  *
  * 1. Boxable: package, folder; with `modules` also module, file.
  * 2. Vertex box: innermost boxable ancestor; containers without visible content vanish.
- * 3. Chain compression: box with one child box and no vertex merges with it (`src` + `foo` → `src/foo`);
- *    without `modules`, a leaf box with one module absorbs it (`foo` + `goo` → `foo.goo`).
+ * 3. Chain compression: box with one child box and no vertex merges with it (`src` + `foo` => `src/foo`);
+ *    without `modules`, a leaf box with one module absorbs it (`foo` + `goo` => `foo.goo`).
  * 4. Outermost box framed only with `root`, else its content moves to the canvas.
  * 5. `ns`: dotted package or module name, or folder path; labels inside relative to it
  *    (`shoo()` in `foo.goo`, `aloo.patata()` in `moo`).
@@ -80,7 +80,7 @@ export function boxTree(vertices: Iterable<NodeKey>, nodes: Record<NodeKey, GNod
     };
     compress(root, true);
 
-    // without `root`: single outermost box → unframed canvas
+    // without `root`: single outermost box => unframed canvas
     const top = !opt.root && root.children.size === 1 && root.members.length === 0
         ? root.children.values().next().value! : root;
     const toBox = (t: Trie, parentNs: string): BoxNode => {
@@ -112,7 +112,7 @@ function chainName(chain: GNode[], module?: string): string {
     return names.join('/');
 }
 
-/** Vertex → innermost box. */
+/** Vertex => innermost box. */
 export function boxOf(tree: BoxNode): Map<NodeKey, BoxNode> {
     const m = new Map<NodeKey, BoxNode>();
     const walk = (b: BoxNode) => { for (const v of b.members) m.set(v, b); b.children.forEach(walk); };

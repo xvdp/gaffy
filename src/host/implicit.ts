@@ -1,12 +1,12 @@
 /** @xvdp
  * Implicit calls: runtime calls without a call expression naming the callee, absent from language-server answers;
  * edges carry `implicit`.
- * - construction: Python `C(…)` → `C.__new__`, `C.__init__`; dataclass `__init__` → `__post_init__`;
- *   TypeScript/JavaScript `new C(…)` → `constructor`. `__init__`, `constructor`: class, else nearest defining base
+ * - construction: Python `C(...)` => `C.__new__`, `C.__init__`; dataclass `__init__` => `__post_init__`;
+ *   TypeScript/JavaScript `new C(...)` => `constructor`. `__init__`, `constructor`: class, else nearest defining base
  *   (go to definition on header names, depth ≤ 4, `object` skipped); `__new__`, `__post_init__`: class only.
  *   Incoming: the class calls its construction methods.
- * - instance call (Python): `obj(…)` → `type(obj).__call__`; torch `nn.Module` (no `__call__` below base `Module`)
- *   → `forward` via `Module.__call__`. Sites: body call sites the server left unanswered; `obj` type by type
+ * - instance call (Python): `obj(...)` => `type(obj).__call__`; torch `nn.Module` (no `__call__` below base `Module`)
+ *   => `forward` via `Module.__call__`. Sites: body call sites the server left unanswered; `obj` type by type
  *   definition at the called name (`criterion` in `criterion(x)`, `net` in `self.net(x)`).
  * Out of scope (call trace, not call hierarchy): backprop, hooks, `with` blocks, iteration, operators, properties,
  * decorators.
@@ -89,7 +89,7 @@ export class Implicit {
 
     /**
      * Whether a base (depth ≤ 4) is named `Module` (torch `nn.Module`). Each class once, ≤ MAX_CLASSES total:
-     * repeated or self-listed bases (`class A(B, B, …)`, workspace source) would multiply definition requests per level.
+     * repeated or self-listed bases (`class A(B, B, ...)`, workspace source) would multiply definition requests per level.
      */
     private async isModule(start: ClassAt): Promise<boolean> {
         let level = [start];
@@ -114,7 +114,7 @@ export class Implicit {
         return it && this.p.describe(it, acc);
     }
 
-    /** Implicit calls: class → construction methods; Python body → instance calls. */
+    /** Implicit calls: class => construction methods; Python body => instance calls. */
     async outgoing(key: NodeKey, it: vscode.CallHierarchyItem, acc: Record<NodeKey, GNode>, answered: readonly vscode.Range[]): Promise<GEdge[]> {
         const lang = langOf(it.uri.path);
         if (it.kind === vscode.SymbolKind.Class) {

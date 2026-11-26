@@ -3,7 +3,7 @@
  *
  * 1. DFS from sources (in-degree 0), then unvisited vertices (source-less cycles; seeds first), each visited in
  *    reverse display order (`sibling` override, call-site line, path): reverse postorder yields display order.
- * 2. Row order π: reverse DFS postorder, topological on non-back edges (CLRS §22.4). Back edge u → v (v on the
+ * 2. Row order π: reverse DFS postorder, topological on non-back edges (CLRS §22.4). Back edge u => v (v on the
  *    DFS stack): `↻` tag on u; self loop `↻`.
  * 3. Tree parent p of v: rule `dfs`, DFS discoverer; rule `nearest`, closest caller above passing the stem check:
  *    rows strictly between p and v start right of col(p). `dfs` always passes: p's DFS subtree fills contiguous
@@ -164,7 +164,7 @@ export function layout(inp: LayoutInput): Layout {
     const dfsKids = new Map<NodeKey, NodeKey[]>();
     for (const v of order) { const d = dfsParent.get(v); if (d) { if (!dfsKids.has(d)) dfsKids.set(d, []); dfsKids.get(d)!.push(v); } }
     const merges = new Set<string>();
-    const collector = new Map<NodeKey, number>();   // rule `joint`: target → collector column
+    const collector = new Map<NodeKey, number>();   // rule `joint`: target => collector column
     for (const v of order) {
         const callers = vg.inc.get(v)!
             .map((e) => e.from)

@@ -1,4 +1,4 @@
-// npm run metrics -- <view.gaffy> ['<rules JSON>' …]: edge metrics of a view per rule configuration (view `rules`
+// npm run metrics -- <view.gaffy> ['<rules JSON>' ...]: edge metrics of a view per rule configuration (view `rules`
 // format: {"off": [...], "alt": {...}, "params": {...}}), first the view's own: picture size, crossing cells, bends,
 // routed cells, unrouted calls, total route cost (grid.ts gridCost), mean buildScene time over 5 builds after one.
 import { readFileSync } from 'node:fs';
@@ -9,7 +9,7 @@ import { DEFAULT_STYLE, E, N, S, W } from '../src/core/style';
 import { parseDoc } from '../src/core/viewdoc';
 
 const [file, ...configs] = process.argv.slice(2);
-if (!file) { console.log("usage: npm run metrics -- <view.gaffy> ['{\"alt\":{\"h25_routing_order\":\"row\"}}' …]"); process.exit(1); }
+if (!file) { console.log("usage: npm run metrics -- <view.gaffy> ['{\"alt\":{\"h25_routing_order\":\"row\"}}' ...]"); process.exit(1); }
 const doc = parseDoc(readFileSync(file, 'utf8'), 'view');
 const outside = { external: doc.view.external ?? false, standard: doc.view.stdlib ?? false };
 for (const c of ['', ...configs]) {

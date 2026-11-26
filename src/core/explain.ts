@@ -35,10 +35,10 @@ export function decisionsOf(all: readonly Decision[], unit: string, boxes: reado
     return all.filter((d) => own.has(d.unit));
 }
 
-/** One line per decision: `h20 Unmoved box descent · placeBox · box:dir:x · rows 4 → 16 · {values} ⚑ flag`. */
+/** One line per decision: `h20 Unmoved box descent · placeBox · box:dir:x · rows 4 => 16 · {values} · flag: why`. */
 export function decisionLine(d: Decision, where?: (rule: string) => string | undefined): string {
     const at = where?.(d.rule);
     const vals = JSON.stringify(d.values);
     return `${d.rule.slice(0, 3)} ${TITLES[d.rule] ?? d.rule} · ${d.fn}${at ? ` (${at})` : ''} · ${d.unit} · ${d.text}`
-        + (vals !== '{}' ? ` · ${vals}` : '') + (d.flag ? ` ⚑ ${d.flag}` : '');
+        + (vals !== '{}' ? ` · ${vals}` : '') + (d.flag ? ` · flag: ${d.flag}` : '');
 }

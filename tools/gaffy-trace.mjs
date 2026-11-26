@@ -24,12 +24,12 @@ if (from !== undefined) recs = recs.filter((r) => typeof r.seq !== 'number' || r
 if (last !== undefined) recs = recs.slice(-last);
 
 // trace text holds language-server names and paths: control (terminal escape), zero-width and bidirectional
-// characters print as \u{…}, as in gaffy (model.ts `visible`)
+// characters print as \u{...}, as in gaffy (model.ts `visible`)
 const SHOWN = /[\u0000-\u001f\u007f-\u009f\u00ad\u061c\u180e\u200b-\u200f\u2028-\u202e\u2060-\u206f\ufeff\ufff9-\ufffb]/g;
 const safe = (s) => String(s).replace(SHOWN, (c) => `\\u{${c.codePointAt(0).toString(16)}}`);
 const print = (s) => console.log(safe(s));
 
-/** `py:pkg/mod.py#Cls.fn` → `mod.Cls.fn()`; `box:dir:a/b` → `[a/b]`; `collapsed:<key>` → `<key> (collapsed)`. */
+/** `py:pkg/mod.py#Cls.fn` => `mod.Cls.fn()`; `box:dir:a/b` => `[a/b]`; `collapsed:<key>` => `<key> (collapsed)`. */
 function short(key) {
     if (typeof key !== 'string') return String(key);
     if (key.startsWith('collapsed:')) return `${short(key.slice(10))} (collapsed)`;
@@ -92,7 +92,7 @@ function moves(moved = []) {
     for (const m of allMoves ? own : own.slice(0, 10)) {
         out.push(`moved ${short(m.k)}: ${cell(m.a)} → ${cell(m.b)} (${m.dr >= 0 ? '+' : ''}${m.dr} rows ${m.dc >= 0 ? '+' : ''}${m.dc} cols${shared && (br || bc) ? ' beyond the shift' : ''})`);
     }
-    if (!allMoves && own.length > 10) out.push(`… ${own.length - 10} more moved (--all-moves)`);
+    if (!allMoves && own.length > 10) out.push(`... ${own.length - 10} more moved (--all-moves)`);
     if (appeared || left) out.push(`grid: ${appeared} appeared, ${left} left`);
     return out;
 }

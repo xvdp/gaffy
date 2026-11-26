@@ -3,10 +3,10 @@
  * or outgoing calls) with the node records they introduced; resolved definitions only.
  *
  * Invalidation: a saved or renamed file drops its definitions' outgoing entries and all incoming entries (any
- * change can add or remove a call into any definition). Load: mtime ≠ record → treated as saved. Format v8; older
+ * change can add or remove a call into any definition). Load: mtime ≠ record => treated as saved. Format v8; older
  * dropped: v1 empty answers of unresolved definitions; v2 two keys per overload (`C.f`, `f`); v3 body scans
  * (instance calls, bindings) that saw only the name; v4 empty answers from a loading server; v5 one key for the
- * overloads of a scope (C++ `f(int)`, `f(float3)` → `f`; now `f(int)`, `f(float3)`); v6 cross-language answers
+ * overloads of a scope (C++ `f(int)`, `f(float3)` => `f`; now `f(int)`, `f(float3)`); v6 cross-language answers
  * cached while the C/C++ server was loading (binding targets unresolved, links missing); v7 answers cached after
  * six failed binding lookups in one session, without the link (now `partial`, never cached).
  */

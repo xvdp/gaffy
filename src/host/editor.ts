@@ -16,6 +16,7 @@ import { GNode, isContainer, NodeKey, plain } from '../core/model';
 import { Style } from '../core/style';
 import { globMatcher, isBuilt, parseDoc, serializeDoc, ViewDoc, ViewSpec } from '../core/viewdoc';
 import { BuildMode, extendGraph, Extension, Pair } from './build';
+import { pathPairs } from '../core/paths';
 import { frontierOf, pinPaths, visibleOf } from '../core/scene';
 import { CallCache } from './cache';
 import { viewScope } from './context';
@@ -308,34 +309,17 @@ export class Session {
     }
 
     /**
-     * Calls around joined seeds (`view.joins`), for the call paths to the other seeds: breadth-first from each joined
-     * seed, calls downward and callers upward, `view.depth` levels per direction, unasked pairs only (`gaffy.maxNodes`
-     * bounds the data). Revealed: only the vertices on paths (scene.ts revealView).
+     * Calls for the call paths between seeds (core/paths.ts): while a joined seed (or, with `between`, any seed) has no
+     * path to another seed in the stored calls, the unasked pairs of the nearest level around the seeds are asked,
+     * both directions, at most 2 × `view.depth` rounds (`gaffy.maxNodes` bounds the data). Revealed: only the
+     * functions on the paths (scene.ts revealView).
      */
-    private joinsUnasked(doc: ViewDoc): Pair[] {
-        return this.unaskedPairs(doc, (doc.view.joins ?? []).flatMap((key) => [{ key, dir: 'out' as const }, { key, dir: 'in' as const }]));
-    }
-
-    private async joinData(show: (t: string) => void, token: vscode.CancellationToken): Promise<void> {
+    private async pathData(show: (t: string) => void, token: vscode.CancellationToken): Promise<void> {
         const bg = this.background(token);
         try {
-            for (const dir of ['out', 'in'] as const) {
-                const d0 = this.doc();
-                let front = (d0.view.joins ?? []).filter((k) => Object.hasOwn(d0.graph.nodes, k));
-                const seen = new Set(front);
-                for (let level = 0; level < Math.max(1, d0.view.depth) && front.length && !bg.token.isCancellationRequested; level++) {
-                    const qs = this.unaskedPairs(this.doc(), front.map((key) => ({ key, dir })));
-                    if (qs.length) await this.ask(qs, 'cached', 'paths to the other seeds', show, bg.token);
-                    const es = this.doc().graph.edges;
-                    const next = new Set<NodeKey>();
-                    for (const k of front) {
-                        for (const e of es) {
-                            const n = dir === 'out' ? (e.from === k ? e.to : undefined) : (e.to === k ? e.from : undefined);
-                            if (n && !seen.has(n) && !isContainer(this.doc().graph.nodes[n])) { seen.add(n); next.add(n); }
-                        }
-                    }
-                    front = [...next];
-                }
+            for (let round = 0; round < 2 * Math.max(1, this.doc().view.depth) && !bg.token.isCancellationRequested; round++) {
+                const qs = pathPairs(this.doc());
+                if (!qs.length || !(await this.ask(qs, 'cached', 'paths between seeds', show, bg.token))?.asked) break;
             }
         } finally { bg.end(); }
     }
@@ -408,7 +392,7 @@ export class Session {
 
     private badSeeds(seeds: string[]): void {
         void vscode.window.showWarningMessage(plain(`gaffy: ${this.name}: ${seeds.length} seed${seeds.length > 1 ? 's' : ''} not found: `
-            + `${seeds.slice(0, 5).join(', ')}${seeds.length > 5 ? ', …' : ''} (write <path>#<qualified name> or <path>:<line>, `
+            + `${seeds.slice(0, 5).join(', ')}${seeds.length > 5 ? ', ...' : ''} (write <path>#<qualified name> or <path>:<line>, `
             + 'path relative to the folder holding .baggy/ or the workspace folder)'));
     }
 
@@ -419,8 +403,13 @@ export class Session {
         if (this.fixed) return Promise.resolve();
         return this.urgent(async () => {
             const doc = this.doc();
-            if (!this.unaskedPairs(doc, frontierOf(doc, this.opts().exclude, this.opts().outside)).length) return;
-            await this.progress((show, token) => this.neighbors(show, token));
+            const near = this.unaskedPairs(doc, frontierOf(doc, this.opts().exclude, this.opts().outside)).length > 0;
+            // a joined seed, or Paths between seeds only, without a path in the stored calls (core/paths.ts)
+            if (!near && !pathPairs(doc).length) return;
+            await this.progress(async (show, token) => {
+                if (near) await this.neighbors(show, token);
+                if (pathPairs(this.doc()).length) await this.pathData(show, token);
+            });
             this.settle();
         });
     }
@@ -473,9 +462,9 @@ export class Session {
 
     /**
      * Stable views; progressive, non-destructive. Explored pairs: cached answers (cache drops changed files).
-     * Uncached: visible → re-asked in background; others → unmarked, stored calls kept until a side opens onto
+     * Uncached: visible => re-asked in background; others => unmarked, stored calls kept until a side opens onto
      * them. Then on-screen neighbors. `force`: visible pairs from the server, other cached answers dropped.
-     * Unchanged since save → no server request.
+     * Unchanged since save => no server request.
      */
     revalidate(force = false): Promise<void> {
         if (this.fixed) return Promise.resolve();
@@ -513,7 +502,7 @@ export class Session {
                     await this.neighbors(show, token);
                 });
             }
-            if (this.joinsUnasked(this.doc()).length) await this.progress((show, token) => this.joinData(show, token));
+            if (pathPairs(this.doc()).length) await this.progress((show, token) => this.pathData(show, token));
             this.settle();
         });
     }

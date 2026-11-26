@@ -1,15 +1,15 @@
 /** @xvdp
  * Language rules of the call graph provider (pure, no VS Code API).
  *
- * - `LANG`: file extension → language key prefix (`<lang>:<relpath>#<qual>`).
+ * - `LANG`: file extension => language key prefix (`<lang>:<relpath>#<qual>`).
  * - `TEXT_LANGS`: shader languages, servers commonly without call hierarchy: calls from text (textcalls.ts) when
  *   the server returns no item.
  * - `EXTERNAL`: paths outside the project (installed packages, build output, system headers).
- * - `segments`: symbol or call-hierarchy name → qualified-name segments, rules in order: Rust
- *   `impl [<…>] [Trait for] Type` → `Type` or `Type[Trait]` (two trait impls of one type may both define `fmt`);
- *   Go `(*T).M` → `T`, `M`; TypeScript `x.forEach() callback` → `x·forEach·callback`; C++ `ns::Foo<T>::bar(int)`
- *   → `ns`, `Foo`, `bar`, operators whole (`operator()`); else the name without parameters. `.` inside a
- *   segment → `·`; `.` separates segments.
+ * - `segments`: symbol or call-hierarchy name => qualified-name segments, rules in order: Rust
+ *   `impl [<...>] [Trait for] Type` => `Type` or `Type[Trait]` (two trait impls of one type may both define `fmt`);
+ *   Go `(*T).M` => `T`, `M`; TypeScript `x.forEach() callback` => `x·forEach·callback`; C++ `ns::Foo<T>::bar(int)`
+ *   => `ns`, `Foo`, `bar`, operators whole (`operator()`); else the name without parameters. `.` inside a
+ *   segment => `·`; `.` separates segments.
  */
 
 export const LANG: Record<string, string> = {
@@ -49,7 +49,7 @@ export function splitTop(list: string): string[] {
     return out;
 }
 
-/** Type of one parameter: default value dropped; `name: Type` → Type; C-like `Type name[…]` → `Type[…]`. */
+/** Type of one parameter: default value dropped; `name: Type` => Type; C-like `Type name[...]` => `Type[...]`. */
 function paramType(p: string): string {
     let s = p.replace(/\s+/g, ' ').trim();
     const eq = s.search(/(?<![=!<>])=(?!=)/);
@@ -65,8 +65,8 @@ function paramType(p: string): string {
 
 /**
  * Parameter types of the definition whose name `text` starts with: the list between the first `(` and its match,
- * parameters split at top-level commas, each reduced by `paramType`. `f(int a, const T* b = 0, int c[3])` →
- * `int,const T*,int[3]`; `fun f(a: Int, b: String = "")` → `Int,String`; `f()`, `f(void)` → ``. Undefined without
+ * parameters split at top-level commas, each reduced by `paramType`. `f(int a, const T* b = 0, int c[3])` =>
+ * `int,const T*,int[3]`; `fun f(a: Int, b: String = "")` => `Int,String`; `f()`, `f(void)` => ``. Undefined without
  * a closed parameter list within 4000 characters.
  */
 export function paramTypes(text: string): string | undefined {
@@ -149,7 +149,7 @@ export const EXTERNAL = new RegExp([
     '\\.d\\.ts$',
     '(^|[\\\\/])target[\\\\/](debug|release|[\\w-]+-[\\w-]+-[\\w-]+)[\\\\/]',      // Rust build output
     '(^|[\\\\/])(_deps|vcpkg_installed|\\.conan2?|\\.cargo|\\.rustup)[\\\\/]',          // fetched C/C++ and Rust dependencies
-    '(^|[\\\\/])pkg[\\\\/][\\w-]+(_bg)?\\.js$',                                    // wasm-pack glue (calls show caller → Rust function)
+    '(^|[\\\\/])pkg[\\\\/][\\w-]+(_bg)?\\.js$',                                    // wasm-pack glue (calls show caller => Rust function)
     '^/usr/(include|lib|local/include)/',
 ].join('|'));
 
@@ -170,8 +170,8 @@ const LIB_ROOTS: { re: RegExp; py: boolean }[] = [
 ];
 
 /**
- * File outside every workspace folder (absolute POSIX path) → `root` + `/` + `rel` = `abs`; `rel` starts at the
- * innermost library root: `…/lib/python3.12/site-packages/torch/functional.py` → rel
+ * File outside every workspace folder (absolute POSIX path) => `root` + `/` + `rel` = `abs`; `rel` starts at the
+ * innermost library root: `.../lib/python3.12/site-packages/torch/functional.py` => rel
  * `site-packages/torch/functional.py`, module `torch.functional`. Keys: short, machine-independent; finite folder
  * chain of `rel`. No library root: `rel` = `abs` without leading `/`. `module`: Python files under an import root only.
  */
@@ -192,7 +192,7 @@ export function externalPath(abs: string): { root: string; rel: string; module?:
     return { root: abs.slice(0, best.start - 1) || '/', rel, module };
 }
 
-/** Removes balanced `<…>` groups (generic or template arguments). */
+/** Removes balanced `<...>` groups (generic or template arguments). */
 function stripGenerics(s: string): string {
     let prev;
     do { prev = s; s = s.replace(/<[^<>]*>/g, ''); } while (s !== prev);

@@ -1,6 +1,6 @@
-// npm run explain -- <view.gaffy> [--unit <text>] [--flags] [--off <rule,…>] [--trace <view.jsonl>] [--style <style.json>]
+// npm run explain -- <view.gaffy> [--unit <text>] [--flags] [--off <rule,...>] [--trace <view.jsonl>] [--style <style.json>]
 // Placement decision log of a view (src/core/explain.ts), each decision with its rule's code line (scripts/rules.ts):
-//   --unit   decisions of units whose key holds <text>
+//   --unit   search decision units by <text>
 //   --flags  flagged decisions only (thresholds: explain.ts FLAGS)
 //   --off    rules switched off (explain.ts SWITCHES): frames and functions that move against the full rule set
 //   --trace  replay of a gaffy.trace file: the view before each recorded change, rebuilt from the saved view by
@@ -17,7 +17,7 @@ const args = process.argv.slice(2);
 const opt = (name: string) => { const i = args.indexOf(name); return i >= 0 ? args[i + 1] : undefined; };
 const file = args.find((a, i) => !a.startsWith('--') && (i === 0 || !args[i - 1].startsWith('--')));
 if (!file) {
-    console.log('usage: npm run explain -- <view.gaffy> [--unit <text>] [--flags] [--off <rule,…>] [--trace <view.jsonl>] [--style <style.json>]');
+    console.log('usage: npm run explain -- <view.gaffy> [--unit <text>] [--flags] [--off <rule,...>] [--trace <view.jsonl>] [--style <style.json>]');
     console.log(`rules that switch off: ${Object.keys(SWITCHES).join(', ')}`);
     process.exit(1);
 }
@@ -90,7 +90,7 @@ if (tracePath) {
         const what = `${r.cause?.event ?? '?'}${r.cause?.fn ? ` ${r.cause.fn}` : ''}${r.cause?.target ? ` ${r.cause.target}` : ''}`;
         console.log(`#${r.seq} ${what}: ${Object.keys(r.changed ?? {}).join(', ') || 'no view field'}${r.graph ? ' · graph changed' : ''}`);
         for (const j of jumps.slice(0, 12)) console.log(`    jump ${j}`);
-        for (const d of flags) console.log(`    ⚑ ${decisionLine(d, where)}`);
+        for (const d of flags) console.log(`    flagged: ${decisionLine(d, where)}`);
         last = sc;
     });
 } else if (offArg) {

@@ -46,6 +46,8 @@ export class DebugPanel {
     tab: 'rules' | 'actions' | 'edges' = 'actions';
     crossedOnly = true;
     private actions: Action[] = [];
+    private scroll: Partial<Record<DebugPanel['tab'], number>> = {};
+    private shown: DebugPanel['tab'] = 'actions';
     private seq = 0;
 
     constructor(private readonly host: DebugHost) {}
@@ -67,8 +69,13 @@ export class DebugPanel {
         let el = select<HTMLDivElement, unknown>('#dbg');
         if (el.empty()) el = select('body').append<HTMLDivElement>('div').attr('id', 'dbg');
         el.classed('on', this.open);
+        select('body').classed('dbg-open', this.open);
+        // the body list keeps its scroll position per tab across redraws (a rule change redraws it)
+        const body0 = el.select<HTMLDivElement>('.dbgbody').node();
+        if (body0) this.scroll[this.shown] = body0.scrollTop;
         el.selectAll('*').remove();
         if (!this.open) return;
+        this.shown = this.tab;
         const head = el.append('div').attr('class', 'dbghead');
         for (const [t, label] of [['rules', 'Rules'], ['actions', 'Actions'], ['edges', 'Edges']] as const) {
             head.append('button').attr('class', this.tab === t ? 'on' : null).text(label).on('click', () => { this.tab = t; this.render(); });
@@ -80,6 +87,7 @@ export class DebugPanel {
         if (this.tab === 'rules') this.rules(body);
         else if (this.tab === 'actions') this.log(body);
         else this.edges(body);
+        body.node()!.scrollTop = this.scroll[this.tab] ?? 0;
     }
 
     /** Link to a rule's explanation or code site. */
@@ -181,7 +189,7 @@ export class DebugPanel {
             for (const d of ds) {
                 const dl = line.append('div').attr('class', `dbgdec${d.flag ? ' flag' : ''}`);
                 this.link(dl, d.rule, 'doc', d.rule.slice(0, 3));
-                dl.append('span').text(` ${d.text}${d.flag ? ` ⚑ ${d.flag}` : ''} `);
+                dl.append('span').text(` ${d.text}${d.flag ? ` · flag: ${d.flag}` : ''} `);
                 this.link(dl, d.rule, 0);
             }
         }

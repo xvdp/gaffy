@@ -2,7 +2,7 @@
  * View change trace (`gaffy.trace`): one JSON line per view-document change in `.baggy/gaffy/trace/<view>.jsonl`;
  * records the causing event, absent from VS Code's undo stack. `tools/gaffy-trace.mjs` prints it as a list.
  * Fields: `t` (ISO time), `view`, `seq` (per view and session, from 1), `cause`, `changed`, `graph`, `moved`.
- * - `cause`: webview edit: `event` (click, dblclick, mousedown = drag, key …, menu <command>, auto), `target`
+ * - `cause`: webview edit: `event` (click, dblclick, mousedown = drag, key ..., menu <command>, auto), `target`
  *   (vertex key, call or text under the pointer), `cell` (grid [row, column]), `fn` (acting functions, `›`
  *   nesting), `args`; else `undo`, `redo`, `command` (last host command id), `external` (server answers, file edits).
  * - `changed`: differing view fields; objects `{key: [before, after]}`, arrays `{added, removed}`, else

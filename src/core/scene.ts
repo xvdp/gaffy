@@ -1,5 +1,5 @@
 /** @xvdp
- * View document → drawable grid: quotient (collapse, hide), visibility (reveal.ts), namespace boxes, labels,
+ * View document => drawable grid: quotient (collapse, hide), visibility (reveal.ts), namespace boxes, labels,
  * placement, routing; webview renders, extension host exports.
  *
  * Visibility: `grow`, open sides (reveal); `auto`, `depthUp` caller and `depthDown` callee levels (revealDepth).
@@ -206,6 +206,8 @@ export function buildScene(doc: ViewDoc, style: Style, exclude: readonly PathTes
         lock: view.lock,
         tight: view.tight ?? style.boxes.tight,
         rules: placeRules,
+        // h41: one layer at a time, callers revealed by an opening (the full layout reveals every caller at once)
+        openedUp: (k) => { const o = grows ? rev.opener.get(k) : undefined; return o?.side === 'up' ? o.by : undefined; },
     }); };
     // moved units overlapped by grown content: nearest clean offset (settle.ts); ≤ 3 rounds, since the next
     // placement may differ from the measured one; webview saves these offsets

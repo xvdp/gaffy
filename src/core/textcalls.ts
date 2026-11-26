@@ -2,12 +2,12 @@
  * Calls from source text for shader languages without server call hierarchy (GLSL, HLSL, Slang, WGSL, Metal).
  * Pure functions; the provider resolves names (go to definition, else workspace name).
  *
- * `mask`: comments, strings, preprocessor lines → spaces (offsets kept).
+ * `mask`: comments, strings, preprocessor lines => spaces (offsets kept).
  * `outline`: C-like declarations by brace matching; header: text since the previous `;`, `{` or `}`. A `{`
  * opens a container if its header names one (`struct|class|namespace|interface|extension|enum|cbuffer|tbuffer`),
- * a function if it ends in `name(…)` [`: SEMANTIC` | `-> Type` | `const`] outside a function, else a block.
- * `callSites`: identifiers before `(`, optional `<…>` generic arguments, minus control-flow keywords; type
- * constructors (`float3(…)`, `vec3(…)`) stay, resolving to nothing.
+ * a function if it ends in `name(...)` [`: SEMANTIC` | `-> Type` | `const`] outside a function, else a block.
+ * `callSites`: identifiers before `(`, optional `<...>` generic arguments, minus control-flow keywords; type
+ * constructors (`float3(...)`, `vec3(...)`) stay, resolving to nothing.
  * Misses: calls through function pointers or macros. False hit: a project-type constructor call matches a
  * same-named function.
  */
@@ -103,11 +103,11 @@ export interface Site { name: string; at: number }
 export function callSites(text: string, from: number, to: number, masked = false): Site[] {
     const m = (masked ? text : mask(text)).slice(from, to);
     const out: Site[] = [];
-    // `f(…)`, `f<T>(…)`, and CUDA kernel launches `k<<<grid, block>>>(…)`
+    // `f(...)`, `f<T>(...)`, and CUDA kernel launches `k<<<grid, block>>>(...)`
     const re = /\b([A-Za-z_]\w*)\s*(?:<<<[^;]*?>>>\s*|<[^<>;{}()]*>\s*)?\(/g;
     for (let r = re.exec(m); r; r = re.exec(m)) {
         if (KEYWORDS.has(r[1])) continue;
-        // local prototype in a body (`float3 f(…)`): rare in shaders, kept
+        // local prototype in a body (`float3 f(...)`): rare in shaders, kept
         out.push({ name: r[1], at: from + r.index });
     }
     return out;

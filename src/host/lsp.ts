@@ -1,7 +1,7 @@
 /** @xvdp
  * Call graph provider over the LSP call hierarchy (VS Code commands `vscode.prepareCallHierarchy`,
  * `vscode.provideIncomingCalls`, `vscode.provideOutgoingCalls`, `vscode.executeDocumentSymbolProvider`): TS/JS
- * built in, Python via Pylance, C/C++, Rust, Go, …. Languages without call hierarchy (shaders, `TEXT_LANGS`): text
+ * built in, Python via Pylance, C/C++, Rust, Go, .... Languages without call hierarchy (shaders, `TEXT_LANGS`): text
  * calls (textcalls.ts); callees by go to definition, else by name; callers by references, else workspace scan.
  *
  * Node keys: `<lang>:<relpath>#<qual>`; qual: segments (langs.ts) of the document-symbol chain at the item's name.
@@ -21,7 +21,7 @@ import { readable } from './scope';
 import { SeedSpec } from './seedspec';
 
 // symbols enclosing a qualified name: types, functions, namespaces, impl blocks (Object), object literals
-// and their variables (TypeScript `const foo = { run() {} }` → `foo.run`)
+// and their variables (TypeScript `const foo = { run() {} }` => `foo.run`)
 const SCOPE = new Set([
     vscode.SymbolKind.Class, vscode.SymbolKind.Interface, vscode.SymbolKind.Struct, vscode.SymbolKind.Enum,
     vscode.SymbolKind.Function, vscode.SymbolKind.Method, vscode.SymbolKind.Constructor,
@@ -149,7 +149,7 @@ export class LspProvider {
     private packages = new Map<string, Promise<boolean>>();
     /** `<dir>:<key>` of empty outgoing answers for bodies with call sites (`silentOf`). */
     private silent = new Set<string>();
-    /** `<dir>:<key>` → full length of answers over `MAX_CALLS` (`clampOf`). */
+    /** `<dir>:<key>` => full length of answers over `MAX_CALLS` (`clampOf`). */
     private clamps = new Map<string, number>();
 
     /** Calls across languages (pybind11, nanobind, torch, slangpy, slangtorch); `gaffy.bridges`. */
@@ -550,7 +550,7 @@ export class LspProvider {
     /**
      * Server outgoing calls and their call ranges; unreadable schemes dropped (scope.ts); first `MAX_CALLS` kept
      * (`clampOf`: full length). `bound`: binding-matched call ranges; server edges from them drop (same-name match).
-     * Cancelled `token` → undefined (a partial answer is no answer).
+     * Cancelled `token` => undefined (a partial answer is no answer).
      */
     private async lspOutgoing(key: NodeKey, it: vscode.CallHierarchyItem, acc: Record<NodeKey, GNode>,
         bound?: (r: vscode.Range) => boolean, token?: vscode.CancellationToken): Promise<{ edges: GEdge[]; ranges: vscode.Range[] } | undefined> {

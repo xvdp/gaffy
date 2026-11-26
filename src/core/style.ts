@@ -132,7 +132,7 @@ const BOUNDS: [keyof Style, string, number, number][] = [
 ];
 
 /**
- * Merged style with numeric fields clamped to range (non-numbers → default), crossing glyph cut to one character.
+ * Merged style with numeric fields clamped to range (non-numbers => default), crossing glyph cut to one character.
  * `.baggy/gaffy/style.json` may come with a cloned repository: `grid.indent: 20000` made one layout take 7 s and 600 MB.
  */
 export function boundedStyle(st: Style): Style {

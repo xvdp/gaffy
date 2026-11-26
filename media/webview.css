@@ -189,7 +189,9 @@ text { dominant-baseline: central; white-space: pre; }
 #why .why { white-space: pre-wrap; padding: 1px 0; border-top: 1px solid var(--vscode-widget-border, transparent); }
 #why .why.flag { color: var(--vscode-editorWarning-foreground, #cca700); }
 
-/* layout debugging panel (src/webview/dbgpanel.ts): rules, actions, edges; docked under the graph */
+/* layout debugging panel (src/webview/dbgpanel.ts): rules, actions, edges; docked under the graph; the Options
+   pulldown stays within the canvas above it and scrolls */
+body.dbg-open #toolbar .panel { max-height: calc(62vh - 22px - 48px); }
 #dbg { display: none; position: fixed; left: 0; right: 0; bottom: 22px; z-index: 24; height: 38vh; overflow: hidden;
     background: var(--vscode-editorWidget-background); color: var(--vscode-editorWidget-foreground);
     border-top: 1px solid var(--vscode-editorWidget-border, var(--vscode-widget-border, #555)); font: 12px var(--vscode-font-family); }

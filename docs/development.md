@@ -16,7 +16,7 @@
 
 Text calls ([src/core/textcalls.ts](../src/core/textcalls.ts)): comments, strings, preprocessor lines masked; functions and containers (`struct`, `class`, `namespace`, `interface`, `extension`, `cbuffer`) from document symbols, else brace matching; call site: name + `(` (optional `<…>`), control keywords excluded; constructor of a project type counted when a function of that name exists; calls through function pointers or macros missed. Name rules per language: [src/core/langs.ts](../src/core/langs.ts). External code (installed packages, `target/`, `_deps/`, `/usr/include`): hidden unless `gaffy.includeExternal`.
 
-### Across languages
+## Cross language bridges
 
 Binding declarations link calls no language server sees across (Python ↔ C++/CUDA, Python ↔ Slang, TypeScript ↔ Rust): [src/core/bindings.ts](../src/core/bindings.ts), [src/host/bridges.ts](../src/host/bridges.ts); setting `gaffy.bridges`. Tooltip: the binding (`via pybind11: ext.cpp:16`).
 
@@ -48,28 +48,27 @@ Not followed (a call trace would see them): backprop, hooks, `with` blocks, iter
 
 
 ## Scripts
+[package.json](../package.json#L928)
 
 | command | effect |
 |---|---|
 | `npm install` | dependencies, after cloning or a `package.json` change |
+| `npm run install:local` | latest vsix: `code --install-extension gaffy-<version>.vsix`, version from `package.json` |
 | `npm run typecheck` | `tsc --noEmit` over `src/` and `test/` |
 | `npm test` | vitest: core, routing invariants, golden text pictures in `test/golden/`, rule configuration, edge rules on `test/data/bindings.gaffy`, a subset of the rule matrix, seeded operation sequences |
-| `npm run test:matrix` | the whole rule matrix (fixtures × boxes × tight × parent rule × switched-off rules × moves; about 3 minutes) |
+| `npm run test:matrix` | tests all rules (fixtures × boxes × tight × parent rule × switched-off rules × moves; about 3 minutes) |
 | `UPDATE_GOLDEN=1 npm test` | goldens rewritten after an intended layout change |
 | `npm run build` | esbuild bundles: `dist/extension.js` (host), `dist/webview.js` (webview) |
 | `npm run watch` | build on every save |
-| `npm run package` | typecheck, test, build, `vsce package` → `gaffy-<version>.vsix` |
-| `npm run release` | typecheck, test; when both pass, the patch version + 1 (`npm version patch --no-git-tag-version`: package.json, package-lock.json, no commit or tag), then build and `vsce package` → `gaffy-<new version>.vsix` |
-| `npm run install:local` | `code --install-extension gaffy-<version>.vsix`, version from `package.json` |
+| `npm run package` | `npm run` {`typecheck`, `test`, `build`},  `vsce package` =>  `gaffy-<version>.vsix` |
+| `npm run release` | `npm run` {`typecheck`, `test`, `build`, `version patch --no-git-tag-version`}, `vsce package` => `gaffy-<version>+0.0.1.vsix`, version increment in `package.json` & `package-lock.json`|
 | `npm run preview` | `dist/preview.html`: the webview in a browser with fixture views; `GAFFY_PREVIEW_FILE=<view.gaffy> npm run preview` for any view |
-| `npm run heuristics` | `docs/heuristics.md`, `docs/heuristics.gaffy`, `docs/ordering.md`, `src/core/rules.lines.ts` (code sites per rule), regenerated from the code; `schemas/style.schema.json` restricted to the appearance keys of `USER_STYLE` |
+| `npm run heuristics` | `docs/heuristics.md`, `docs/heuristics.gaffy`, `docs/ordering.md`, `docs/examples.md` (pictures of terms and rules), `src/core/rules.lines.ts` (code sites per rule), regenerated from the code; `schemas/style.schema.json` restricted to the appearance keys of `USER_STYLE` |
 | `npm run docs:check` | `npm run heuristics`, then a failure when `docs/`, `rules.lines.ts` or the schema differs from the commit |
 | `npm run explain -- <view.gaffy> [--unit <text>] [--flags] [--off <rules>] [--trace <trace.jsonl>]` | placement decision log with code lines, rule ablation, trace replay (README: Layout debugging) |
 | `node tools/gaffy-trace.mjs <trace.jsonl>` | view change log (setting `gaffy.trace`) as a list |
 | `npm run metrics -- <view.gaffy> ['<rules JSON>' …]` | edge metrics per rule configuration: picture size, crossing cells, bends, routed cells, unrouted calls, route cost, build time |
 | `npm run providers -- [folder]` | language providers outside VS Code: languages with files under the folder, the extension each needs, installed or missing (`code --list-extensions`, else the extension folder) |
-
-
 
 
 ## Files
@@ -90,6 +89,7 @@ src/core/             TypeScript, no VS Code API: runs in the host (export), the
   settle.ts             moved units the picture grew into: nearest clear offset, least displacement first
   rules.ts              rule registry: id, stage, text, switch, alternatives, parameters; configuration layers (defaults, legacy style keys, style.json `rules`, view `rules`)
   rules.lines.ts        generated: code sites per rule (npm run heuristics)
+  paths.ts              calls to ask for the call paths between seeds (added seeds, Paths between seeds only)
   explain.ts            layout debugging: decision log and flags
   grid.ts               character grid, A* routing, glyphs (call kinds), text export
   bindings.ts           binding declarations parsed from source text (pybind11, nanobind, torch, slangpy, wasm-bindgen)
@@ -122,6 +122,7 @@ scripts/rules.ts      pipeline functions, calls and rules with their code anchor
 scripts/explain.ts    placement decision log of a view file (`npm run explain`; core: src/core/explain.ts)
 scripts/providers.ts  language providers outside VS Code (`npm run providers`)
 scripts/metrics.ts    edge metrics of a view per rule configuration (`npm run metrics`)
+scripts/examples.ts   docs/examples.md: pictures of terms and rules from made-up graphs (`npm run heuristics`)
 tools/gaffy-trace.mjs standalone, no dependencies, not packaged: prints a view trace (.baggy/gaffy/trace/<view>.jsonl, setting gaffy.trace)
 test/data/            view files reduced from real cases (runaway.gaffy: box descent drift, names made up; bindings.gaffy: gaffy's bindings.ts and its callers, redundant crossings)
 ```
@@ -170,4 +171,44 @@ Threat model: a workspace or a `.gaffy` file comes from someone else (a cloned r
 
 Trace reader: `tools/gaffy-trace.mjs` prints control, zero-width and bidirectional characters from trace data as `\u{…}` (text) or `\uXXXX` (`--json`), so names cannot send terminal escape sequences.
 
-Not covered: a malicious language-server extension itself. It runs in the extension host with the editor's rights, with or without gaffy; VS Code's defences against it (Marketplace scanning, publisher trust, block list) act on the extension, not on its answers. gaffy treats its answers as data under the measures above, so they gain no capability through gaffy that the extension lacks without it, and gaffy displays no name in a 
+
+
+## Building, progress, cache
+
+- Progress: status line `⟳ language server: <phase> …` with growing dots (seed resolution `resolving seeds 3/34`, then layers, definitions, language-server requests, cached answers), the same phase in a banner over the graph; after 400 ms also a notification with cancel.
+- Cache: each language-server answer (callers or callees of one definition), in `.baggy/gaffy/cache/calls.json` (`calls-external.json` for views with external code). Depth or direction changes, expansion and view opening ask the language server only for uncached answers.
+- Invalidation: a saved, renamed or externally changed source file drops its definitions' cached outgoing calls and all cached incoming calls; files of an extension no cached definition has (logs, bytecode, build output): none. `gaffy: Clear Call Cache`: everything.
+- No answer ≠ empty answer: a definition the language server does not resolve (analyzing after a reload, renamed, removed) keeps its stored calls, uncached, unexplored; retries after 2, 4, 8, 15, 30, 60 s (`language server not ready` in the status line), then a warning with the count.
+- Timeout: 30 s without an answer counts as no answer (retried); one stalled request never holds the queue.
+- Unfrozen view: explored (definition, direction) pairs take cached answers; stale pairs on screen asked again in the background, off screen kept and asked when a side opens onto them. Nothing changed since the last save: no request.
+- **Refresh Language Server** (Options > File, `r`, `gaffy: Refresh Language Server`): every on-screen (definition, direction) pair asked again; cached answers of the others dropped (asked when a side or a call depth reaches them).
+
+## Change tracking
+
+- Source save: open views with a definition from that file updated (`gaffy.refreshOnSave`: `touched`, `all`, `off`), asking only the pairs made stale.
+- File rename: keys, paths, URIs rewritten in open views, then updated alike.
+- Definition identity across line moves: keys `<lang>:<path>#<qualified name>`.
+- Views keep every definition the language server named; closed sides, lower call depths, hides only take them off screen.
+
+
+## Settings
+
+| setting | default | effect |
+|---|---|---|
+| `gaffy.depth` | 3 | one layer at a time: levels prefetched in the background; full: the starting call depths |
+| `gaffy.maxNodes` | 400 | definitions fetched per build |
+| `gaffy.openCallHierarchy` | true | also open VS Code's Call Hierarchy, in the References view, when creating a view |
+| `gaffy.saveViews` | false | Autosave Graphs: new views written to `.baggy/gaffy/`, saved after each change. Off: closing an unsaved view discards it (hot exit keeps it across window reloads) |
+| `gaffy.trace` | false | view change log, undo and redo included, in `.baggy/gaffy/trace/<view>.jsonl`: event, target, grid cell, acting functions, changed fields, moved labels and boxes; trusted workspaces only. Reader: `node tools/gaffy-trace.mjs <file>` (this repository) |
+| `gaffy.exclude` | none | globs of folders and files kept off screen (for example `"**/tests/**"`); Options > Folders includes them again per view |
+| `gaffy.includeExternal` | false | new views: show external code (Options > Folders per view): installed packages (site-packages, node_modules), stubs, system headers, build output, wasm-pack glue |
+| `gaffy.includeStandardLibrary` | false | new views, with external code: builtins and standard library (Python typeshed `stdlib`, `pythonX.Y`; Rust core, alloc, std; C++ standard headers; TypeScript `lib.*.d.ts`); off: installed packages only; drawn without the language server |
+| `gaffy.autoSave` | true | save the view file after each graph change |
+| `gaffy.refreshOnSave` | touched | update policy after a source save |
+| `gaffy.openDefinitions` | true | Open Definitions: a view from the editor opens beside it; a click opens the definition next to the graph. Off: active column; a click only selects |
+
+## Tests and preview
+
+Commands: [docs/development.md](docs/development.md#scripts). Preview page parameters: `dist/preview.html?doc=sh|exp4|star|grow|two[&edges=vector&curve=sigmoid&fill=hue&boxes=off&parentRule=joint]`.
+
+Preview: the webview bundle in a browser, mocked VS Code API, fixture views (`sh`, `exp4`, `star`, `grow`, `two`) over made-up packages; `GAFFY_PREVIEW_FILE=<view.gaffy>` previews any view.

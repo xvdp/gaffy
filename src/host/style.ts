@@ -10,7 +10,7 @@ import { boundedStyle, deepMerge, DEFAULT_STYLE, Style, userStyle } from '../cor
 /** gaffy data folder of a project folder: views, text exports, `style.json`, `cache/`, `trace/`. */
 export const gaffyDir = (folder: vscode.Uri) => vscode.Uri.joinPath(folder, '.baggy', 'gaffy');
 
-/** Folder holding a view's data folder: `<X>/.baggy/gaffy/…` → X; legacy layout `<X>/.gaffy/…` → X. */
+/** Folder holding a view's data folder: `<X>/.baggy/gaffy/...` => X; legacy layout `<X>/.gaffy/...` => X. */
 export function holderOf(uri: vscode.Uri): vscode.Uri | undefined {
     if (uri.scheme === 'untitled') uri = vscode.Uri.file(uri.path);
     const parts = uri.path.split('/');
@@ -79,7 +79,7 @@ export class StyleService implements vscode.Disposable {
         const said = `${folder.toString()}\u0000${ignored.join(',')}`;
         if (ignored.length && !this.warned.has(said)) {
             this.warned.add(said);
-            void vscode.window.showWarningMessage(plain(`gaffy: style keys ignored (set per view in Options, or in Options > Arrange > Rules): ${ignored.slice(0, 12).join(', ')}${ignored.length > 12 ? ' …' : ''}`));
+            void vscode.window.showWarningMessage(plain(`gaffy: style keys ignored (set per view in Options, or in Options > Arrange > Rules): ${ignored.slice(0, 12).join(', ')}${ignored.length > 12 ? ' ...' : ''}`));
         }
         return boundedStyle(deepMerge(DEFAULT_STYLE, a.style, b.style));
     }

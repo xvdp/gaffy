@@ -1,15 +1,15 @@
 /** @xvdp
  * Cross-language edges added to language-server answers; bindings.ts parses the text.
- * - pybind11, nanobind, torch: Python call → bound C++/CUDA function (go to definition at the binding target,
+ * - pybind11, nanobind, torch: Python call => bound C++/CUDA function (go to definition at the binding target,
  *   else workspace symbol by name).
- * - slangpy, slangtorch: `….fn(…)` → `fn` of the loaded .slang module; `getattr(…)` → functions named by
+ * - slangpy, slangtorch: `....fn(...)` => `fn` of the loaded .slang module; `getattr(...)` => functions named by
  *   string literals (approximate).
- * - wasm-bindgen: TypeScript/JavaScript → `#[wasm_bindgen]` Rust export, via an import of the crate's wasm-pack
+ * - wasm-bindgen: TypeScript/JavaScript => `#[wasm_bindgen]` Rust export, via an import of the crate's wasm-pack
  *   package (`pkg/`, `pkg/<crate>.js`, crate name). Glue `pkg/*.js` is external code (langs.ts): one edge.
- * - torch.autograd: `X.apply(…)` → `X.forward`, `X` a `torch.autograd.Function` subclass; the language server
+ * - torch.autograd: `X.apply(...)` => `X.forward`, `X` a `torch.autograd.Function` subclass; the language server
  *   stops at `Function.apply`.
  * Incoming calls get the reverse edges. A binding-matched call site drops the server's edge: with the compiled
- * module unresolved, the server matches by name (`_C.magoo(…)` → wrapper `magoo`; measured with Pyright).
+ * module unresolved, the server matches by name (`_C.magoo(...)` => wrapper `magoo`; measured with Pyright).
  * Edges carry `via` (`pybind11: src/ext.cpp:42`). Indexes: per project (nearest folder with a build or package
  * manifest), else workspace; dropped when a file of their kind changes.
  */
@@ -27,7 +27,7 @@ const NATIVE = new Set(['c', 'cpp', 'cuda']);
 const JS = new Set(['ts', 'js']);
 type Located = Binding & { uri: vscode.Uri; module: string };
 
-/** Failed lookups of a binding target reported as unresolved: about the retry window of build.ts (2 … 60 s). */
+/** Failed lookups of a binding target reported as unresolved: about the retry window of build.ts (2 ... 60 s). */
 const MISSES = 6;
 
 /** A binding target did not resolve yet (C/C++ server loading): the whole answer is no answer, retried later. */
@@ -103,7 +103,7 @@ export class Bridges {
         return p;
     }
 
-    /** Bindings with their Python module; `TORCH_EXTENSION_NAME` → extension built from the file. */
+    /** Bindings with their Python module; `TORCH_EXTENSION_NAME` => extension built from the file. */
     private bindings(scope = ''): Promise<Located[]> {
         let cached = this.native.get(scope);
         if (cached) return cached;
@@ -117,7 +117,7 @@ export class Bridges {
                 const base = path.posix.basename(uri.path);
                 for (const b of scanNative(text)) {
                     if (!/^[A-Z_][A-Z0-9_]*$/.test(b.module)) { out.push({ ...b, uri }); continue; }
-                    // macro module name → extensions built from this file, else the file stem
+                    // macro module name => extensions built from this file, else the file stem
                     const names = exts.filter((e) => e.sources.some((s) => path.posix.basename(s) === base)).map((e) => e.name);
                     for (const name of names.length ? names : [base.replace(/\.[^.]+$/, '')]) out.push({ ...b, uri, module: name });
                 }
@@ -157,7 +157,7 @@ export class Bridges {
         return (r) => { const a = doc.offsetAt(r.start), b = doc.offsetAt(r.end); return at.some((x) => x >= a && x <= b); };
     }
 
-    /** torch.autograd: `X.forward` for `X.apply(…)`, `X` a `torch.autograd.Function` subclass. */
+    /** torch.autograd: `X.forward` for `X.apply(...)`, `X` a `torch.autograd.Function` subclass. */
     private async forwardOf(uri: vscode.Uri, doc: vscode.TextDocument, at: number, dotted: string): Promise<vscode.CallHierarchyItem | undefined> {
         const cls = dotted.split('.').slice(-2, -1)[0];
         if (!cls) return undefined;
@@ -319,7 +319,7 @@ export class Bridges {
         this.partial.delete(`out:${key}`);
         if (!this.enabled()) return [];
         if (JS.has(langOf(it.uri.path))) {
-            // TypeScript/JavaScript → Rust through wasm-bindgen
+            // TypeScript/JavaScript => Rust through wasm-bindgen
             const doc = await vscode.workspace.openTextDocument(it.uri);
             const edges: GEdge[] = [];
             for (const { e, at } of await this.wasmCalls(it.uri, doc.getText(), doc.offsetAt(it.selectionRange.end), doc.offsetAt((await this.p.bodyOf(it)).end))) {
@@ -337,7 +337,7 @@ export class Bridges {
         const sites = pyCallSites(text, from, upto);
         if (!sites.length) return [];
         const edges: GEdge[] = [];
-        // torch.autograd: X.apply(…) → X.forward
+        // torch.autograd: X.apply(...) => X.forward
         for (const s of sites.filter((x) => x.dotted.endsWith('.apply'))) {
             const t = await this.forwardOf(it.uri, doc, s.at, s.dotted);
             const to = t && (await this.p.describe(t, acc));
@@ -403,7 +403,7 @@ export class Bridges {
         let files = (await this.pyFiles(scope)).filter((f) => f.text.includes(name));
         if (!files.length && scope) files = (await this.pyFiles('')).filter((f) => f.text.includes(name));
         if (lang === 'py') {
-            // torch.autograd: X.forward ← callers of X.apply(…)
+            // torch.autograd: X.forward ← callers of X.apply(...)
             if (name !== 'forward') return [];
             const doc = await vscode.workspace.openTextDocument(it.uri);
             const cls = segments(it.name).length > 1 ? undefined : (await this.p.symbolsOf(it.uri)).flatMap((x) => [x, ...(x.children ?? [])])

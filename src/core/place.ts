@@ -33,7 +33,7 @@ export interface Pos { row: number; col: number }
 export interface Block {
     box: BoxNode;
     L: Layout;
-    rowMap: number[];                  // layout row → global row before shifts
+    rowMap: number[];                  // layout row => global row before shifts
     col0: number;                      // global column of layout column 0
     shift: Map<NodeKey, Cell>;         // subtree displacement per vertex
 }
@@ -65,6 +65,7 @@ export interface PlaceInput {
     lock: Record<string, Cell>;
     tight?: boolean;                   // frames hug their content (view.tight)
     rules?: Rules;                     // switches, parameters, decision log (rules.ts)
+    openedUp?: (k: NodeKey) => NodeKey | undefined;   // the function whose callers revealed `k` (reveal opener, side up)
 }
 
 interface Rect { c0: number; r0: number; c1: number; r1: number }
@@ -319,17 +320,31 @@ function placeOnce(inp: PlaceInput, adjust: Cell, final: boolean): { P: Placemen
             for (const v of inside) for (const e of vg.inc.get(v) ?? []) if (sibCallers.some((p) => itemOf.get(e.from) === p.i)) entering.add(v);
             // column, row, stacking: from unmoved earlier items
             const channel = R.p('h17_item_column', 'channel');
+            // h41: a group whose callers were opened from it (opener side up) hangs below the caller's group, its
+            // function one indent right of the caller: `caller()` over `└─> f()`, as a callee below its caller
+            // only for a group called from a single sibling group: with callers in several, below one of them
+            // lengthens the calls of the others (bindings view: crossing cells 23 => 68)
+            const opened = it.kind === 'box' && sibCallers.length === 1 && R.on('h41_callee_below') ? callers.find((u) => {
+                const by = inp.openedUp?.(u);
+                return by !== undefined && inside.has(by) && sibCallers.some((p) => itemOf.get(u) === p.i);
+            }) : undefined;
+            const openedBy = opened !== undefined ? inp.openedUp!(opened)! : undefined;
             const colOn = sibCallers.length && R.on('h17_item_column');
-            const col = colOn ? Math.max(...sibCallers.map((p) => p.base.c1)) + 1 + channel + entering.size : cc;
+            // h41: the group's content column one indent right of the caller (frame border 3 cells left of it)
+            const col = opened !== undefined
+                ? Math.max(cc, P.pos.get(opened)!.col - (moved.get(opened)?.[0] ?? 0) + R.p('h10_dfs_nearest_parent', 'indent') - 3)
+                : colOn ? Math.max(...sibCallers.map((p) => p.base.c1)) + 1 + channel + entering.size : cc;
             // stacking ignores locked siblings, unless overlapped
             const stack = placed.filter((p) => !inp.lock[unitOf(p.i)]);
             const below = stack.length ? Math.max(...stack.map((p) => p.base.r1)) + 1 : cr;
             const rowOn = R.on('h18_item_row');
-            const top = rowOn && callers.length ? Math.max(cr, Math.min(...callers.map(baseRow))) : (rowOn && sibCallers.length ? cr : below);
+            const top = opened !== undefined ? placed.find((p) => itemOf.get(opened) === p.i)!.base.r1 + 2
+                : rowOn && callers.length ? Math.max(cr, Math.min(...callers.map(baseRow))) : (rowOn && sibCallers.length ? cr : below);
             const name = itemName(i);
-            note({ rule: 'h17_item_column', fn: 'placeBox', unit: name, text: colOn ? `column ${col}: right of ${sibCallers.length} calling siblings` : `column ${col}: content column`,
+            if (opened !== undefined) note({ rule: 'h41_callee_below', fn: 'placeBox', unit: name, text: `column ${col}, row ${top}: below the group of ${opened.slice(opened.indexOf('#') + 1)}, whose callers opened from it`, values: { caller: opened, opener: openedBy } });
+            if (opened === undefined) note({ rule: 'h17_item_column', fn: 'placeBox', unit: name, text: colOn ? `column ${col}: right of ${sibCallers.length} calling siblings` : `column ${col}: content column`,
                 values: colOn ? { callers: sibCallers.map((p) => itemName(p.i)), right: Math.max(...sibCallers.map((p) => p.base.c1)), channel, entering: entering.size } : {} });
-            note({ rule: 'h18_item_row', fn: 'placeBox', unit: name, text: rowOn && callers.length ? `row ${top}: topmost caller row` : `row ${top}: below earlier siblings`,
+            if (opened === undefined) note({ rule: 'h18_item_row', fn: 'placeBox', unit: name, text: rowOn && callers.length ? `row ${top}: topmost caller row` : `row ${top}: below earlier siblings`,
                 values: rowOn && callers.length ? { callerRows: [...new Set(callers.map(baseRow))].sort((a, b) => a - b).slice(0, 12) } : { below } });
             // obstacles: a sibling moved by an offset at its unmoved place (settle.ts clears collisions);
             // a locked sibling, or a frame stretched by moves inside it, where drawn

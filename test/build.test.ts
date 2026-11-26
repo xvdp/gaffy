@@ -69,7 +69,7 @@ describe('extendGraph merge', () => {
     });
 
     it('a call reported by the callee\'s callers stays when the caller\'s calls answer omits it; it goes when neither reports it', async () => {
-        // distCUDA2 → knn: the C/C++ server lists distCUDA2 among the callers of knn, and no calls for distCUDA2
+        // distCUDA2 => knn: the C/C++ server lists distCUDA2 among the callers of knn, and no calls for distCUDA2
         const d = { ...doc, graph: { ...doc.graph, edges: doc.graph.edges.filter((e) => e.from !== root) } };
         const callee = calls(doc.graph.edges, root)[0];
         const e = { from: root, to: callee, line: 3 };

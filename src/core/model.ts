@@ -96,7 +96,7 @@ export function bodyHash(text: string): string {
 }
 
 /**
- * Security tooling: Trojan Source characters (CVE-2021-42574) in language-server and view-file text shown as `\u{…}`:
+ * Security tooling: Trojan Source characters (CVE-2021-42574) in language-server and view-file text shown as `\u{...}`:
  * C0/C1 controls, zero-width, joiners, bidirectional embeddings, overrides, isolates, byte-order mark.
  */
 const HIDDEN = /[\u0000-\u001f\u007f-\u009f\u00ad\u061c\u180e\u200b-\u200f\u2028-\u202e\u2060-\u206f\ufeff]/g;
@@ -104,6 +104,6 @@ export const visible = (s: string) => s.replace(HIDDEN, (c) => `\\u{${c.codePoin
 
 /**
  * VS Code notification and progress text from untrusted names, paths, errors: `visible`, `](` split, since
- * notifications render `[label](command:…|file:…|https:…)` as links.
+ * notifications render `[label](command:...|file:...|https:...)` as links.
  */
 export const plain = (s: string) => visible(s).replace(/\]\(/g, '] (');
