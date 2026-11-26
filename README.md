@@ -27,9 +27,22 @@ Generates JSON graph interpreted by gaffy viewer. Default unsaved, `gaffy.autoSa
 ### Not published as vscode extension because...
 MS appears to think that I am not human, ergo my accounts get locked when i try to publish. Perhaps I need an ai assisstant to pass the "are you human" tests.
 
-
 ## Install from Source
+<details>
+<summary>requires node >= 22.12, npm >=7. If missing, install: </summary>
+<pre>
+```
+# node -v # >= 22.12 
+# npm -v # >= 7
+# node: Mac `brew install node@22` or Win `winget install OpenJS.NodeJS.LTS` or linux https://github.com/nvm-sh/nvm#installing-and-updating
+# npm
+nvm install 22
+nvm use 22
+```
+</pre>
+</details>
 
+Clone repo build and install
 ```bash
 npm install
 npm run package         # typecheck, test, build .vsix
