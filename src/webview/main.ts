@@ -1660,7 +1660,7 @@ function showWhy(unit: string) {
     el.classed('on', true);
     const head = el.append('div').attr('class', 'whyhead');
     const off = rulesOff();
-    head.append('span').text(`Why here: ${name} · ${mine.length} decisions${off.size ? ` · rules off: ${[...off].map((r) => r.slice(0, 3)).join(' ')}` : ''}`);
+    head.append('span').text(`Trace layout heuristics: ${name} · ${mine.length} decisions${off.size ? ` · rules off: ${[...off].map((r) => r.slice(0, 3)).join(' ')}` : ''}`);
     head.append('button').text('actions').attr('title', 'running log of changes with the rules that moved each function and group (panel under the graph)').on('click', () => dbg.toggle('actions'));
     head.append('button').text('×').attr('title', 'close (Esc)').on('click', hideWhy);
     el.append('div').attr('class', 'whynote').text('in placement order: outer groups first, then the block, settle moves last. Offline, with code lines: npm run explain -- <view> --unit <text>');
