@@ -23,6 +23,7 @@ import { gitShort } from './git';
 import { LspProvider, MAX_CALLS } from './lsp';
 import { readable } from './scope';
 import { seedSpec } from './seedspec';
+import { autoSaveOf } from './settings';
 import { folderOf, gaffyDir, homeOf, StyleService } from './style';
 import { Trace } from './trace';
 
@@ -108,8 +109,8 @@ export class Session {
         const end = this.document.lineAt(Math.max(0, this.document.lineCount - 1)).range.end;
         edit.replace(this.document.uri, new vscode.Range(new vscode.Position(0, 0), end), text);
         await vscode.workspace.applyEdit(edit);
-        // untitled views skip autoSave; `view.save` (a script's view) saves whatever the setting
-        if (!this.document.isUntitled && (doc.view.save || vscode.workspace.getConfiguration('gaffy').get<boolean>('autoSave'))) await this.document.save();
+        // untitled views wait for Save; `view.save` (a script's view) saves whatever the setting
+        if (!this.document.isUntitled && (doc.view.save || autoSaveOf(this.folder))) await this.document.save();
     }
 
     async post(): Promise<void> {
@@ -118,7 +119,7 @@ export class Session {
         const exclude = cfg.get<string[]>('exclude') ?? [];
         // Options panel settings
         const settings = { includeExternal: cfg.get<boolean>('includeExternal') ?? false, includeStandardLibrary: cfg.get<boolean>('includeStandardLibrary') ?? false,
-            saveViews: cfg.get<boolean>('saveViews') ?? false, untitled: this.document.isUntitled, unsaved: this.document.isUntitled || this.document.isDirty,
+            autoSave: autoSaveOf(this.folder), untitled: this.document.isUntitled, unsaved: this.document.isUntitled || this.document.isDirty,
             trace: cfg.get<boolean>('trace') ?? false,
             held: this.held, debugLayout: cfg.get<boolean>('debugLayout') ?? false };
         void this.panel.webview.postMessage({ type: 'state', text: this.document.getText(), name: this.name, style, exclude, settings, busy: this.busy });
@@ -224,7 +225,7 @@ export class Session {
             if (first) { this.opening.built = true; now.view.live = this.opening.id; }
             await this.write(now);
         }
-        for (const u of r.unresolved) this.pending.set(`${u.dir}:${u.key}`, u);
+        for (const u of [...r.unresolved, ...r.partial]) this.pending.set(`${u.dir}:${u.key}`, u);
         this.limits(r);
         return r;
     }
@@ -302,6 +303,39 @@ export class Session {
             for (let i = 0; i < rounds && !bg.token.isCancellationRequested; i++) {
                 const qs = this.unaskedPairs(this.doc(), frontierOf(this.doc(), this.opts().exclude, this.opts().outside));
                 if (!qs.length || !(await this.ask(qs, 'cached', 'checking neighbors', show, bg.token))?.asked) break;
+            }
+        } finally { bg.end(); }
+    }
+
+    /**
+     * Calls around joined seeds (`view.joins`), for the call paths to the other seeds: breadth-first from each joined
+     * seed, calls downward and callers upward, `view.depth` levels per direction, unasked pairs only (`gaffy.maxNodes`
+     * bounds the data). Revealed: only the vertices on paths (scene.ts revealView).
+     */
+    private joinsUnasked(doc: ViewDoc): Pair[] {
+        return this.unaskedPairs(doc, (doc.view.joins ?? []).flatMap((key) => [{ key, dir: 'out' as const }, { key, dir: 'in' as const }]));
+    }
+
+    private async joinData(show: (t: string) => void, token: vscode.CancellationToken): Promise<void> {
+        const bg = this.background(token);
+        try {
+            for (const dir of ['out', 'in'] as const) {
+                const d0 = this.doc();
+                let front = (d0.view.joins ?? []).filter((k) => Object.hasOwn(d0.graph.nodes, k));
+                const seen = new Set(front);
+                for (let level = 0; level < Math.max(1, d0.view.depth) && front.length && !bg.token.isCancellationRequested; level++) {
+                    const qs = this.unaskedPairs(this.doc(), front.map((key) => ({ key, dir })));
+                    if (qs.length) await this.ask(qs, 'cached', 'paths to the other seeds', show, bg.token);
+                    const es = this.doc().graph.edges;
+                    const next = new Set<NodeKey>();
+                    for (const k of front) {
+                        for (const e of es) {
+                            const n = dir === 'out' ? (e.from === k ? e.to : undefined) : (e.to === k ? e.from : undefined);
+                            if (n && !seen.has(n) && !isContainer(this.doc().graph.nodes[n])) { seen.add(n); next.add(n); }
+                        }
+                    }
+                    front = [...next];
+                }
             }
         } finally { bg.end(); }
     }
@@ -479,6 +513,7 @@ export class Session {
                     await this.neighbors(show, token);
                 });
             }
+            if (this.joinsUnasked(this.doc()).length) await this.progress((show, token) => this.joinData(show, token));
             this.settle();
         });
     }

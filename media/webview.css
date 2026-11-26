@@ -188,3 +188,33 @@ text { dominant-baseline: central; white-space: pre; }
 #why .whynote { color: var(--vscode-descriptionForeground); margin-bottom: 4px; white-space: normal; }
 #why .why { white-space: pre-wrap; padding: 1px 0; border-top: 1px solid var(--vscode-widget-border, transparent); }
 #why .why.flag { color: var(--vscode-editorWarning-foreground, #cca700); }
+
+/* layout debugging panel (src/webview/dbgpanel.ts): rules, actions, edges; docked under the graph */
+#dbg { display: none; position: fixed; left: 0; right: 0; bottom: 22px; z-index: 24; height: 38vh; overflow: hidden;
+    background: var(--vscode-editorWidget-background); color: var(--vscode-editorWidget-foreground);
+    border-top: 1px solid var(--vscode-editorWidget-border, var(--vscode-widget-border, #555)); font: 12px var(--vscode-font-family); }
+#dbg.on { display: flex; flex-direction: column; }
+#dbg .dbghead { display: flex; gap: 6px; align-items: center; padding: 3px 8px; border-bottom: 1px solid var(--vscode-widget-border, transparent); }
+#dbg .dbghead .grow { flex: 1; }
+#dbg button { font: inherit; cursor: pointer; color: inherit; background: none; border: 1px solid transparent; border-radius: 3px; padding: 1px 8px; }
+#dbg button.on { border-color: var(--vscode-focusBorder); }
+#dbg .dbgbody { overflow: auto; padding: 4px 8px; flex: 1; font-family: var(--vscode-editor-font-family); }
+#dbg a, #dbg a.code { color: var(--vscode-textLink-foreground); cursor: pointer; text-decoration: none; margin-left: 6px; }
+#dbg a:hover { text-decoration: underline; }
+#dbg .dbgnote { color: var(--vscode-descriptionForeground); margin: 2px 0 4px; }
+#dbg .dbgstage { font-weight: 600; margin: 8px 0 2px; }
+#dbg .dbgrule { padding: 1px 0; white-space: nowrap; }
+#dbg .dbgrule .nobox { display: inline-block; width: 17px; }
+#dbg .dbgrule .title { color: var(--vscode-foreground); }
+#dbg .dbgrule select, #dbg .dbgrule input[type=number] { font: inherit; color: var(--vscode-input-foreground); background: var(--vscode-input-background);
+    border: 1px solid var(--vscode-input-border, transparent); margin-left: 4px; }
+#dbg .dbgrule input[type=number] { width: 6em; }
+#dbg .param.own input { border-color: var(--vscode-focusBorder); }
+#dbg .param.style input { border-style: dashed; }
+#dbg .dbgact { border-top: 1px solid var(--vscode-widget-border, transparent); padding: 3px 0; }
+#dbg .dbgcause { font-weight: 600; }
+#dbg .dbgmove { padding-left: 12px; }
+#dbg .dbgdec { padding-left: 16px; color: var(--vscode-descriptionForeground); }
+#dbg .dbgdec.flag, #dbg .flag { color: var(--vscode-editorWarning-foreground, #cca700); }
+#dbg .dbgedge { padding: 1px 0; cursor: pointer; }
+#dbg .dbgedge:hover { background: var(--vscode-list-hoverBackground); }

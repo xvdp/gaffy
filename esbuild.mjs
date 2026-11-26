@@ -1,8 +1,13 @@
 // Bundles: extension host (Node, CJS, `vscode` external), webview (browser, IIFE).
 import * as esbuild from 'esbuild';
 
+import { execFileSync } from 'node:child_process';
+
 const watch = process.argv.includes('--watch');
-const common = { bundle: true, sourcemap: true, minify: !watch, logLevel: 'info' };
+// commit of the build: GitHub links of the layout debugging panel (src/host/sources.ts); 'main' without git
+let commit = 'main';
+try { commit = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim(); } catch { /* no git */ }
+const common = { bundle: true, sourcemap: true, minify: !watch, logLevel: 'info', define: { __GAFFY_COMMIT__: JSON.stringify(commit) } };
 
 const configs = [
     { ...common, entryPoints: ['src/host/extension.ts'], outfile: 'dist/extension.js',

@@ -45,6 +45,11 @@ export class Bridges {
     private targets = new Map<string, Promise<vscode.CallHierarchyItem | undefined>>();
     // failed target lookups per binding: retried, and reported as unresolved (`Unresolved`) for the first MISSES
     private misses = new Map<string, number>();
+    /**
+     * Answers (`<dir>:<key>`) given without a binding whose target lookup failed past MISSES: complete as far as the
+     * C/C++ server answers, never cached, re-asked on the next revalidation; stored links of the pair stay (build.ts).
+     */
+    readonly partial = new Set<string>();
     private wasm?: Promise<Exported[]>;
     private js?: Promise<PyFile[]>;
 
@@ -311,6 +316,7 @@ export class Bridges {
 
     /** Cross-language calls out of a function. */
     async outgoing(key: NodeKey, it: vscode.CallHierarchyItem, acc: Record<NodeKey, GNode>): Promise<GEdge[]> {
+        this.partial.delete(`out:${key}`);
         if (!this.enabled()) return [];
         if (JS.has(langOf(it.uri.path))) {
             // TypeScript/JavaScript → Rust through wasm-bindgen
@@ -353,6 +359,7 @@ export class Bridges {
         for (const { at, b } of await this.bound(it.uri, text, from, upto)) {
             const t = await this.target(b);
             if (!t && this.pending(b)) unresolved = true;
+            else if (!t) this.partial.add(`out:${key}`);
             const to = t && (await this.p.describe(t, acc));
             if (to) edges.push({ from: key, to, line: doc.positionAt(at).line, via: `${b.via}: ${vscode.workspace.asRelativePath(b.uri)}:${lineOf(await this.read(b.uri), b.at) + 1}` });
         }
@@ -362,6 +369,7 @@ export class Bridges {
 
     /** Cross-language callers of a function. */
     async incoming(key: NodeKey, it: vscode.CallHierarchyItem, acc: Record<NodeKey, GNode>): Promise<GEdge[]> {
+        this.partial.delete(`in:${key}`);
         const lang = langOf(it.uri.path);
         if (!this.enabled()) return [];
         if (lang === 'rs') {
@@ -433,6 +441,7 @@ export class Bridges {
         for (const b of (await this.bindingsFor(it.uri)).filter((x) => x.target.split('::').pop() === name)) {
             const t = await this.target(b);
             if (!t && this.pending(b)) unresolved = true;
+            else if (!t) this.partial.add(`in:${key}`);
             if (t && t.uri.toString() === it.uri.toString() && t.range.contains(it.selectionRange.start)) mine.push(b);
         }
         if (unresolved && !mine.length) throw new Unresolved();

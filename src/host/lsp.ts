@@ -516,6 +516,9 @@ export class LspProvider {
      * Outgoing calls. `undefined`: no answer (unresolved definition: server analyzing, request failed);
      * `[]`: calls nothing.
      */
+    /** Answer of (`key`, `dir`) given without a binding link whose target did not resolve (bridges.ts `partial`). */
+    partialOf(key: NodeKey, dir: 'in' | 'out'): boolean { return this.bridges.partial.has(`${dir}:${key}`); }
+
     async outgoing(key: NodeKey, acc: Record<NodeKey, GNode>, token?: vscode.CancellationToken): Promise<GEdge[] | undefined> {
         const it = await this.item(key, acc[key]).catch(() => undefined);
         if (!it) return undefined;

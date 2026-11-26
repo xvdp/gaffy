@@ -19,6 +19,7 @@
 import { NodeKey } from './model';
 import { Frame, Placement } from './place';
 import { VGraph } from './quotient';
+import { Rules } from './rules';
 import { E, GlyphSet, N, S, W } from './style';
 
 export interface Mark {
@@ -69,6 +70,23 @@ export interface Grid {
     markers: { row: number; col: number; text: string; key: NodeKey; side: 'up' | 'down' }[];
     arrowTo: Map<number, NodeKey>;      // arrowhead cell → target
     kinds: Map<number, CallKind>;       // cells of one call kind only (`bridge` where both meet)
+    routes: RouteRecord[];              // one record per drawn call: how it was routed (edge log, h39 reroute)
+    reroutes: number;                   // h39 rounds kept
+}
+
+/**
+ * Edge log record of one call. `kind`: tree elbow, lane, routed (A*), fallback (dashed); `order`: routing position
+ * (routed calls); `arrival`: why its callee receives left or at its end; `pass`: 0 strict, 1 relaxed; cost parts at
+ * routing time: `steps` (cells), `bends`, `paid` (crossings of earlier lines), `borders`, `relaxed` (penalties of the
+ * relaxed pass), `cost` (A* total); `received`: crossings by calls routed after it, `by` their calls; `round`: the
+ * h39 reroute round that routed it last (0: first routing).
+ */
+export interface RouteRecord {
+    from: NodeKey; to: NodeKey; net: string;
+    kind: 'elbow' | 'lane' | 'routed' | 'fallback';
+    order?: number; start?: 'E' | 'S' | 'N'; arrive?: 'E' | 'W'; arrival?: string; pass?: number;
+    cost?: number; steps?: number; bends?: number; paid?: number; borders?: number; relaxed?: number;
+    received: number; by: string[]; round: number;
 }
 
 export interface RouteCost { bend: number; cross: number; border: number; adjacent: number }
@@ -87,8 +105,6 @@ const DC = [0, 0, 1, -1];
 const BIT = [N, S, E, W];
 const OPP = [S, N, W, E];
 const AXIS_V = N | S, AXIS_H = E | W;
-const RELAX_TURN = 40;     // relaxed pass: turning on another net
-const RELAX_ALONG = 400;   // relaxed pass: running along another net (ambiguous)
 
 /** Bend points of a cell path: centers of direction-change cells. */
 function bends(cells: number[]): [number, number][] {
@@ -104,17 +120,86 @@ function bends(cells: number[]): [number, number][] {
  * `joint` (tree parent rule): elbow tails in the callee's net, open to its other calls; collector lanes enter from
  * the left; routed calls arrive left when the two cells before the label are free (no caller vote).
  */
-export function buildGrid(P: Placement, vg: VGraph, opts: { arrow: boolean; cost: RouteCost; first?: string[]; joint?: boolean; kind?: (from: NodeKey, to: NodeKey) => CallKind | undefined }): Grid {
+export interface GridOpts { arrow: boolean; cost?: Partial<RouteCost>; first?: string[]; joint?: boolean; kind?: (from: NodeKey, to: NodeKey) => CallKind | undefined; rules?: Rules }
+
+/**
+ * Grid of a placement; h39_reroute: after the first routing, calls that later calls crossed at least `min` times,
+ * and the earlier call of each braid (two calls crossing each other twice), are candidates; per attempt the
+ * candidates of one caller (most received crossings first) are routed again after the others; the attempt is kept
+ * when the total route cost (`gridCost`) drops, else the next caller is tried (`tries` per round, `rounds` rounds).
+ */
+export function buildGrid(P: Placement, vg: VGraph, opts: GridOpts): Grid {
+    const R = opts.rules ?? new Rules();
+    let best = gridOnce(P, vg, opts, R, new Map(), 0);
+    const rounds = R.p('h39_reroute', 'rounds'), min = R.p('h39_reroute', 'min');
+    let last = new Map<string, number>();
+    for (let round = 1; round <= rounds; round++) {
+        const braid = new Set<string>();
+        for (const r of best.routes) {
+            const n = new Map<string, number>();
+            for (const b of r.by) n.set(b, (n.get(b) ?? 0) + 1);
+            if ([...n.values()].some((x) => x >= 2)) braid.add(eid(r.from, r.to));
+        }
+        const pick = best.routes.filter((r) => r.kind === 'routed' && (r.received >= min || braid.has(eid(r.from, r.to))));
+        // one caller's calls per attempt, most received crossings first; up to `tries` attempts per round
+        const byCaller = new Map<NodeKey, RouteRecord[]>();
+        for (const r of pick) byCaller.set(r.from, [...(byCaller.get(r.from) ?? []), r]);
+        const groups = [...byCaller.values()].sort((a, b) => b.reduce((x, r) => x + r.received, 0) - a.reduce((x, r) => x + r.received, 0));
+        let kept = false;
+        for (const group of groups.slice(0, R.p('h39_reroute', 'tries'))) {
+            const next = new Map(last);
+            for (const r of group.sort((a, b) => b.received - a.received)) { next.delete(eid(r.from, r.to)); next.set(eid(r.from, r.to), next.size); }
+            const g = gridOnce(P, vg, opts, R, next, round);
+            const before = gridCost(best, R), after = gridCost(g, R);
+            R.note({ rule: 'h39_reroute', fn: 'buildGrid', unit: `round ${round}`, text: `calls of ${group[0].from.slice(group[0].from.indexOf('#') + 1)} routed after the others: cost ${before.toFixed(0)} → ${after.toFixed(0)}${after < before ? ', kept' : ', dropped'}`,
+                values: { calls: group.slice(0, 12).map((r) => `${r.to.slice(r.to.indexOf('#') + 1)} (${r.received} received)`) } });
+            if (after < before) { best = { ...g, reroutes: round }; last = next; kept = true; break; }
+        }
+        if (!kept) break;
+    }
+    return best;
+}
+
+const eid = (a: NodeKey, b: NodeKey) => `${a}\u0000${b}`;
+
+/** Total route cost of a grid: routed cells, bends and crossing cells at h29 costs; unrouted calls 1000 each. */
+export function gridCost(g: Grid, R: Rules = new Rules()): number {
+    let cells = 0, bends = 0, cross = 0;
+    for (const p of g.paths) { cells += p.cells.length; bends += Math.max(0, p.pts.length - 2); }
+    for (const [, nets] of g.cells) {
+        if (nets.size < 2) continue;
+        let v = false, h = false, o = false;
+        for (const m of nets.values()) { if (m === (N | S)) v = true; else if (m === (E | W)) h = true; else o = true; }
+        if (v && h && !o) cross++;
+    }
+    return cells + R.p('h29_route_cost', 'bend') * bends + R.p('h29_route_cost', 'cross') * cross + 1000 * g.unrouted;
+}
+
+/** One routing of a placement; `last`: calls routed after all others, in this order (h39 reroute). */
+function gridOnce(P: Placement, vg: VGraph, opts: GridOpts, R: Rules, last: ReadonlyMap<string, number>, round: number): Grid {
+    const cost: RouteCost = {
+        bend: opts.cost?.bend ?? R.p('h29_route_cost', 'bend'), cross: opts.cost?.cross ?? R.p('h29_route_cost', 'cross'),
+        border: opts.cost?.border ?? R.p('h29_route_cost', 'border'), adjacent: opts.cost?.adjacent ?? R.p('h29_route_cost', 'adjacent'),
+    };
+    const OWN = R.p('h29_route_cost', 'bundle'), RELAX_TURN = R.p('h29_route_cost', 'relaxTurn'), RELAX_ALONG = R.p('h29_route_cost', 'relaxAlong');
+    const STEPS = R.p('h29_route_cost', 'steps'), EST = R.p('h29_route_cost', 'estimate'), UNDER = R.p('h28_departure_point', 'under');
     const cells = new Map<number, Map<string, number>>();
     const srcOf = new Map<number, Set<NodeKey>>();
     const marks: Mark[] = [];
     const markAt = new Set<number>();
     const nets = new Map<string, Net>();
     const paths: EdgePath[] = [];
+    // S1: routing area, nets per cell (occN) and static obstacles (obs) as typed arrays: the search reads the Maps
+    // only for cells that hold lines
+    const RW = P.width + 16, RH = P.height + 12;
+    const routable = RW * RH <= MAX_CELLS;
+    const occN = new Uint8Array(routable ? RW * RH : 0);
+    const inArea = (r: number, c: number) => r >= 0 && r < RH && c >= 0 && c < RW;
     const add = (r: number, c: number, net: string, m: number, src?: NodeKey) => {
         const id = cellId(r, c);
         let cell = cells.get(id);
         if (!cell) cells.set(id, (cell = new Map()));
+        if (!cell.has(net) && routable && inArea(r, c) && occN[r * RW + c] < 255) occN[r * RW + c]++;
         cell.set(net, (cell.get(net) ?? 0) | m);
         if (src !== undefined) {
             let s = srcOf.get(id);
@@ -125,7 +210,13 @@ export function buildGrid(P: Placement, vg: VGraph, opts: { arrow: boolean; cost
     const hline = (r: number, c0: number, c1: number, net: string, src?: NodeKey) => {
         for (let c = c0; c <= c1; c++) add(r, c, net, E | W, src);
     };
-    const mark = (m: Mark) => { marks.push(m); if (m.role !== 'frame') markAt.add(cellId(m.row, m.col)); };
+    let obs: Uint8Array | undefined;   // filled before routing: 1 label or blocked, 2 label padding, 4 mark, 8 border |, 16 border ─
+    const mark = (m: Mark) => {
+        marks.push(m);
+        if (m.role === 'frame') return;
+        markAt.add(cellId(m.row, m.col));
+        if (obs && inArea(m.row, m.col)) obs[m.row * RW + m.col] |= 4;
+    };
     const arrowTo = new Map<number, NodeKey>();
     const tree = (p: NodeKey) => { const n = `t:${p}`; if (!nets.has(n)) nets.set(n, { kind: 'tree', key: p }); return n; };
     const lane = (t: NodeKey) => { const n = `l:${t}`; if (!nets.has(n)) nets.set(n, { kind: 'lane', key: t }); return n; };
@@ -166,7 +257,7 @@ export function buildGrid(P: Placement, vg: VGraph, opts: { arrow: boolean; cost
 
     // ---- 2. tree elbows and lanes per block ------------------------------------------------------------
     const drawn = new Set<string>();
-    const eid = (a: NodeKey, b: NodeKey) => `${a}\u0000${b}`;
+    const drawnKind = new Map<string, 'elbow' | 'lane'>();   // edge log: calls drawn before routing
     const elbowInto = new Set<NodeKey>();
     const same = (a: [number, number], b: [number, number]) => a[0] === b[0] && a[1] === b[1];
     /** Stem under p, elbows to children whose stem column and elbow row cross no label. */
@@ -196,6 +287,7 @@ export function buildGrid(P: Placement, vg: VGraph, opts: { arrow: boolean; cost
             if (tn !== net && !roots.has(tn)) roots.set(tn, cellId(pc.row, pc.col - 2));
             arrowTo.set(cellId(pc.row, pc.col - 2), c);
             drawn.add(eid(p, c));
+            drawnKind.set(eid(p, c), 'elbow');
             elbowInto.add(c);
             paths.push({ from: p, to: c, net: tn, start: 'S', arrive: 'E',
                 pts: [[pp.col + 0.5, pp.row + 1], [pp.col + 0.5, pc.row + 0.5], [pc.col - 1, pc.row + 0.5]],
@@ -257,8 +349,9 @@ export function buildGrid(P: Placement, vg: VGraph, opts: { arrow: boolean; cost
             blocked.add(cellId(m.row, m.col + i));
         }
     }
-    for (const [p, kids] of P.elbows ?? []) elbows(p, kids, () => true);
-    for (const B of P.blocks) {
+    // h24: tree elbows and lanes first; off: every call routed
+    for (const [p, kids] of R.on('h24_tree_lines_first') ? P.elbows ?? [] : []) elbows(p, kids, () => true);
+    for (const B of R.on('h24_tree_lines_first') ? P.blocks : []) {
         const L = B.L;
         for (const [u, vs] of L.back) for (const v of vs) drawn.add(eid(u, v));
         for (const [p, kids] of L.children) elbows(p, kids, (c) => same(B.shift.get(p)!, B.shift.get(c)!));
@@ -324,12 +417,19 @@ export function buildGrid(P: Placement, vg: VGraph, opts: { arrow: boolean; cost
     const level = (e: { from: NodeKey; to: NodeKey }) => departRow(e.from) === P.pos.get(e.to)!.row;
     const first = new Set(opts.first ?? []);
     const pri = (e: { from: NodeKey; to: NodeKey }) => (first.has(`${e.from}\u0000${e.to}`) ? 1 : 0);
-    todo.sort((a, b) => pri(b) - pri(a) || Number(level(b)) - Number(level(a))
-        || (level(a) ? dist(a.from, a.to) - dist(b.from, b.to) : dist(b.from, b.to) - dist(a.from, a.to))
+    // h25 alternatives: `longest` (level calls shortest first, then longest first), `shortest`, `row` (top to bottom)
+    const order = R.alt('h25_routing_order');
+    const rowOf = (k: NodeKey) => P.pos.get(k)!.row, colOf = (k: NodeKey) => P.pos.get(k)!.col;
+    const lastOf = (e: { from: NodeKey; to: NodeKey }) => last.get(eid(e.from, e.to)) ?? -1;
+    todo.sort((a, b) => pri(b) - pri(a) || lastOf(a) - lastOf(b)
+        || (order === 'row' ? departRow(a.from) - departRow(b.from) || colOf(a.from) - colOf(b.from) || rowOf(a.to) - rowOf(b.to)
+            : Number(level(b)) - Number(level(a))
+                || (level(a) || order === 'shortest' ? dist(a.from, a.to) - dist(b.from, b.to) : dist(b.from, b.to) - dist(a.from, a.to)))
         || (a.from + a.to < b.from + b.to ? -1 : 1));
 
     // arrival side per target by caller majority: left (`──> f()`) or end (`f() <──`); left cells reserved
     const leftArrival = new Map<NodeKey, boolean>();
+    const arrivalWhy = new Map<NodeKey, string>();
     const reserved = new Map<number, string>();
     const votes = new Map<NodeKey, number>();
     for (const e of todo) votes.set(e.to, (votes.get(e.to) ?? 0) + (P.pos.get(e.from)!.col < P.pos.get(e.to)!.col ? 1 : -1));
@@ -346,12 +446,19 @@ export function buildGrid(P: Placement, vg: VGraph, opts: { arrow: boolean; cost
         // a vertex sending from its label end receives left even when those cells are taken (dashed fallback):
         // its end never carries calls in and out
         const sends = departs.has(v) && !elbowInto.has(v);
-        const left = own || sends || (!elbowInto.has(v) && (opts.joint || votes.get(v)! >= 0) && pv.col >= 2 && free(pv.row, pv.col - 2) && free(pv.row, pv.col - 1));
+        // a left arrival needs an approach cell before its two cells: free, or a frame border with a cell before it
+        // (content three cells right of the outermost border at column 0 has none)
+        const a3 = cellId(pv.row, pv.col - 3);
+        const approach = pv.col >= 3 && !blocked.has(a3) && (!border.has(a3) || (pv.col >= 4 && !blocked.has(cellId(pv.row, pv.col - 4))));
+        const left = own || (sends && approach) || (!elbowInto.has(v) && (opts.joint || votes.get(v)! >= 0) && approach && free(pv.row, pv.col - 2) && free(pv.row, pv.col - 1));
         leftArrival.set(v, left);
+        arrivalWhy.set(v, own ? 'left: joins the lane or elbow entering from the left' : sends && left ? 'left: the function sends from its label end'
+            : !approach && !elbowInto.has(v) ? 'end: no cell to approach the left side'
+            : left ? (opts.joint ? 'left: joint parent rule' : 'left: callers mostly left, two cells free') : elbowInto.has(v) ? 'end: a tree elbow enters from the left' : 'end: callers mostly right, or the left cells taken');
         if (left && !own) { reserved.set(cellId(pv.row, pv.col - 2), `l:${v}`); reserved.set(cellId(pv.row, pv.col - 1), `l:${v}`); }
     }
-    // departure cells reserved for the caller: two cells after the label or port
-    for (const e of todo) {
+    // h27: departure cells reserved for the caller: two cells after the label or port
+    for (const e of R.on('h27_departure_reservation') ? todo : []) {
         const port = P.port.get(e.from);
         const r = port ? port.row : P.pos.get(e.from)!.row;
         const c = port ? port.col + 1 : P.end.get(e.from)! + 1;
@@ -359,19 +466,42 @@ export function buildGrid(P: Placement, vg: VGraph, opts: { arrow: boolean; cost
     }
 
     let width = P.width, height = P.height;
-    const RW = P.width + 16, RH = P.height + 12;
     // 12 bytes per (cell, heading); beyond MAX_CELLS every call draws as fallback
-    const routable = RW * RH <= MAX_CELLS;
+    if (routable) {
+        obs = new Uint8Array(RW * RH);
+        const put = (id: number, bit: number) => { const [r, c] = cellRC(id); if (inArea(r, c)) obs![r * RW + c] |= bit; };
+        for (const id of blocked) put(id, 1);
+        for (const id of pad) put(id, 2);
+        for (const id of markAt) put(id, 4);
+        for (const [id, b] of border) put(id, b === 'v' ? 8 : 16);
+        for (const id of reserved.keys()) put(id, 32);
+    }
     const size = routable ? RW * RH * 4 : 0;
     const g = new Float64Array(size).fill(Infinity);
     const came = new Int32Array(size).fill(-1);
     const touched: number[] = [];
     let unrouted = 0;
     const failed: [NodeKey, NodeKey][] = [];
+    const routes: RouteRecord[] = [];
+    // h40 lookahead: per cell, the calls not routed yet whose bounding box holds it
+    const LOOK = routable ? R.p('h40_lookahead', 'weight') : 0;
+    const pending = LOOK > 0 ? new Float32Array(RW * RH) : undefined;
+    const boxOf = (e: { from: NodeKey; to: NodeKey }) => {
+        const a = P.pos.get(e.from)!, b = P.pos.get(e.to)!;
+        return [Math.max(0, Math.min(a.row, b.row)), Math.min(RH - 1, Math.max(a.row, b.row)), Math.max(0, Math.min(a.col, b.col)), Math.min(RW - 1, Math.max(P.end.get(e.from)!, b.col))];
+    };
+    const addBox = (e: { from: NodeKey; to: NodeKey }, w: number) => {
+        if (!pending) return;
+        const [r0, r1, c0, c1] = boxOf(e);
+        for (let r = r0; r <= r1; r++) for (let c = c0; c <= c1; c++) pending[r * RW + c] += w;
+    };
+    for (const e of todo) addBox(e, 1);
 
-    for (const e of todo) {
+    for (const [order, e] of todo.entries()) {
         const net = lane(e.to);
         const u = e.from, v = e.to;
+        addBox(e, -1);
+        let pass = 0;
         const pu = P.pos.get(u)!, pv = P.pos.get(v)!;
         const port = P.port.get(u);
         const sr = port ? port.row : pu.row;
@@ -386,8 +516,8 @@ export function buildGrid(P: Placement, vg: VGraph, opts: { arrow: boolean; cost
         const hf: number[] = [];     // binary heap: priorities
         const hi: number[] = [];     // binary heap: state ids
         const swap = (a: number, b: number) => {
-            [hf[a], hf[b]] = [hf[b], hf[a]];
-            [hi[a], hi[b]] = [hi[b], hi[a]];
+            const f = hf[a]; hf[a] = hf[b]; hf[b] = f;
+            const x = hi[a]; hi[a] = hi[b]; hi[b] = x;
         };
         const push = (f: number, id: number) => {
             hf.push(f); hi.push(id);
@@ -415,6 +545,7 @@ export function buildGrid(P: Placement, vg: VGraph, opts: { arrow: boolean; cost
             }
             return top;
         };
+        const srcKey = `src:${u}`;
         const otherNets = (id: number) => {
             const cell = cells.get(id);
             if (!cell) return null;
@@ -429,7 +560,8 @@ export function buildGrid(P: Placement, vg: VGraph, opts: { arrow: boolean; cost
             }
             return any ? { other, both } : { other: 0, both: false, sameNet: true };
         };
-        const h = (r: number, c: number) => Math.abs(r - gr) + Math.abs(c - gc);
+        // estimate: Manhattan distance × `estimate` (≤ OWN: admissible, cheapest routes; 1: faster, may miss them)
+        const h = (r: number, c: number) => EST * (Math.abs(r - gr) + Math.abs(c - gc));
 
         // no route: dashed L to the callee's arrival side, with arrowhead
         const fallback = () => {
@@ -439,6 +571,7 @@ export function buildGrid(P: Placement, vg: VGraph, opts: { arrow: boolean; cost
             const pts: [number, number][] = sr === pv.row ? [[sc, sr + 0.5], [tip, pv.row + 0.5]]
                 : [[sc, sr + 0.5], [xm, sr + 0.5], [xm, pv.row + 0.5], [tip, pv.row + 0.5]];
             paths.push({ from: u, to: v, net, pts, cells: [], start: 'E', arrive: left ? 'E' : 'W', fallback: true });
+            routes.push({ from: u, to: v, net, kind: 'fallback', order, arrival: arrivalWhy.get(v), received: 0, by: [], round: last.has(eid(u, v)) ? round : 0 });
         };
         if (!routable || sr < 0 || sr >= RH || sc >= RW || blocked.has(cellId(sr, sc))) { fallback(); continue; }
         // start states: label end heading E; below / above the first character heading S / N.
@@ -450,7 +583,7 @@ export function buildGrid(P: Placement, vg: VGraph, opts: { arrow: boolean; cost
                 const id = cellId(r, pu.col);
                 const rsv = reserved.get(id);
                 if (r >= 0 && r < RH && !blocked.has(id) && !pad.has(id) && !markAt.has(id) && !border.has(id) && (rsv === undefined || rsv === `src:${u}`)) {
-                    starts.push({ id: sid(r, pu.col, d), r, c: pu.col, d, cost: 2 });
+                    starts.push({ id: sid(r, pu.col, d), r, c: pu.col, d, cost: UNDER });
                 }
             }
         }
@@ -463,14 +596,14 @@ export function buildGrid(P: Placement, vg: VGraph, opts: { arrow: boolean; cost
         // arrival cell already drawn for this net (collector lane): reaching it merges
         const drawnGoal = !!cells.get(cellId(gr, gc))?.has(net);
         // pass 0 strict; pass 1: running along or turning on another net costs RELAX_* instead of blocking
-        for (let pass = 0; pass < 2 && goal < 0; pass++) {
+        for (pass = 0; pass < 2 && goal < 0; pass++) {
         const relaxed = pass === 1;
         for (const t of touched) { g[t] = Infinity; came[t] = -1; }
         touched.length = 0;
         hf.length = 0; hi.length = 0;
         for (const s of starts) { g[s.id] = s.cost; touched.push(s.id); push(s.cost + h(s.r, s.c), s.id); }
         let expansions = 0;
-        while (hf.length && expansions < 400000) {
+        while (hf.length && expansions < STEPS) {
             const id = pop();
             expansions++;
             const d = id % 4, cellIx = (id - d) / 4;
@@ -478,11 +611,12 @@ export function buildGrid(P: Placement, vg: VGraph, opts: { arrow: boolean; cost
             const gcur = g[id];
             if (r === gr && c === gc && d === gdir) { goal = id; break; }
             // merge into a trunk of this net only where it runs alone (shared lines: ambiguous)
-            const here0 = cells.get(cellId(r, c));
-            if (!startDir.has(id) && here0?.has(net) && here0.size === 1 && !(r === gr && c === gc)) { goal = id; break; }
-            const here = otherNets(cellId(r, c));
+            const occupied = occN[r * RW + c] > 0;
+            const here0 = occupied ? cells.get(cellId(r, c)) : undefined;
+            const sd = startDir.get(id);
+            if (sd === undefined && here0?.has(net) && here0.size === 1 && !(r === gr && c === gc)) { goal = id; break; }
+            const here = occupied ? otherNets(cellId(r, c)) : null;
             for (let nd = 0; nd < 4; nd++) {
-                const sd = startDir.get(id);
                 if (sd !== undefined && nd !== sd) continue;    // leave the caller in the start heading
                 let turnPenalty = 0;
                 if (nd !== d && here && !('sameNet' in here) && here.other) {  // no turn on another net
@@ -493,39 +627,42 @@ export function buildGrid(P: Placement, vg: VGraph, opts: { arrow: boolean; cost
                 const nr = r + DR[nd], nc = c + DC[nd];
                 if (nr < 0 || nr >= RH || nc < 0 || nc >= RW) continue;
                 const nid = cellId(nr, nc);
+                const ni = nr * RW + nc;
+                const ob = obs![ni];
                 const atGoal = nr === gr && nc === gc;
-                if (blocked.has(nid) || pad.has(nid)) continue;
-                if (!atGoal && markAt.has(nid)) continue;
-                const rsv = reserved.get(nid);
-                if (rsv !== undefined && rsv !== net && rsv !== `src:${u}` && !relaxed) continue;
+                if (ob & 3) continue;                       // label or blocked, label padding
+                if (!atGoal && (ob & 4)) continue;          // marker or arrowhead
+                const rsv = ob & 32 ? reserved.get(nid) : undefined;
+                if (rsv !== undefined && rsv !== net && rsv !== srcKey && !relaxed) continue;
                 let step = 1;
-                const b = border.get(nid);
-                if (b) {
-                    if ((b === 'v' && nd < 2) || (b === 'h' && nd >= 2)) continue;
-                    step += opts.cost.border;
+                if (ob & 24) {                              // frame border: crossed at right angles only
+                    if (((ob & 8) && nd < 2) || ((ob & 16) && nd >= 2)) continue;
+                    step += cost.border;
                 }
-                const o = otherNets(nid);
+                const o = occN[ni] ? otherNets(nid) : null;
                 if (o) {
-                    if ('sameNet' in o) step = 0.3;
+                    if ('sameNet' in o) step = OWN;
                     else {
                         const along = nd < 2 ? AXIS_V : AXIS_H;
                         if (o.both || (o.other & along)) {
                             if (!relaxed) continue;
                             step += RELAX_ALONG;
-                        } else step += opts.cost.cross;
+                        } else step += cost.cross;
                     }
                 }
-                if (nd !== d) step += opts.cost.bend + turnPenalty;
+                if (nd !== d) step += cost.bend + turnPenalty;
+                if (pending) step += LOOK * pending[nr * RW + nc];
                 // spacing: vertical runs beside unrelated vertical lines cost `adjacent` (read as one thick line);
                 // horizontal runs on adjacent rows read apart
-                const side = nd < 2 ? [cellId(nr, nc - 1), cellId(nr, nc + 1)] : [];
-                const along = AXIS_V;
-                for (const sc2 of side) {
-                    const sm = cells.get(sc2);
-                    if (!sm) continue;
-                    const own = srcOf.get(sc2);
-                    if (own && own.size === 1 && own.has(u)) continue;
-                    for (const [n2, m2] of sm) if (n2 !== net && (m2 & along)) { step += opts.cost.adjacent; break; }
+                if (nd < 2) {
+                    for (let c2 = nc - 1; c2 <= nc + 1; c2 += 2) {
+                        if (c2 < 0 || c2 >= RW || !occN[nr * RW + c2]) continue;
+                        const sc2 = cellId(nr, c2);
+                        const sm = cells.get(sc2)!;
+                        const own = srcOf.get(sc2);
+                        if (own && own.size === 1 && own.has(u)) continue;
+                        for (const [n2, m2] of sm) if (n2 !== net && (m2 & AXIS_V)) { step += cost.adjacent; break; }
+                    }
                 }
                 const ns = sid(nr, nc, nd);
                 const ng = gcur + step;
@@ -550,6 +687,16 @@ export function buildGrid(P: Placement, vg: VGraph, opts: { arrow: boolean; cost
             }
             seq.reverse();
             const startKind = seq[0].d === 2 ? 'E' : seq[0].d === 1 ? 'S' : 'N';
+            // cost parts before this call's cells join the grid (edge log)
+            let bendsN = 0, paid = 0, borders = 0;
+            for (let i = 1; i < seq.length; i++) {
+                if (seq[i].d !== seq[i - 1].d) bendsN++;
+                const id = cellId(seq[i].r, seq[i].c);
+                if (border.has(id)) borders++;
+                const o = otherNets(id);
+                if (o && !('sameNet' in o) && !o.both && !(o.other & (seq[i].d < 2 ? AXIS_V : AXIS_H))) paid++;
+            }
+            const goalCost = g[goal];
             const merged = drawnGoal || !(seq[seq.length - 1].r === gr && seq[seq.length - 1].c === gc);
             if (startKind === 'E') {
                 add(sr, sc, net, port ? W : W | E, u);
@@ -591,10 +738,37 @@ export function buildGrid(P: Placement, vg: VGraph, opts: { arrow: boolean; cost
             const pre = startKind === 'E' ? (port ? undefined : cellId(sr, sc - 1)) : cellId(pu.row, pu.col);
             const full: [number, number][] = [pts[0], ...(startKind === 'E' && port ? [pts[1]] : []), ...bends(pre === undefined ? own : [pre, ...own]), end];
             paths.push({ from: u, to: v, net, pts: full, cells: own, start: startKind === 'E' ? (port ? 'S' : 'E') : startKind, arrive });
+            const relaxedPass = pass > 1;   // the loop leaves with pass one past the pass that found the goal
+            routes.push({ from: u, to: v, net, kind: 'routed', order, start: startKind, arrive, arrival: arrivalWhy.get(v), pass: relaxedPass ? 1 : 0,
+                cost: goalCost, steps: seq.length, bends: bendsN, paid, borders, relaxed: relaxedPass ? Math.max(0, goalCost - seq.length - bendsN * cost.bend - paid * cost.cross - borders * cost.border) : 0,
+                received: 0, by: [], round: last.has(eid(u, v)) ? round : 0 });
             for (const s of seq) { width = Math.max(width, s.c + 1); height = Math.max(height, s.r + 1); }
         }
         for (const t of touched) { g[t] = Infinity; came[t] = -1; }
         touched.length = 0;
+    }
+
+    // elbows and lanes (drawn before routing), then crossings each call received from calls routed after it
+    const routedIx = new Map(routes.map((r, i) => [eid(r.from, r.to), i]));
+    for (const p of paths) if (!routedIx.has(eid(p.from, p.to))) routes.push({ from: p.from, to: p.to, net: p.net, kind: drawnKind.get(eid(p.from, p.to)) ?? 'lane', received: 0, by: [], round: 0 });
+    const ranks = new Map(routes.map((r) => [eid(r.from, r.to), r.order ?? -1]));
+    const rank = (p: EdgePath) => ranks.get(eid(p.from, p.to)) ?? -1;
+    const through = new Map<number, EdgePath[]>();
+    for (const p of paths) for (const id of p.cells) { let l = through.get(id); if (!l) through.set(id, (l = [])); if (!l.includes(p)) l.push(p); }
+    const recOf = new Map(routes.map((r) => [eid(r.from, r.to), r]));
+    for (const [id, ps] of through) {
+        const nets = cells.get(id);
+        if (!nets || nets.size < 2 || ps.length < 2) continue;
+        for (const a of ps) {
+            const ma = nets.get(a.net)!;
+            if (ma !== (N | S) && ma !== (E | W)) continue;
+            for (const b of ps) {
+                if (b.net === a.net || nets.get(b.net) !== ((N | S) + (E | W) - ma) || rank(b) <= rank(a)) continue;
+                const r = recOf.get(eid(a.from, a.to))!;
+                r.received++;
+                r.by.push(eid(b.from, b.to));
+            }
+        }
     }
 
     let conflicts = 0;
@@ -604,7 +778,7 @@ export function buildGrid(P: Placement, vg: VGraph, opts: { arrow: boolean; cost
     }
     // cells of implicit-only or cross-language-only calls; one plain call makes a cell plain
     const kinds = new Map<number, CallKind>();
-    if (opts.kind) {
+    if (opts.kind && R.on('h36_call_kind_style')) {
         const plain = new Set<number>();
         for (const p of paths) {
             if (p.fallback) continue;
@@ -616,7 +790,7 @@ export function buildGrid(P: Placement, vg: VGraph, opts: { arrow: boolean; cost
         }
         for (const id of plain) kinds.delete(id);
     }
-    return { width, height, cells, marks, labels, nets, paths, frames: P.frames, roots, conflicts, unrouted, failed, markers, arrowTo, kinds };
+    return { width, height, cells, marks, labels, nets, paths, frames: P.frames, roots, conflicts, unrouted, failed, markers, arrowTo, kinds, routes, reroutes: 0 };
 }
 
 export function cellGlyph(nets: Map<string, number>, gs: GlyphSet): string {

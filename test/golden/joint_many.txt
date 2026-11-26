@@ -1,13 +1,13 @@
 ╭┄ kazoo ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄╮
 ┆  ╭┄ foo ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄╮     ╭┄ moomoo ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄╮                           ┆
-┆  ┆  dingus._bingo() ────────────────┐ ┆  b_zapper.woo_woo_woo() ─────┐       ┆                           ┆
-┆  ┆  poke_wiggle.zippity_bingo() ────┤ ┆  b_zapper.pip() ─────────────┤       ┆                           ┆
-┆  ╰┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄╯   │ ┆  boogaloos.boogie() ─────────┤       ┆                           ┆
-┆  ╭┄ goof.moonbeams ┄╮               │ ┆  boogaloos.alakazam() ───────┤       ┆                           ┆
-┆  ┆  _pip_foo() ─────────────────────┤ ┆  boogaloos.cowabunga_doo() ──┤       ┆                           ┆
-┆  ╰┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄╯               │ ┆                              │       ┆                           ┆
-┆  ╭┄ boop.fizzwizzle ┄┄╮             │ ┆  ┌───────────────────────────┘       ┆     ╭┄ noodles.jumbles ┄╮ ┆
-┆  ┆  scoobie_snackie() ──────────────┴────┴─> boogaloos.scoobie() ───────────────────> to_wacky()       ┆ ┆
+┆  ┆  dingus._bingo() ───────────────────┐ b_zapper.woo_woo_woo() ─────┐       ┆                           ┆
+┆  ┆  poke_wiggle.zippity_bingo() ───────┤ b_zapper.pip() ─────────────┤       ┆                           ┆
+┆  ╰┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄╯     ┆│ boogaloos.boogie() ─────────┤       ┆                           ┆
+┆  ╭┄ goof.moonbeams ┄╮                 ┆│ boogaloos.alakazam() ───────┤       ┆                           ┆
+┆  ┆  _pip_foo() ────────────────────────┤ boogaloos.cowabunga_doo() ──┤       ┆                           ┆
+┆  ╰┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄╯                 ┆│                             │       ┆                           ┆
+┆  ╭┄ boop.fizzwizzle ┄┄╮               ┆└─┬───────────────────────────┘       ┆     ╭┄ noodles.jumbles ┄╮ ┆
+┆  ┆  scoobie_snackie() ───────────────────┴─> boogaloos.scoobie() ───────────────────> to_wacky()       ┆ ┆
 ┆  ╰┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄╯               ┆      ├─> boogaloos.hullabaloo_hoot() ┆     ╰┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄╯ ┆
 ┆                                       ┆      ├───┴─> boogaloos._fritter()    ┆                           ┆
 ┆                                       ┆      ├─> boogaloos._pizza_roll()     ┆                           ┆

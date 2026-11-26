@@ -8,13 +8,6 @@
       "type": "object",
       "description": "Choices a new view starts with; written into the view file at creation. Options in the view change them per view.",
       "properties": {
-        "arrange": {
-          "enum": [
-            "grow",
-            "auto"
-          ],
-          "description": "Layout: grow, one layer at a time (markers open sides, arrowheads close them); auto, full: every function within the caller and callee depths."
-        },
         "traverse": {
           "enum": [
             "command",
@@ -45,41 +38,9 @@
         }
       }
     },
-    "grid": {
-      "type": "object",
-      "properties": {
-        "indent": {
-          "type": "integer",
-          "minimum": 3,
-          "description": "Columns per tree level; the elbow `└─> ` takes 4.",
-          "maximum": 16
-        },
-        "laneGap": {
-          "type": "integer",
-          "minimum": 1,
-          "description": "Minimum column distance between lanes sharing rows.",
-          "maximum": 8
-        },
-        "parentRule": {
-          "enum": [
-            "dfs",
-            "nearest",
-            "joint"
-          ],
-          "description": "Tree parent: dfs, the DFS discoverer; nearest, the caller closest above that passes the stem check; joint, no caller privileged for functions with several callers in a box: a caller right above joins the elbow (├───┴─>), otherwise every call joins one collector entering from the left."
-        }
-      }
-    },
     "edges": {
       "type": "object",
       "properties": {
-        "mode": {
-          "enum": [
-            "glyph",
-            "vector"
-          ],
-          "description": "glyph: box-drawing characters; vector: SVG paths from the same grid."
-        },
         "glyphs": {
           "enum": [
             "unicode",
@@ -101,14 +62,19 @@
           "description": "Stroke width in vector mode.",
           "maximum": 8
         },
-        "curve": {
-          "enum": [
-            "orthogonal",
-            "rounded",
-            "sigmoid",
-            "spline"
-          ],
-          "description": "Vector mode: orthogonal lines from the grid, rounded corners, sigmoid S-curves from caller to callee, or a B-spline through the route bends. Glyph mode always draws UTF box drawing."
+        "lead": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 20,
+          "default": 3,
+          "description": "Sigmoid curves: cells of straight line out of the caller and into the callee."
+        },
+        "tension": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "default": 0.5,
+          "description": "Sigmoid curves: reach of the control points, 0 sharp, 1 wide."
         }
       }
     },
@@ -138,14 +104,6 @@
     "boxes": {
       "type": "object",
       "properties": {
-        "enabled": {
-          "type": "boolean",
-          "description": "Namespace boxes for packages and folders; labels relative to their box."
-        },
-        "tight": {
-          "type": "boolean",
-          "description": "Frames enclose only their content: functions moved right or down pull the frame edges along. A view's Tight boxes choice overrides it."
-        },
         "modules": {
           "type": "boolean",
           "description": "Also box each module or file."
@@ -176,35 +134,6 @@
             "double"
           ],
           "description": "Frame line: dashed (default) and dotted frames read apart from solid call lines."
-        }
-      }
-    },
-    "route": {
-      "type": "object",
-      "properties": {
-        "bend": {
-          "type": "number",
-          "minimum": 0,
-          "description": "Router cost per bend.",
-          "maximum": 100
-        },
-        "cross": {
-          "type": "number",
-          "minimum": 0,
-          "description": "Router cost per crossing of another call.",
-          "maximum": 100
-        },
-        "border": {
-          "type": "number",
-          "minimum": 0,
-          "description": "Router cost per box border crossed.",
-          "maximum": 100
-        },
-        "channel": {
-          "type": "integer",
-          "minimum": 1,
-          "description": "Base width of the routing channel between sibling boxes.",
-          "maximum": 16
         }
       }
     }

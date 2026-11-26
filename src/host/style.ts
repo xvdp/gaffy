@@ -1,10 +1,11 @@
 /** @xvdp
- * Style per workspace folder: DEFAULT_STYLE ← setting `gaffy.style` ← `<folder>/.baggy/gaffy/style.json`.
+ * Style per workspace folder: DEFAULT_STYLE ← setting `gaffy.style` ← `<folder>/.baggy/gaffy/style.json`, appearance
+ * keys only (core/style.ts USER_STYLE); other keys are reported once and ignored.
  * Fires `onDidChange` on either source change. Data folders: `.baggy/gaffy/` (gaffy), `.baggy/giddy/` (giddy reports).
  */
 import * as vscode from 'vscode';
 import { plain } from '../core/model';
-import { boundedStyle, deepMerge, DEFAULT_STYLE, Style } from '../core/style';
+import { boundedStyle, deepMerge, DEFAULT_STYLE, Style, userStyle } from '../core/style';
 
 /** gaffy data folder of a project folder: views, text exports, `style.json`, `cache/`, `trace/`. */
 export const gaffyDir = (folder: vscode.Uri) => vscode.Uri.joinPath(folder, '.baggy', 'gaffy');
@@ -59,6 +60,8 @@ export class StyleService implements vscode.Disposable {
         return p;
     }
 
+    private warned = new Set<string>();   // ignored style keys reported once per folder and key set
+
     private async load(folder: vscode.Uri): Promise<Style> {
         const setting = vscode.workspace.getConfiguration('gaffy', folder).get<object>('style') ?? {};
         let file: unknown = {};
@@ -70,7 +73,15 @@ export class StyleService implements vscode.Disposable {
                 void vscode.window.showWarningMessage(plain(`gaffy: .baggy/gaffy/style.json ignored: ${(e as Error).message}`));
             }
         }
-        return boundedStyle(deepMerge(DEFAULT_STYLE, setting, file));
+        // appearance only: Options and the Rules panel set the rest per view (USER_STYLE)
+        const a = userStyle(setting), b = userStyle(file);
+        const ignored = [...a.ignored.map((k) => `gaffy.style ${k}`), ...b.ignored.map((k) => `style.json ${k}`)];
+        const said = `${folder.toString()}\u0000${ignored.join(',')}`;
+        if (ignored.length && !this.warned.has(said)) {
+            this.warned.add(said);
+            void vscode.window.showWarningMessage(plain(`gaffy: style keys ignored (set per view in Options, or in Options > Arrange > Rules): ${ignored.slice(0, 12).join(', ')}${ignored.length > 12 ? ' …' : ''}`));
+        }
+        return boundedStyle(deepMerge(DEFAULT_STYLE, a.style, b.style));
     }
 
     dispose(): void {

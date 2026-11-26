@@ -4,7 +4,7 @@ One of the hammers in my bag to understand code tangles. Persistent data saved t
 
 Extends vscode `Call Hierarchy` upstream with `downstream` calls in the form of `editable`, `persistent`, `exportable` as ASCII (UTF) graph style.
 
-Supports `Python`, `TypeScript`, `JavaScript`, `Java`, `Rust`, `C`,`C++`, `CUDA`, `C#`, `Go`, `Kotlin`, `Swift`, `Dart`, relying on their language servers. Partial support for `Slang`.  Partial cross language support across `pybind11`, `nanobind`, `wasm-bindgen`. More info in [docs/development.md](docs/development.md).
+Supports `Python`, `TypeScript`, `JavaScript`, `Java`, `Rust`, `C`,`C++`, `CUDA`, `C#`, `Go`, `Kotlin`, `Swift`, `Dart`, relying on their language servers. Partial support for `Slang`.  Partial cross language support across `pybind11`, `nanobind`, `wasm-bindgen`. More info in [docs/development.md](docs/development.md). Language Providers: [src/core/langs.ts](src/core/langs.ts)
 
 Generates .json graphs saved as  `<vscode-root>/.baggy/gaffy/<symbol>_<commit>.gaffy`.
 
@@ -59,36 +59,21 @@ gaffy> Add to Call graph    # calls and callers in an existing call graph.
                      ┆          └─>>                      ┆
                      ╰┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄╯
 ```
-
-
-![demo](images/demo.gif)
-
-## General usage
 Most interactions are intuitive albeit some may be arcanely named.
 
-Saving a `.gaffy`, exporting to UTF, `.txt`, `.md`, or debug trace creates `<vscode root>/.baggy/`.
+Saving a `.gaffy`, exporting to UTF, `.txt`, `.md`, or debug trace creates `<vscode root>/.baggy/`. 
 
 Default .gaffy vscode config declared in `package.json`, is accessble accessible thru the gaffy window `Options` menu. 
 
+Functions can be grouped by namespace or as flat hierarchy and reorganized in the gaffy canvas. Calls hierarchies stemmig to the queried function `seed` can be expanded or collapsed. A graph can have multiple seeds. When adding a new seed, the call links between seeds are exposed. 
 
 
-* Defaults: `Autosave []`, cross language `Bridges [✓]`, `Debug Layout []`, prefetch `Depth [3]`, `Exclude []` folders,  
+### Usage 2. vs Code Explorer menu
 
-`gaffy.depth`: 3, `gaffy.maxNodes`: 400, `gaffy.includeExternal`: false, `gaffy.includeStandardLibrary`: false, `gaffy.autoSave`: true, `gaffy.refreshOnSave`: 'touched', `gaffy.openDefinitions`: true, `gaffy.style`:  {}, `gaffy.exclude`: [],`gaffy.openCallHierarchy`: true,`gaffy.bridges`: true,`gaffy.saveViews`:`default`: false, `gaffy.debugLayout`: `default`: false,`gaffy.trace`: false
-
-
-
-
-
-Layout
-
- or  Unsaved graphs prompt user decision on close. Graphs can be set to Autosave in vscode .gaffy settings which is accessible thru the Options menu. Other gaffy vscode settings are self explanatory.
-
-There are several graph layout options
+![demo](images/demo.gif)
 
 
 
-This setting can be changed thru the Options menu (top right), the vscode .gaffy settings accessible thru vscode or the options menu.
 
 
 

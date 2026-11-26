@@ -14,7 +14,9 @@ import { cellId, cellRC, charRows, EdgePath, Grid, LabelSpan } from '../core/gri
 import { ancestors, GNode, isContainer, NodeKey, visible } from '../core/model';
 import type { BoxNode } from '../core/boxes';
 import { Debug, Decision, decisionLine, decisionsOf, SWITCHES, TITLES } from '../core/explain';
-import { buildScene, isStub, pinPaths, Scene, siblingsOf, unitAnchor, unitMembers } from '../core/scene';
+import { mergeRules, parseRules, RuleConfig, Rules } from '../core/rules';
+import { DebugPanel } from './dbgpanel';
+import { buildScene, isStub, pinPaths, rulesOf, Scene, siblingsOf, unitAnchor, unitMembers } from '../core/scene';
 import { Curve, E, glyphSet, N, S, Style, W } from '../core/style';
 import { splitTop } from '../core/langs';
 import { collapsedUnit, Depth, dropMovesWithin, excludedBy, globMatcher, isStandard, OpenSide, parseDoc, PathTest, ROOTS, serializeDoc, ViewDoc } from '../core/viewdoc';
@@ -33,13 +35,22 @@ let styleText = '';
 let excludeGlobs: string[] = [];
 let excludes: PathTest[] = [];        // `gaffy.exclude` path tests for buildScene
 // VS Code settings (`trace`: gaffy.trace); `held`: the view is frozen (editor.ts, freeze on open)
-let settings = { includeExternal: false, includeStandardLibrary: false, saveViews: false, untitled: false, unsaved: false, trace: false, held: false, debugLayout: false };
+let settings = { includeExternal: false, includeStandardLibrary: false, autoSave: false, untitled: false, unsaved: false, trace: false, held: false, debugLayout: false };
 // layout debugging (gaffy.debugLayout, explain.ts): decisions of the drawn picture, flagged units, switched-off rules
 let decisions: Decision[] = [];
 let flagged = new Set<string>();
-const rulesOff = new Set<string>(((api.getState()?.rulesOff as string[] | undefined) ?? []).filter((r) => r in SWITCHES));
-/** buildScene debug argument: decision log and switched-off rules while gaffy.debugLayout is on. */
-const debugOf = (log?: Decision[]): Debug | undefined => (settings.debugLayout ? { off: rulesOff, log: log && ((d) => log.push(d)) } : undefined);
+/** Rule context of the drawn view (rules.ts): webview rules h30, h31, h33, h34, h35, h37 read it. */
+let rulesMemo: { doc?: ViewDoc; style?: Style; R: Rules } = { R: new Rules() };
+const R = (): Rules => {
+    if (rulesMemo.doc !== doc || rulesMemo.style !== style) rulesMemo = { doc, style, R: style && doc ? rulesOf(style, doc.view) : new Rules() };
+    return rulesMemo.R;
+};
+/** Rule configuration of the view (Rules panel, saved with the graph). */
+const rulesNow = (): RuleConfig => mergeRules(doc?.view.rules);
+/** Switched-off rules in effect. */
+const rulesOff = () => new Set(rulesNow().off ?? []);
+/** buildScene debug argument: decision log while gaffy.debugLayout is on. */
+const debugOf = (log?: Decision[]): Debug | undefined => (settings.debugLayout && log ? { log: (d) => log.push(d) } : undefined);
 /** External code drawn (scene.ts `Outside`): the view's values, else the settings. */
 const outside = () => ({ external: doc?.view.external ?? settings.includeExternal, standard: doc?.view.stdlib ?? settings.includeStandardLibrary });
 let scene: Scene | undefined;
@@ -152,6 +163,7 @@ window.addEventListener('message', (ev) => {
         name = m.name ?? name;
         styleText = st;
         style = m.style;
+        const before = dbg.open ? cells(scene) : undefined;
         try {
             doc = parseDoc(text, name);
         } catch (e) {
@@ -159,6 +171,7 @@ window.addEventListener('message', (ev) => {
             return;
         }
         render();
+        if (before) dbg.record({ event: 'document change', fn: 'undo, redo, host command or language server' }, movedCells(before, cells(scene)));
     } else if (m.type === 'busy') {
         busy = !!m.busy;
         busyDots();
@@ -187,10 +200,28 @@ function commit(mut: (d: ViewDoc) => void) {
     mut(d);
     doc = d;
     text = serializeDoc(d);
-    const before = settings.trace ? cells(scene) : undefined;
+    const before = settings.trace || dbg.open ? cells(scene) : undefined;
     render();
-    api.postMessage({ type: 'edit', text, ...(before ? { cause, moved: movedCells(before, cells(scene)) } : {}) });
+    const moved = before ? movedCells(before, cells(scene)) : undefined;
+    if (moved && dbg.open) dbg.record(cause, moved);
+    api.postMessage({ type: 'edit', text, ...(moved && settings.trace ? { cause, moved } : {}) });
 }
+
+// ---- layout debugging panel (dbgpanel.ts): rules, running action log, edge log --------------------------
+const dbg = new DebugPanel({
+    doc: () => doc, style: () => style, scene: () => scene, decisions: () => decisions, boxChain: (u) => boxChain(u),
+    setRules: (mut, what) => {
+        why('setRules', { what });
+        commit((x) => {
+            const r: RuleConfig = structuredClone(x.view.rules ?? {});
+            mut(r);
+            const checked = parseRules(r);
+            if (checked) x.view.rules = checked; else delete x.view.rules;
+        });
+    },
+    post: (msg) => api.postMessage(msg),
+    selectCall: (from, to) => { selCalls = new Set([callKey({ from, to })]); render(); },
+});
 
 // ---- trace (setting gaffy.trace): why each edit happened, and what moved; the host appends it to .gaffy/trace/ ----
 /** Edit cause: user event, target key or text, grid cell [row, column], acting functions. */
@@ -248,7 +279,7 @@ const DIRS = [[-1, 0, N], [1, 0, S], [0, 1, E], [0, -1, W]] as const;   // dr, d
 const OPPOSITE: Record<number, number> = { [N]: S, [S]: N, [E]: W, [W]: E };
 
 /** Hop radius (orthogonal and rounded edges). */
-const hopRadius = () => Math.min(cw, ch) * 0.525;
+const hopRadius = () => Math.min(cw, ch) * R().p('h37_hops', 'radius');
 
 /** Crossing cell: one net N|S, another E|W, none turning or joining. */
 function crossing(nets: Map<string, number>): boolean {
@@ -277,6 +308,7 @@ function maskPaths(g: Grid): Map<string, string> {
     }
     const out = new Map<string, string>();
     const hop = hopRadius();
+    const hopsOn = R().on('h37_hops');
     for (const [net, cells] of byNet) {
         // distance from the root along connected masks
         const dist = new Map<number, number>();
@@ -305,7 +337,7 @@ function maskPaths(g: Grid): Map<string, string> {
             const x = (c + 0.5) * cw, y = (r + 0.5) * ch;
             const edge = (bit: number): [number, number] =>
                 bit === N ? [x, r * ch] : bit === S ? [x, (r + 1) * ch] : bit === E ? [(c + 1) * cw, y] : [c * cw, y];
-            if (m === (E | W) && crossing(g.cells.get(id)!)) {
+            if (m === (E | W) && hopsOn && crossing(g.cells.get(id)!)) {
                 segs.push(`M${c * cw},${y}H${x - hop}A${hop},${hop} 0 0 1 ${x + hop},${y}H${(c + 1) * cw}`);
                 continue;
             }
@@ -354,7 +386,7 @@ function curvePath(p: EdgePath, curve: Curve): string {
     // rounded corners (orthogonal: square); horizontal runs hop crossed vertical lines (`crossing`)
     const r = curve === 'orthogonal' ? 0 : Math.min(cw, ch) * 0.9;
     const hop = hopRadius();
-    const g = scene?.grid;
+    const g = R().on('h37_hops') ? scene?.grid : undefined;
     const hops = !g ? [] : p.cells.filter((id) => g.cells.get(id)?.get(p.net) === (E | W) && crossing(g.cells.get(id)!))
         .map((id) => { const [hr, hc] = cellRC(id); return [(hc + 0.5) * cw, (hr + 0.5) * ch]; });
     let d = `M${pts[0][0]},${pts[0][1]}`;
@@ -400,16 +432,24 @@ function pageContext() {
         unsaved: settings.untitled, tight, boxes, selected: selected.size > 0 }));
 }
 
+let sceneMemo: { key: string; scene: Scene; decisions: Decision[] } | undefined;
 function render() {
     pageContext();
     if (!doc || !style) return;
     measure(style);
     applyColors(style);
     try {
-        const log: Decision[] = [];
-        scene = buildScene(doc, style, excludes, outside(), debugOf(log));
-        decisions = log;
-        flagged = new Set(log.filter((d) => d.flag).map((d) => d.unit));
+        // S2: a redraw without a change of document, style, filters or debugging reuses the scene (selection,
+        // hover, toolbar state)
+        const key = JSON.stringify([text, styleText, excludeGlobs, outside(), settings.debugLayout]);
+        if (sceneMemo?.key === key) { scene = sceneMemo.scene; decisions = sceneMemo.decisions; }
+        else {
+            const log: Decision[] = [];
+            scene = buildScene(doc, style, excludes, outside(), debugOf(log));
+            decisions = log;
+            sceneMemo = { key, scene, decisions };
+        }
+        flagged = new Set(decisions.filter((d) => d.flag).map((d) => d.unit));
     } catch (e) {
         showError(`layout failed: ${(e as Error).message}`);
         return;
@@ -418,7 +458,7 @@ function render() {
     const g = sc.grid;
     const grows = doc.view.arrange === 'grow';
     // pan by the anchor name's move (name cell: a `>> ` prefix shifts only the label start)
-    if (anchor && placed) {
+    if (anchor && placed && R().on('h30_action_anchor')) {
         const at = nameCell(sc, anchor.key);
         if (at) {
             if (anchor.at && (at[0] !== anchor.at[0] || at[1] !== anchor.at[1])) {
@@ -627,6 +667,8 @@ function render() {
     if (!placed) placeView();
     highlight(focusKey);
     toolbar();
+    if (dbg.open && !settings.debugLayout) dbg.open = false;
+    if (dbg.open) dbg.render(); else select('#dbg').classed('on', false);
     status();
     setTimeout(afterRender, 0);
 }
@@ -644,7 +686,7 @@ let settleStreak = 0;
 let adopt: { key: NodeKey; renders: number } | undefined;
 function afterRender() {
     // frozen, or rules switched off (layout debugging): nothing written
-    if (!doc || !scene || !style || dragging || settings.held || (settings.debugLayout && rulesOff.size)) return;
+    if (!doc || !scene || !style || dragging || settings.held) return;
     const sc = scene;
     if (adopt) {
         const k = adopt.key;
@@ -658,7 +700,7 @@ function afterRender() {
         }
         if (++adopt.renders > 6) adopt = undefined;      // no caller became its parent: handover dropped
     }
-    if (text === settledFor || settleStreak >= 3) return;
+    if (text === settledFor || settleStreak >= R().p('h35_save_what_is_drawn', 'saves')) return;
     settledFor = text;
     if (sc.offsets === doc.view.offset) { settleStreak = 0; return; }
     settleStreak++;
@@ -749,7 +791,7 @@ function setSide(k: NodeKey, side: 'up' | 'down', on: boolean, restore = false) 
     why('setSide', { key: k, side, on, restore });
     anchorAt(k);
     // moved function opening its callers: new tree parent takes its offset (afterRender adopt)
-    if (on && side === 'up' && doc.view.offset[k]) adopt = { key: k, renders: 0 };
+    if (on && side === 'up' && doc.view.offset[k] && R().on('h34_offset_handover')) adopt = { key: k, renders: 0 };
     settleStreak = 0;
     const cur = effSide(k);
     const up = side === 'up' ? on : opens(cur, 'up');
@@ -885,10 +927,13 @@ function isolate(keep: Set<NodeKey>, pin?: NodeKey) {
     hide([...scene!.vg.nodes.keys()].filter((x) => !all.has(x)));
 }
 
-/** Hides functions except seeds, the roots of every reveal; right click > Remove Seed drops a seed. */
+/**
+ * Hides functions except seeds and the vertices standing for them (a collapsed container holding a seed), the roots
+ * of every reveal; right click > Remove Seed drops a seed.
+ */
 function hide(keys: NodeKey[]) {
     why('hide', { keys: keys.length });
-    const seeds = new Set(doc!.view.seeds);
+    const seeds = new Set([...doc!.view.seeds, ...(scene?.seeds ?? [])]);
     const drop = keys.filter((k) => !seeds.has(k));
     if (drop.length) commit((x) => { for (const s of drop) if (!x.view.hidden.includes(s)) x.view.hidden.push(s); });
 }
@@ -1120,7 +1165,7 @@ function dragUnit(unitOf: (d: LabelSpan) => string) {
             // anchor: an unmoved function; cancels origin shifts from units moved above or left of all
             const moved = new Set(units.flatMap((u) => unitMembers(sc, u)));
             const still = [...doc!.view.seeds, ...sc.placement.pos.keys()].find((k) => !moved.has(k) && !isStub(k) && sc.placement.pos.has(k));
-            if (still) anchorAt(still); else anchor = undefined;
+            if (still && R().on('h31_still_anchor')) anchorAt(still); else anchor = undefined;
             const [a, b] = settleDrop(units, dc, dr);
             const us = units;
             why('dragUnit', { units: us, drag: [dc, dr], drop: [a, b] });
@@ -1179,7 +1224,8 @@ function collisions(sc: Scene, keys: Set<NodeKey>, units: readonly string[] = []
  * sideways, up to 12 cells or 1.5 s; returns the first clean spot, else the drop.
  */
 function settleDrop(units: string[], dc: number, dr: number): [number, number] {
-    if (!doc || !scene || !style) return [dc, dr];
+    if (!doc || !scene || !style || !R().on('h33_drop_repulsion')) return [dc, dr];
+    const cells = R().p('h33_drop_repulsion', 'cells'), ms = R().p('h33_drop_repulsion', 'ms');
     const keys = new Set(units.flatMap((u) => unitMembers(scene!, u)));
     const unrouted = scene.grid.unrouted;
     const t0 = performance.now();
@@ -1193,7 +1239,7 @@ function settleDrop(units: string[], dc: number, dr: number): [number, number] {
     };
     if (clean(dc, dr)) return [dc, dr];
     const sx = Math.sign(dc) || 1, sy = Math.sign(dr) || 1;
-    for (let k = 1; k <= 12 && performance.now() - t0 < 1500; k++) {
+    for (let k = 1; k <= cells && performance.now() - t0 < ms; k++) {
         for (const [a, b] of [[dc + sx * k, dr], [dc, dr + sy * k], [dc, dr - sy * k], [dc - sx * k, dr]] as const) {
             if (clean(a, b)) return [a, b];
         }
@@ -1362,14 +1408,22 @@ function runCmd(cmd: string, key?: NodeKey, unit?: string, to?: NodeKey) {
             return;
         }
         case 'makeSeed':
-            // seed opens both sides; the host fetches the unexplored one
-            if (need(k, NO_FN) && need(!doc.view.seeds.includes(k!), `makeSeed: ${k!.split('#').pop()} is a seed already`)) { anchorAt(k!); commit((x) => { x.view.seeds.push(k!); }); }
+            // joined seed (scene.ts revealView): closed until a side opens, drawn with its call paths to the other
+            // seeds; the host fetches along both directions to the view's depth (Session.joinData)
+            if (need(k, NO_FN) && need(!doc.view.seeds.includes(k!), `makeSeed: ${k!.split('#').pop()} is a seed already`)) {
+                anchorAt(k!);
+                commit((x) => { x.view.seeds.push(k!); x.view.joins = [...(x.view.joins ?? []), k!]; });
+            }
             return;
         case 'removeSeed':
             // last seed stays: a view without seeds is empty
             if (need(k, NO_FN) && need(doc.view.seeds.includes(k!), `removeSeed: ${k!.split('#').pop()} is not a seed`)
                 && need(doc.view.seeds.length > 1, 'removeSeed: the last seed stays (a view without seeds shows nothing)')) {
-                anchorAt(k!); commit((x) => { x.view.seeds = x.view.seeds.filter((s0) => s0 !== k); });
+                anchorAt(k!);
+                commit((x) => {
+                    x.view.seeds = x.view.seeds.filter((s0) => s0 !== k);
+                    if (x.view.joins) { x.view.joins = x.view.joins.filter((s0) => s0 !== k); if (!x.view.joins.length) delete x.view.joins; }
+                });
             }
             return;
         case 'rearrangeSelection': {
@@ -1377,7 +1431,7 @@ function runCmd(cmd: string, key?: NodeKey, unit?: string, to?: NodeKey) {
             const keys = new Set(selected.size ? selected : k ? [k] : []);
             if (!need(keys.size, NO_SEL)) return;
             const still = [...doc.view.seeds, ...scene.placement.pos.keys()].find((x) => !keys.has(x) && !isStub(x) && scene!.placement.pos.has(x));
-            if (still) anchorAt(still);
+            if (still && R().on('h31_still_anchor')) anchorAt(still);
             commit((x) => { for (const s0 of keys) for (const u of [s0, collapsedUnit(s0)]) { delete x.view.offset[u]; delete x.view.lock[u]; } });
             return;
         }
@@ -1600,8 +1654,9 @@ function showWhy(unit: string) {
     el.selectAll('*').remove();
     el.classed('on', true);
     const head = el.append('div').attr('class', 'whyhead');
-    head.append('span').text(`Why here: ${name} · ${mine.length} decisions${rulesOff.size ? ` · rules off: ${[...rulesOff].map((r) => r.slice(0, 3)).join(' ')}` : ''}`);
-    head.append('button').text('full log').attr('title', 'every decision of this picture, in an editor').on('click', openLog);
+    const off = rulesOff();
+    head.append('span').text(`Why here: ${name} · ${mine.length} decisions${off.size ? ` · rules off: ${[...off].map((r) => r.slice(0, 3)).join(' ')}` : ''}`);
+    head.append('button').text('actions').attr('title', 'running log of changes with the rules that moved each function and box (panel under the graph)').on('click', () => dbg.toggle('actions'));
     head.append('button').text('×').attr('title', 'close (Esc)').on('click', hideWhy);
     el.append('div').attr('class', 'whynote').text('in placement order: outer boxes first, then the unit\'s block, settle moves last. Offline, with code lines: npm run explain -- <view> --unit <text>');
     el.selectAll('div.why').data(mine).join('div')
@@ -1612,17 +1667,7 @@ function showWhy(unit: string) {
 
 function hideWhy() { select('#why').classed('on', false).selectAll('*').remove(); }
 
-function openLog() {
-    const head = `${name} · ${decisions.length} decisions · ${decisions.filter((d) => d.flag).length} flagged${rulesOff.size ? ` · rules off: ${[...rulesOff].join(', ')}` : ''}`;
-    api.postMessage({ type: 'openText', text: [head, '', ...decisions.map((d) => decisionLine(d))].join('\n') });
-}
 
-/** Options > Layout debugging: one rule on or off; the picture redraws without it, nothing is written meanwhile. */
-function toggleRule(rule: string) {
-    if (rulesOff.has(rule)) rulesOff.delete(rule); else rulesOff.add(rule);
-    saveState({ rulesOff: [...rulesOff] });
-    render();
-}
 
 /**
  * Paths between seeds only. One layer at a time, turned off: the paths on screen stay (`pinned`), every side
@@ -1738,10 +1783,12 @@ function toolbar() {
                 title: 'gaffy.debugLayout: right click a function or box > Why Here? lists the decisions that placed it; flagged decisions (⚑) underlined; rule switches below',
                 act: () => api.postMessage({ type: 'setting', key: 'debugLayout', value: !settings.debugLayout }) },
             ...(settings.debugLayout ? [
-                ...Object.entries(SWITCHES).map(([r, without]) => ({ label: `${r.slice(0, 3)} ${TITLES[r]}`, on: !rulesOff.has(r), sub: true,
-                    title: `rule ${r}: on; click to switch off (${without}); nothing is saved while a rule is off`, act: () => toggleRule(r) })),
-                { label: `Decision log (${decisions.length}, ${decisions.filter((d) => d.flag).length} flagged)`, sub: true,
-                    title: 'every placement and settle decision of this picture, in an editor', act: openLog },
+                { label: `Rules… (${rulesOff().size} off)`, sub: true, on: dbg.open && dbg.tab === 'rules',
+                    title: 'every layout rule: switch, alternative, parameters, explanation and code; saved with the graph', act: () => dbg.toggle('rules') },
+                { label: `Actions log (${decisions.filter((d) => d.flag).length} ⚑)`, sub: true, on: dbg.open && dbg.tab === 'actions',
+                    title: 'running log: each change, what moved where, the rules that placed it, code links', act: () => dbg.toggle('actions') },
+                { label: `Edges log (${scene?.grid.routes.filter((r) => r.received).length ?? 0} crossed)`, sub: true, on: dbg.open && dbg.tab === 'edges',
+                    title: 'each call: routing order, arrival, cost parts, crossings paid and received, reroutes', act: () => dbg.toggle('edges') },
             ] : []),
         ] },
         { caption: 'Folders', items: [
@@ -1763,13 +1810,13 @@ function toolbar() {
         ] },
         // first four mirror the canvas context menu (package.json, group 1_file)
         { caption: 'File', items: [
-            ...(settings.saveViews ? [] : [{ label: 'Save (.gaffy)', title: 'save this graph (.baggy/gaffy/)', act: () => api.postMessage({ type: 'save' }) }]),
+            ...(settings.autoSave ? [] : [{ label: 'Save (.gaffy)', title: 'save this graph (.baggy/gaffy/)', act: () => api.postMessage({ type: 'save' }) }]),
             { label: 'Frozen', on: settings.held, title: settings.held
                 ? 'opened frozen: no language-server updates, settled moves not written; click to unfreeze (Ctrl+Z freezes again)'
                 : 'freeze: no language-server updates, settled moves not written (Ctrl+Z unfreezes)',
             act: () => api.postMessage({ type: 'hold', on: !settings.held }) },
-            { label: 'Autosave Graphs', title: 'gaffy.saveViews: new graphs are written to .baggy/gaffy/ and saved after every change; off: a new graph opens unsaved, Save (.gaffy) keeps it',
-                on: settings.saveViews, act: () => api.postMessage({ type: 'setting', key: 'saveViews', value: !settings.saveViews }) },
+            { label: 'Autosave Graphs', title: 'gaffy.autoSave (workspace setting, same as the canvas menu entry): new graphs are written to .baggy/gaffy/ and every graph is saved after each change; off: a new graph opens unsaved, Save (.gaffy) keeps it',
+                on: settings.autoSave, act: () => api.postMessage({ type: 'setting', key: 'autoSave', value: !settings.autoSave }) },
             { label: 'Save as Text (.txt, .md)', title: '.baggy/gaffy/<symbol>_<commit>.md and .txt, then _2, _3 (x)', act: () => api.postMessage({ type: 'export' }) },
             { label: 'Refresh Language Server', disabled: settings.held, title: settings.held ? 'frozen: unfreeze first' : v.arrange === 'grow'
                 ? 'calls of the functions on screen from the language server; the others when a side opens onto them. Unanswered functions keep their calls (r)'
@@ -1825,7 +1872,8 @@ function status() {
     parts.push(v.between ? 'Locked: paths between seeds' : v.arrange === 'grow' ? '>> Individual' : '+ - Full layer');
     if (settings.debugLayout) {
         const n = decisions.filter((d) => d.flag).length;
-        parts.push(`Layout Debug: ${decisions.length} decisions, ${n} ⚑${rulesOff.size ? `, ${rulesOff.size} rules off` : ''}`);
+        const off = rulesOff();
+        parts.push(`Layout Debug: ${decisions.length} decisions, ${n} ⚑${off.size ? `, ${off.size} rules off` : ''}`);
     }
     if (v.static) parts.push('Static');
     else if (settings.held) parts.push('Frozen');

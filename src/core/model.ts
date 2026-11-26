@@ -38,6 +38,7 @@ export interface GEdge {
     line?: number;           // first call-site line in caller, 0-based; sibling order
     via?: string;            // cross-language binding (pybind11, nanobind, torch, slangpy, slangtorch) and binding site
     implicit?: 'construction' | 'instance call';   // runtime call without call expression (host/implicit.ts)
+    seen?: 'in' | 'out' | 'both';   // answers that reported the call: the callee's callers (`in`), the caller's calls (`out`); host/build.ts
 }
 
 export interface Subgraph {

@@ -63,7 +63,7 @@ const T_BAR: Row[] = [
     ['Options > Call Expansion: Individual On Graph, Global Toolbar', at(MAIN, "label: 'Individual On Graph: >>'"), "`setArrange('grow' | 'auto')`"],
     ['Options > Call Expansion > Paths between seeds only', at(MAIN, "label: 'Paths between seeds only'"), '`between`: full view, drawn functions filtered to seed-to-seed call paths (`onPaths`); one layer at a time, the reveal is the paths of the whole graph (`revealPaths`); off: the paths become `pinned`, every side closed (`toggleBetween`)'],
     ['marker click, one layer at a time with Paths between seeds only', at(MAIN, 'cannot expand ${'), 'refused, status line: the side leads to no other seed'],
-    ['Options > Arrange > Layout debug (gaffy.debugLayout)', at(MAIN, "label: 'Layout debug'"), 'rules switched off (`rulesOff`, webview state): the picture without them, nothing saved meanwhile; Why Here? and the decision log read `decisions` (explain.ts)'],
+    ['Options > Arrange > Layout debug (gaffy.debugLayout)', at(MAIN, "label: 'Layout debug'"), 'debugging panel (dbgpanel.ts): Rules (switches, alternatives, parameters written to `view.rules`, saved with the graph), Actions (running log of moves and the decisions behind them), Edges (routing record per call); Why Here? reads `decisions` (explain.ts)'],
     ['Options > Call depth by: shortest, longest path', at(MAIN, "label: r === 'shortest' ? 'Shortest call path'"), '`depthRule`'],
     ['Options > Grouping > by Namespace', at(MAIN, "label: 'by Namespace'"), '`boxes`'],
     ['Options > Grouping > Tight', at(MAIN, "{ label: 'Tight', title:"), '`tight`'],
@@ -76,7 +76,7 @@ const T_BAR: Row[] = [
     ['Options > Arrange > Expand collapsed', at(MAIN, 'label: `Expand collapsed ('), "`runCmd('expandAll')`"],
     ['Options > Folders > Include external code, Include standard library', at(MAIN, "label: 'Include external code'"), 'host setting; the webview redraws; their folders leave the list when off'],
     ['Options > Folders > a folder', at(MAIN, "label: f.label, title: `${f.path}: ${f.excluded"), '`exclude`, `include`'],
-    ['Options > File > Save (.gaffy), Autosave Graphs, Save as Text, Refresh Language Server', at(MAIN, "label: 'Save (.gaffy)'"), 'host: save, setting `gaffy.saveViews`, export, `refresh` (new data)'],
+    ['Options > File > Save (.gaffy), Autosave Graphs, Save as Text, Refresh Language Server', at(MAIN, "label: 'Save (.gaffy)'"), 'host: save, setting `gaffy.autoSave` (command `gaffy.toggleAutoSave`, as the canvas menu), export, `refresh` (new data)'],
     ['Options > File > Frozen; toolbar Unfreeze', at(MAIN, "act: () => api.postMessage({ type: 'hold', on: !settings.held })"), 'host `hold`: Unfreeze writes `live` (this opening) and the Options values into the view; Freeze removes `live`. A view holding a graph opens frozen'],
 ];
 const T_MENU: Row[] = [
@@ -98,7 +98,7 @@ const T_MENU: Row[] = [
 ];
 const T_OUT: Row[] = [
     ['editor: gaffy> Call Hierarchy (up, dn); explorer: Call Hierarchies', `${reg('gaffy.graphCallers')}, ${reg('gaffy.graphFile')}`, '`createView`: a new view'],
-    ['editor: gaffy> Add to Call Graph', reg('gaffy.addToView'), 'seed added, `Session.refresh`'],
+    ['editor: gaffy> Add to Call Graph', reg('gaffy.addToView'), 'seed added and joined (`view.joins`: closed, drawn with its call paths to the other seeds), `Session.refresh`, `Session.joinData`'],
     ['VS Code undo, redo; an edit of the .gaffy text', at(EDIT, 'vscode.workspace.onDidChangeTextDocument((e) => {', 'async resolveCustomTextEditor('), 'the webview receives the text (`state`) and redraws'],
     ['saving a source file; renaming a file', at('src/host/extension.ts', 'onDidSaveTextDocument'), 'refresh of the views that show it'],
 ];
@@ -126,7 +126,7 @@ const I: Row[] = [
     ["`runCmd: 'resetView'`", at(MAIN, "case 'resetView':"), 'most fields', 'back to the seeds: no hidden, collapsed, moves, locks, grouping'],
     ["`runCmd: 'resetLayout'`", at(MAIN, "case 'resetLayout':"), '`offset`, `lock`, `sibling`, `straight`', 'every computed place again'],
     ["`runCmd: 'rearrangeSelection'`, `'rearrange'`", at(MAIN, "case 'rearrangeSelection': {"), '`offset`, `lock`', 'the selected units (or all unlocked) back to their computed place'],
-    ["`runCmd: 'makeSeed'`, `'removeSeed'`", at(MAIN, "case 'makeSeed':"), '`seeds`', 'adds or drops a seed; the host asks for the new seed\'s sides'],
+    ["`runCmd: 'makeSeed'`, `'removeSeed'`", at(MAIN, "case 'makeSeed':"), '`seeds`, `joins`', 'adds a joined seed (`joins`: closed, its call paths to the other seeds drawn) or drops a seed; the host asks along both directions to the view\'s depth'],
     ["`runCmd: 'expandAll'`", at(MAIN, "case 'expandAll':"), '`collapsed`', 'expands every collapsed container'],
     ['`dropMovesWithin`', at('src/core/viewdoc.ts', 'export function dropMovesWithin('), '`offset`, `lock`', 'drops the moves and locks inside a container whose grouping changes (group, ungroup, reset grouping)'],
     ['`afterRender`: adopt', at(MAIN, "cause = { event: 'auto', fn: 'afterRender:adopt'"), '`offset`', 'offset handover: the new tree parent of a moved function takes its offset (h34)'],
@@ -169,7 +169,7 @@ call u → v in the data (graph.edges)
     │   ├── every source and v share one shift, the lane column clear ──► lane <code>┌──┘ └─></code> or <code>&lt;──┘</code> (net l:v)   ${href(G, 'for (const ln of L.lanes) {', '// ---- 2.')}
     │   └── otherwise ────────────────────────────────────────────────► routed
     └── routed (A*), in order: straightened, level (shortest first), the rest (longest first)   ${href(G, 'todo.sort((a, b) => pri(b) - pri(a)')}
-        ├── arrival side, decided per callee before routing   ${href(G, 'const left = own || sends ||')}
+        ├── arrival side, decided per callee before routing   ${href(G, 'const left = own || (sends && approach) ||')}
         │   ├── v's lane already enters from the left ────────────────► left <code>──> v()</code>
         │   ├── v sends calls from its label end ──────────────────────► left
         │   ├── callers mostly left of v, two cells before v free ─────► left
@@ -178,7 +178,7 @@ call u → v in the data (graph.edges)
         │   ├── u's label end (cost 0), unless u receives at its end
         │   ├── under or over u's first character (cost 2), when free
         │   └── no start free ────────────────────────────────────────► dashed fallback
-        └── search: (cell, heading) states, step 1, bend +3, crossing +6, frame border +4, own line 0.3   ${href(G, 'for (let pass = 0; pass < 2 && goal < 0; pass++)')}
+        └── search: (cell, heading) states, step 1, bend +3, crossing +6, frame border +4, own line 0.3   ${href(G, 'for (pass = 0; pass < 2 && goal < 0; pass++)')}
             ├── pass 1 strict: no running along or turning on another line ► drawn
             ├── pass 2 relaxed: those at +400 and +40 ────────────────► drawn
             └── no route in 400 000 steps ────────────────────────────► dashed fallback L with its arrowhead   ${href(G, 'const fallback = () => {')}
@@ -199,7 +199,7 @@ drop: pointer delta in whole cells; zero cells: nothing   ${href(MAIN, 'const dc
 │   ├── a moved group: placed as unmoved, then translated whole by its offset; a locked one onto its cell   ${href(PL, 'const home = Math.max(cr, top - 1);')}
 │   ├── a sibling placed later (order: locked first, then calling order)   ${href(PL, 'const order = [...topo.filter(')}
 │   │   ├── after a group moved by an offset: counts it at its unmoved place ───► stays   ${href(PL, 'const avoid = [...placed.map(')}
-│   │   └── after a locked group, or one stretched by moves inside it ─────────► slides below it   ${href(PL, 'rr += Math.max(1, hit.r1 + 1 - r.r0);')}
+│   │   └── after a locked group, or one stretched by moves inside it ─────────► slides below it   ${href(PL, 'if (costRight < costDown) dcol += right; else rr += down;')}
 │   ├── frames grow to hold moved content (Tight groups: fit it on all sides) ────► later siblings of the
 │   │   enclosing group may slide below it   ${href(PL, 'const frame = (x: Rect): Rect =>')}
 │   └── content above row 0 or left of column 0 ──────────────────────────────► whole picture shifts back   ${href(PL, 'let minC = 0, minR = 0;')}
@@ -213,7 +213,7 @@ const DRAG: Row[] = [
     ['units of a selection', at(MAIN, 'function topUnits('), 'each selected function with its tree, skipping one inside another selected function\'s tree'],
     ['still function', at(MAIN, 'const still = [...doc!.view.seeds, ...sc.placement.pos.keys()]'), 'the first seed, else any function, outside what moves; none: the drop is a pan of everything'],
     ['drop accepted', at(MAIN, 'if (clean(dc, dr)) return [dc, dr];'), 'a probe redraw: no more unroutable calls, `collisions` of the dropped labels and frames zero; each probe settles (step 5), so the first spot usually passes'],
-    ['drop search', at(MAIN, 'for (let k = 1; k <= 12 && performance.now() - t0 < 1500; k++)'), 'k cells further along the drag, then sideways either way, then back; k ≤ 12'],
+    ['drop search', at(MAIN, 'for (let k = 1; k <= cells && performance.now() - t0 < ms; k++)'), 'k cells further along the drag, then sideways either way, then back; k ≤ 12'],
     ['lock or offset', at(MAIN, 'function moveUnit('), '`lock[unit]` when locked, else `offset[unit]` += (Δcolumn, Δrow)'],
     ['function offset', at(PL, '} else if (off) shift.set(k,'), 'the shift of a function: its lock, else its parent\'s shift + its offset; the tree below inherits it'],
     ['moved function descent', at(PL, 'const mine = new Set(descendants(k));'), 'labels on one row closer than 2 cells to another label of the group: down one row, at most 500'],
@@ -222,10 +222,10 @@ const DRAG: Row[] = [
     ['what later items avoid', at(PL, 'const avoid = [...placed.map('), 'an earlier box moved by an offset at its unmoved place; a locked box, or one stretched by moves inside it, where drawn'],
     ['unmoved block descent', at(PL, 'const hit = avoid.find((a) => overlaps(a, rectOf(rowMap)));'), 'the functions of a group slide below what they avoid'],
     ['moved group', at(PL, 'const home = Math.max(cr, top - 1);'), 'placed at the row it would take unmoved, then translated whole (labels, lanes, inner frames) by the offset'],
-    ['unmoved group descent', at(PL, 'rr += Math.max(1, hit.r1 + 1 - r.r0);'), 'trial placement, then below the overlapped earlier sibling, by the distance from its top'],
+    ['unmoved group descent', at(PL, 'if (costRight < costDown) dcol += right; else rr += down;'), 'trial placement, then below the overlapped earlier sibling, by the distance from its top'],
     ['frame extent', at(PL, 'const frame = (x: Rect): Rect =>'), 'Tight groups: the content\'s bounding box; otherwise the computed corner, growing to hold content moved up or left'],
     ['picture origin', at(PL, 'let minC = 0, minR = 0;'), 'everything shifts so nothing lies above row 0 or left of column 0; the pan cancels it on screen'],
-    ['settle rounds', at('src/core/scene.ts', 'for (let round = 0; round < 3; round++) {'), 'at most 3 rounds of settle per redraw'],
+    ['settle rounds', at('src/core/scene.ts', "for (let round = 0; round < R.p('h23_settle', 'rounds'); round++) {"), 'at most 3 rounds of settle per redraw'],
     ['settle candidates', at(ST, 'const moved = Object.keys(doc.view.offset).filter('), 'units with an offset, unlocked, on screen'],
     ['collision', at(ST, 'const hits = (x: Unit, a: number, d: number) =>'), 'a label on another frame\'s border; closer than 4 cells to a label of its row; another label inside its frame; its frame partly over another'],
     ['clear offset', at(ST, 'const nearest = (x: Unit)'), 'rings of up to 12 cells (vertical first), then straight lines up to 80; never off the canvas'],

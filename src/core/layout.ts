@@ -25,6 +25,7 @@
  */
 import { NodeKey } from './model';
 import { VGraph } from './quotient';
+import { Rules } from './rules';
 import { ParentRule, ROOTS } from './viewdoc';
 
 export interface LayoutInput {
@@ -40,6 +41,7 @@ export interface LayoutInput {
     extIn?: ReadonlySet<NodeKey>;          // vertices called from outside the block
     extOut?: ReadonlySet<NodeKey>;         // vertices calling outside the block
     rootRank?: (k: NodeKey) => number;     // primary root order, ascending
+    rules?: Rules;                         // alternatives h07, h12 (rules.ts)
 }
 
 export interface Row {
@@ -95,12 +97,14 @@ export function layout(inp: LayoutInput): Layout {
         cmp(sk.get(a)!, sk.get(b)!);
 
     const childOrder = new Map<NodeKey, NodeKey[]>();
+    // h07 alternatives: `line` (call line, then sort key), `definition` (sort key only)
+    const byLine = (inp.rules?.alt('h07_child_order') ?? 'line') === 'line';
     const orderedOut = (u: NodeKey): NodeKey[] => {
         let r = childOrder.get(u);
         if (!r) {
             const o = idx(inp.sibling[u]);
             r = [...vg.out.get(u)!]
-                .sort((a, b) => (o.get(a.to) ?? big) - (o.get(b.to) ?? big) || a.line - b.line || cmp(sk.get(a.to)!, sk.get(b.to)!))
+                .sort((a, b) => (o.get(a.to) ?? big) - (o.get(b.to) ?? big) || (byLine ? a.line - b.line : 0) || cmp(sk.get(a.to)!, sk.get(b.to)!))
                 .map((e) => e.to);
             childOrder.set(u, r);
         }
@@ -252,7 +256,9 @@ export function layout(inp: LayoutInput): Layout {
         const via = approachOf.get(t);
         lanes.push({ target: t, col: 0, lo, hi, sources, ...(via !== undefined ? { left: { col: collector.get(t)!, row: via } } : {}) });
     }
-    lanes.sort((a, b) => a.hi - a.lo - (b.hi - b.lo) || a.lo - b.lo || cmp(sk.get(a.target)!, sk.get(b.target)!));
+    // h12 alternatives: `shortest` lane first (default), `longest` first
+    const sign = inp.rules?.alt('h12_lane_packing') === 'longest' ? -1 : 1;
+    lanes.sort((a, b) => sign * (a.hi - a.lo - (b.hi - b.lo)) || a.lo - b.lo || cmp(sk.get(a.target)!, sk.get(b.target)!));
     const placed: Lane[] = [];
     for (const lane of lanes) {
         let base = 0;

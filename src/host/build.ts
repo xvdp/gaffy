@@ -4,6 +4,14 @@
  * Answers are stored whole; folder filters apply at draw time (re-including a folder needs no server).
  *
  * No answer ≠ empty answer. Unresolved definition (server analyzing, request failed): calls kept, not cached.
+ * A call belongs to two pairs: (caller, out) and (callee, in); `GEdge.seen` records which answers reported it. An
+ * answer replaces the calls of its pair except those an answer of the other pair reported: servers answer the two
+ * directions apart and not alike (the C/C++ server lists a CUDA host function as caller of `knn` and no calls for that
+ * function), so one direction's silence does not refute the other's report. A call goes when neither reports it;
+ * calls from views without `seen` count as reported by the pair being answered only.
+ * Partial answer (a binding target unresolved past bridges.ts MISSES, `partialOf`): applied with the pair's stored
+ * cross-language calls kept, not cached, retried with the unresolved pairs: a link found once stays, and a cache
+ * never holds an answer without a link the C/C++ server could not resolve yet.
  * Doubted empty answer: drops every stored call, or the text has call sites (`silentOf`); a loading server can
  * answer empty instead of not at all. It counts as no answer until `DOUBTS` consecutive ones (`doubted`, held by
  * the view across retries).
@@ -33,6 +41,7 @@ export interface Extension {
     explored: Record<NodeKey, Direction>;
     asked: number;          // pairs answered (cache or language server)
     unresolved: Pair[];     // asked, unanswered: calls kept, direction not marked explored
+    partial: Pair[];        // answered without an unresolved binding link: applied, stored links kept, not cached
     missed: Pair[];         // `cacheOnly`: no cached answer, not asked
     clamped: (Pair & { total: number })[];   // answers over the call limit: first calls kept; `total`: answer length
     capped: number;         // pairs skipped at `maxNodes` definitions
@@ -55,6 +64,7 @@ export async function extendGraph(
     const defs = () => Object.values(nodes).filter((n) => !isContainer(n)).length;
     let asked = 0;
     const unresolved: Pair[] = [];
+    const partial: Pair[] = [];
     const missed: Pair[] = [];
     const clamped: (Pair & { total: number })[] = [];
     let capped = 0;
@@ -63,6 +73,9 @@ export async function extendGraph(
         if (opts.mode !== 'cacheOnly' && opts.maxNodes && defs() >= opts.maxNodes) { capped++; return; }
         if (!Object.hasOwn(nodes, key)) return;   // own keys only: `constructor` and kin are not definitions
         let es: GEdge[] | undefined;
+        const other: 'in' | 'out' = dir === 'out' ? 'in' : 'out';
+        const mine = (e: GEdge) => (dir === 'out' ? e.from === key : e.to === key);
+        const otherSaw = (e: GEdge) => e.seen === other || e.seen === 'both';
         const hit = opts.mode !== 'fresh' ? opts.cache?.get(key, dir) : undefined;
         if (hit) {
             for (const [k, n] of Object.entries(hit.nodes)) if (!Object.hasOwn(nodes, k)) nodes[k] = n;
@@ -79,7 +92,8 @@ export async function extendGraph(
             // cancelled: pair stays unasked (retried later), not unresolved
             if (!es) { if (!opts.token?.isCancellationRequested) unresolved.push({ key, dir }); opts.progress?.({ ...stats }); return; }
             const id = `${dir}:${key}`;
-            const stored = edges.some((e) => (dir === 'out' ? e.from === key : e.to === key));
+            // calls of the pair only this pair reported: an empty answer would drop them
+            const stored = edges.some((e) => mine(e) && !otherSaw(e));
             const silent = p.silentOf?.(key, dir) ?? false;
             if (!es.length && (stored || silent) && opts.doubted) {
                 const n = (opts.doubted.get(id) ?? 0) + 1;
@@ -87,20 +101,31 @@ export async function extendGraph(
             }
             opts.doubted?.delete(id);
             if (total) clamped.push({ key, dir, total });
-            opts.cache?.put(key, dir, es, nodes, total);
+            if (p.partialOf?.(key, dir)) {
+                const kept = edges.filter((e) => e.via && (dir === 'out' ? e.from === key : e.to === key) && !es!.some((x) => x.from === e.from && x.to === e.to));
+                es = es.concat(kept);
+                partial.push({ key, dir });
+            } else opts.cache?.put(key, dir, es, nodes, total);
         }
         asked++;
-        edges = edges.filter((e) => !(dir === 'out' ? e.from === key : e.to === key)).concat(es);
+        const now = new Set(es.map((e) => `${e.from}\u0000${e.to}`));
+        const before = new Map(edges.filter(mine).map((e) => [`${e.from}\u0000${e.to}`, e]));
+        // the pair's calls missing from the answer stay when the other pair reported them, as the other pair's only
+        const kept = [...before.values()].filter((e) => !now.has(`${e.from}\u0000${e.to}`) && otherSaw(e)).map((e) => ({ ...e, seen: other }));
+        const saw = (e: GEdge): GEdge['seen'] => { const b = before.get(`${e.from}\u0000${e.to}`); return b && otherSaw(b) ? 'both' : dir; };
+        edges = edges.filter((e) => !mine(e)).concat(kept, es.map((e) => ({ ...e, seen: saw(e) })));
         mark(key, dir);
         stats.definitions = defs();
         opts.progress?.({ ...stats });
     });
     // one edge per (caller, callee), earliest call line
     const byPair = new Map<string, GEdge>();
+    const join = (a: GEdge['seen'], b: GEdge['seen']): GEdge['seen'] => (a === b ? a : !a ? b : !b ? a : 'both');
     for (const e of edges) {
         const id = `${e.from}\u0000${e.to}`;
         const prev = byPair.get(id);
-        if (!prev || (e.line ?? Infinity) < (prev.line ?? Infinity)) byPair.set(id, e);
+        if (!prev || (e.line ?? Infinity) < (prev.line ?? Infinity)) byPair.set(id, prev ? { ...e, seen: join(e.seen, prev.seen) } : e);
+        else byPair.set(id, { ...prev, seen: join(e.seen, prev.seen) });
     }
-    return { graph: { nodes, edges: [...byPair.values()] }, explored, asked, unresolved, missed, clamped, capped };
+    return { graph: { nodes, edges: [...byPair.values()] }, explored, asked, unresolved, partial, missed, clamped, capped };
 }

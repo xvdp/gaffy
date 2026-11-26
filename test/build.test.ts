@@ -56,6 +56,38 @@ describe('extendGraph merge', () => {
         expect(r.explored[root]).toBeUndefined();
     });
 
+    it('a partial answer (binding target unresolved) keeps the stored cross-language call, is retried, never cached', async () => {
+        const callee = calls(doc.graph.edges, root)[0];
+        const bridged = { ...doc, graph: { ...doc.graph, edges: doc.graph.edges.map((e) => (e.from === root && e.to === callee ? { ...e, via: 'pybind11: ext.cpp:3' } : e)) } };
+        const put: string[] = [];
+        const cache = { get: () => undefined, put: (key: NodeKey, dir: string) => { put.push(`${dir}:${key}`); } };
+        const p = { ...provider({ [`out:${root}`]: [] }), partialOf: (key: NodeKey, dir: string) => key === root && dir === 'out' } as unknown as LspProvider;
+        const r = await extendGraph(p, bridged, [{ key: root, dir: 'out' }], { mode: 'fresh', cache: cache as never });
+        expect(calls(r.graph.edges, root)).toEqual([callee]);
+        expect(r.partial).toEqual([{ key: root, dir: 'out' }]);
+        expect(put).toEqual([]);
+    });
+
+    it('a call reported by the callee\'s callers stays when the caller\'s calls answer omits it; it goes when neither reports it', async () => {
+        // distCUDA2 → knn: the C/C++ server lists distCUDA2 among the callers of knn, and no calls for distCUDA2
+        const d = { ...doc, graph: { ...doc.graph, edges: doc.graph.edges.filter((e) => e.from !== root) } };
+        const callee = calls(doc.graph.edges, root)[0];
+        const e = { from: root, to: callee, line: 3 };
+        const r1 = await extendGraph(provider({ [`in:${callee}`]: [e] }), d, [{ key: callee, dir: 'in' }], { mode: 'fresh' });
+        expect(r1.graph.edges.find((x) => x.from === root && x.to === callee)?.seen).toBe('in');
+        const r2 = await extendGraph(provider({ [`out:${root}`]: [] }), { ...d, graph: r1.graph }, [{ key: root, dir: 'out' }], { mode: 'fresh' });
+        expect(r2.graph.edges.find((x) => x.from === root && x.to === callee)?.seen).toBe('in');
+        const r3 = await extendGraph(provider({ [`out:${root}`]: [e] }), { ...d, graph: r2.graph }, [{ key: root, dir: 'out' }], { mode: 'fresh' });
+        expect(r3.graph.edges.find((x) => x.from === root && x.to === callee)?.seen).toBe('both');
+        const r4 = await extendGraph(provider({ [`in:${callee}`]: [], [`out:${root}`]: [] }), { ...d, graph: r3.graph }, [{ key: callee, dir: 'in' }, { key: root, dir: 'out' }], { mode: 'fresh' });
+        expect(r4.graph.edges.some((x) => x.from === root && x.to === callee)).toBe(false);
+    });
+
+    it('calls of views from before `seen` count as reported by the pair being answered', async () => {
+        const r = await extendGraph(provider({ [`out:${root}`]: [] }), doc, [{ key: root, dir: 'out' }], { mode: 'fresh' });
+        expect(calls(r.graph.edges, root)).toEqual([]);
+    });
+
     it('counts the pairs not asked at the definition limit', async () => {
         const r = await extendGraph(provider({}), doc, [{ key: root, dir: 'out' }, { key: root, dir: 'in' }], { mode: 'fresh', maxNodes: 1 });
         expect(r.capped).toBe(2);

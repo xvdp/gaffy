@@ -1,12 +1,12 @@
 ╭┄ moomoo.boogaloos ┄┄┄┄┄┄┄┄┄┄┄┄╮         ╭┄ noodles ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄╮
-┆  scoobie() ──────────────────────────────┬┐╭┄ jumbles ┄┄┄┄┄┄┄┄┄╮                                    ┆
-┆  ├─> hullabaloo_hoot() ──┐    ┆         ┆││┆                   ┆                                    ┆
-┆  ├─> _fritter() <────────┘    ┆         ┆││┆                   ┆                                    ┆
-┆  ├─> scoobie_zoinks_jinkies() ┆         ┆││┆                   ┆                                    ┆
-┆  │   ├─> _nacho_plate()       ┆         ┆││┆                   ┆                                    ┆
-┆  │   ├─> _hotdog_bun()        ┆         ┆││┆                   ┆                                    ┆
-┆  │   └─> _burritos()          ┆         ┆││┆                   ┆                                    ┆
-┆  ├─> _donut_holes() ─────────────────────┴│─> to_magoo() ↻     ┆                                    ┆
+┆  scoobie() ───────────────────────────────┐╭┄ jumbles ┄┄┄┄┄┄┄┄┄╮                                    ┆
+┆  ├─> hullabaloo_hoot() ──┐    ┆         ┆ │┆                   ┆                                    ┆
+┆  ├─> _fritter() <────────┘    ┆         ┆ │┆                   ┆                                    ┆
+┆  ├─> scoobie_zoinks_jinkies() ┆         ┆ │┆                   ┆                                    ┆
+┆  │   ├─> _nacho_plate()       ┆         ┆ │┆                   ┆                                    ┆
+┆  │   ├─> _hotdog_bun()        ┆         ┆ │┆                   ┆                                    ┆
+┆  │   └─> _burritos()          ┆         ┆ │┆                   ┆                                    ┆
+┆  ├─> _donut_holes() ──────────────────────┼─> to_magoo() ↻     ┆                                    ┆
 ┆  ├─> _cheese_puffs() ────┐    ┆         ┆ │┆  ├─> _doodle_of() ┆                                    ┆
 ┆  │   └─> _lasagna() ─────│────────────────┤┆  ├─> _on_doodle() ┆                                    ┆
 ┆  ├─> _pizza_roll() ────┬─│─────────────┐┆ │┆  └─> _shmoo()     ┆                                    ┆

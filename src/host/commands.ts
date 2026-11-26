@@ -4,21 +4,27 @@
  */
 import * as path from 'node:path';
 import * as vscode from 'vscode';
-import { noHierarchyHint, serverHint } from '../core/langs';
+import { langOf, noHierarchyHint } from '../core/langs';
 import { toHtmlPre, toText } from '../core/grid';
 import { ancestors, GNode, NodeKey, plain, visible } from '../core/model';
 import { buildScene, siblingsOf } from '../core/scene';
-import { DEFAULT_STYLE, glyphSet } from '../core/style';
+import { DEFAULT_STYLE, glyphSet, userDefaults } from '../core/style';
 import { Direction, dropMovesWithin, emptyDoc, globMatcher, ROOTS, serializeDoc, ViewDoc, ViewSpec } from '../core/viewdoc';
 import { GaffyEditor, localOptions, Session } from './editor';
 import { gitShort } from './git';
 import { noLinks } from './safefs';
 import { readable } from './scope';
+import { warnNoProvider } from './servers';
+import { openRuleSite } from './sources';
+import { autoSaveOf, setAutoSave } from './settings';
 import { folderOf, gaffyDir } from './style';
 
 interface NodeArg { key?: NodeKey; unit?: string; to?: NodeKey; webviewSection?: string }
 
 const cfg = () => vscode.workspace.getConfiguration('gaffy');
+
+/** Error whose message a warning already showed. */
+class Shown extends Error {}
 
 function nodeOf(doc: ViewDoc, key: NodeKey): GNode | undefined {
     return doc.graph.nodes[key];
@@ -95,8 +101,17 @@ export function registerCommands(ctx: vscode.ExtensionContext, editor: GaffyEdit
     const reg = (id: string, fn: (...a: any[]) => unknown) =>
         ctx.subscriptions.push(vscode.commands.registerCommand(id, async (...a: any[]) => {
             editor.trace.ran(id);
-            try { await fn(...a); } catch (e) { void vscode.window.showErrorMessage(plain(`gaffy: ${(e as Error).message}`)); } finally { editor.trace.ran(undefined); }
+            try { await fn(...a); } catch (e) { if (!(e instanceof Shown)) void vscode.window.showErrorMessage(plain(`gaffy: ${(e as Error).message}`)); } finally { editor.trace.ran(undefined); }
         }));
+    /**
+     * A file's provider answered nothing: rust-analyzer listing functions without call hierarchy names its `#[cfg]`
+     * cause; otherwise a warning with the provider's state and actions (servers.ts). Ends the command.
+     */
+    const noProvider = async (uri: vscode.Uri, what: string): Promise<never> => {
+        if (langOf(uri.path) === 'rs' && (await provider.symbolsOf(uri)).length) throw new Error(`${what}: ${noHierarchyHint(uri.path)}`);
+        void warnNoProvider(uri, what);
+        throw new Shown(what);
+    };
 
     const active = (): Session => {
         if (!editor.active) throw new Error('no active gaffy view');
@@ -110,7 +125,7 @@ export function registerCommands(ctx: vscode.ExtensionContext, editor: GaffyEdit
         const items = await vscode.window.withProgress(
             { location: vscode.ProgressLocation.Notification, title: 'gaffy: asking the language server about the symbol at the cursor…' },
             () => provider.prepare(ed.document.uri, ed.selection.active));
-        if (!items.length) throw new Error(`no call hierarchy at the cursor: ${(await provider.symbolsOf(ed.document.uri)).length ? noHierarchyHint(ed.document.uri.path) : serverHint(ed.document.uri.path)}`);
+        if (!items.length) await noProvider(ed.document.uri, 'no call hierarchy at the cursor');
         const acc: Record<NodeKey, GNode> = {};
         const key = await provider.describe(items[0], acc);
         if (!key) throw new Error('symbol outside the workspace (gaffy.includeExternal is off)');
@@ -118,7 +133,7 @@ export function registerCommands(ctx: vscode.ExtensionContext, editor: GaffyEdit
     };
 
     /**
-     * New view in `<workspace folder>/.baggy/gaffy/`: style.json `view` settings, then `over`. Without `gaffy.saveViews`: untitled,
+     * New view in `<workspace folder>/.baggy/gaffy/`: style.json `view` settings, then `over`. Without `gaffy.autoSave`: untitled,
      * bound to that path (Save writes, close discards). `fromEditor` + `gaffy.openDefinitions`: opens beside the editor.
      */
     const createView = async (base: vscode.Uri, stem: string, doc: ViewDoc, over: Partial<Pick<ViewSpec, 'arrange' | 'depthUp' | 'depthDown'>> = {},
@@ -145,7 +160,7 @@ export function registerCommands(ctx: vscode.ExtensionContext, editor: GaffyEdit
         else delete doc.view.open;
         doc.name = path.basename(uri.path, '.gaffy');
         let target = uri;
-        if (!cfg().get<boolean>('saveViews')) {
+        if (!autoSaveOf(folder)) {
             target = uri.with({ scheme: 'untitled' });
             const untitled = await vscode.workspace.openTextDocument(target);
             // whole text replaced: else a document bound to this path holds two views
@@ -185,9 +200,10 @@ export function registerCommands(ctx: vscode.ExtensionContext, editor: GaffyEdit
         const sess = active();
         const s = await seedAtCursor();
         await showCallHierarchy(sess.doc().view.direction === 'out' ? 'out' : 'in');
+        // joined seed: closed, drawn with its call paths to the other seeds (scene.ts revealView, Session.joinData)
         await sess.refresh((d) => {
             Object.assign(d.graph.nodes, s.acc);
-            if (!d.view.seeds.includes(s.key)) d.view.seeds.push(s.key);
+            if (!d.view.seeds.includes(s.key)) { d.view.seeds.push(s.key); d.view.joins = [...(d.view.joins ?? []), s.key]; }
         });
     });
 
@@ -209,7 +225,7 @@ export function registerCommands(ctx: vscode.ExtensionContext, editor: GaffyEdit
             const key = it && (await provider.describe(it, acc));
             if (key) seeds.push(key);
         }
-        if (!seeds.length) throw new Error(syms.length ? `no function in this file has call hierarchy: ${noHierarchyHint(uri.path)}` : `no functions found in this file: ${serverHint(uri.path)}`);
+        if (!seeds.length) await noProvider(uri, syms.length ? 'no function in this file has call hierarchy' : 'no functions found in this file');
         // file functions and their callers: one level, all shown (full layout)
         const doc = emptyDoc('', { seeds, direction: 'in', depth: 1 });
         doc.graph.nodes = acc;
@@ -325,13 +341,15 @@ export function registerCommands(ctx: vscode.ExtensionContext, editor: GaffyEdit
         const s = active();
         if (!(await vscode.workspace.save(s.document.uri))) throw new Error(`${s.name} was not saved`);
     });
-    // two menu entries per toggle (`✓ …` when on): webview menus show no checkmark for `toggled`
-    const toggleSaveViews = async () => {
-        const target = vscode.workspace.workspaceFolders?.length ? vscode.ConfigurationTarget.Workspace : vscode.ConfigurationTarget.Global;
-        await cfg().update('saveViews', !cfg().get<boolean>('saveViews'), target);
+    // one command for the canvas menu (two entries, `✓ …` when on: webview menus show no checkmark for `toggled`)
+    // and Options > File > Autosave Graphs (`value`); VS Code Settings edit the same key
+    const toggleAutoSave = async (value?: unknown) => {
+        const folder = editor.active?.folder;
+        const next = typeof value === 'boolean' ? value : !autoSaveOf(folder);
+        await setAutoSave(next, folder);
     };
-    reg('gaffy.toggleSaveViews', toggleSaveViews);
-    reg('gaffy.toggleSaveViews.checked', toggleSaveViews);
+    reg('gaffy.toggleAutoSave', toggleAutoSave);
+    reg('gaffy.toggleAutoSave.checked', toggleAutoSave);
 
     reg('gaffy.editStyle', async () => {
         const folder = editor.active?.folder ?? vscode.workspace.workspaceFolders?.[0]?.uri;
@@ -340,7 +358,7 @@ export function registerCommands(ctx: vscode.ExtensionContext, editor: GaffyEdit
         await noLinks(folder, uri);
         try { await vscode.workspace.fs.stat(uri); } catch {
             await vscode.workspace.fs.createDirectory(gaffyDir(folder));
-            await vscode.workspace.fs.writeFile(uri, new TextEncoder().encode(JSON.stringify(DEFAULT_STYLE, null, 2) + '\n'));
+            await vscode.workspace.fs.writeFile(uri, new TextEncoder().encode(JSON.stringify(userDefaults(), null, 2) + '\n'));
         }
         await vscode.window.showTextDocument(uri);
     });
@@ -461,15 +479,19 @@ export function registerCommands(ctx: vscode.ExtensionContext, editor: GaffyEdit
                 await vscode.window.showTextDocument(doc, { viewColumn: vscode.ViewColumn.Beside, preview: true });
                 break;
             }
+            // layout debugging panel: a rule's explanation or code site (sources.ts: local clone, else GitHub)
+            case 'openRule': await openRuleSite(ctx, m.id, m.site); break;
             // webview command missing its operand (selection, call, function): warning
             case 'warn': void vscode.window.showWarningMessage(plain(`gaffy: ${String(m.text ?? '').slice(0, 300)}`)); break;
             case 'editStyle': await vscode.commands.executeCommand('gaffy.editStyle'); break;
             case 'openSettings': await vscode.commands.executeCommand('workbench.action.openSettings', `@ext:${ctx.extension.id}`); break;
             case 'setting': {
-                // Options > File > Autosave Graphs, Options > Arrange > Layout debug: workspace setting (user setting
-                // without a workspace); listed keys, boolean only
+                // Options > File > Autosave Graphs: the canvas menu's command; Options > Arrange > Layout debug:
+                // workspace setting (user setting without a workspace); listed keys, boolean only
                 const key = m.key as string;
-                if ((key !== 'saveViews' && key !== 'debugLayout') || typeof m.value !== 'boolean') break;
+                if (typeof m.value !== 'boolean') break;
+                if (key === 'autoSave') { await vscode.commands.executeCommand('gaffy.toggleAutoSave', m.value); break; }
+                if (key !== 'debugLayout') break;
                 const target = vscode.workspace.workspaceFolders?.length ? vscode.ConfigurationTarget.Workspace : vscode.ConfigurationTarget.Global;
                 await vscode.workspace.getConfiguration('gaffy').update(key, m.value, target);
                 break;

@@ -17,14 +17,15 @@
  *    vertex; `base`: unmoved rectangle per item).
  * 6. Frames: from the box's computed corner, grown over content moved up or left. `tight`: frame hugs its
  *    content; lanes count where drawn.
- * Debugging (explain.ts): `debug.log` receives the decisions of the final placement (trial placements dropped);
- * `debug.off` skips rules h13, h15, h17, h18, h20, h21.
+ * Rules (rules.ts): switches h13, h15, h17, h18, h20, h21; parameters h17 channel, h21 margin, flags; the log
+ * receives the decisions of the final placement (trial placements dropped).
  */
 import { BoxNode } from './boxes';
 import { layout, Layout, LayoutInput } from './layout';
 import { NodeKey } from './model';
 import { induced, VGraph } from './quotient';
-import { Debug, Decision, FLAGS, isOff } from './explain';
+import { Decision } from './explain';
+import { Rules } from './rules';
 import { boxUnit, Cell, collapsedUnit } from './viewdoc';
 
 export interface Pos { row: number; col: number }
@@ -62,9 +63,8 @@ export interface PlaceInput {
     base: Omit<LayoutInput, 'vg' | 'extIn' | 'extOut' | 'rootRank'>;
     offset: Record<string, Cell>;
     lock: Record<string, Cell>;
-    channel: number;
     tight?: boolean;                   // frames hug their content (view.tight)
-    debug?: Debug;                     // decision log, switched-off rules (explain.ts)
+    rules?: Rules;                     // switches, parameters, decision log (rules.ts)
 }
 
 interface Rect { c0: number; r0: number; c1: number; r1: number }
@@ -74,14 +74,30 @@ const overlaps = (a: Rect, b: Rect) => a.c0 <= b.c1 && b.c0 <= a.c1 && a.r0 <= b
 
 const verticesOf = (b: BoxNode): NodeKey[] => [...b.members, ...b.children.flatMap(verticesOf)];
 
+/**
+ * Placement; locks are cells of the drawn (normalized) picture. A run whose normalization shifts the picture (content
+ * above row 0 or left of column 0) runs again with the locks offset by that shift, so locked units land on their
+ * cells: at most 3 runs.
+ */
 export function place(inp: PlaceInput): Placement {
+    let adjust: Cell = [0, 0];
+    for (let run = 0; ; run++) {
+        const { P, shift } = placeOnce(inp, adjust, run === 3 || !Object.keys(inp.lock).length);
+        if (run === 3 || !Object.keys(inp.lock).length || (shift[0] === adjust[0] && shift[1] === adjust[1])) return P;
+        adjust = shift;
+    }
+}
+
+function placeOnce(inp: PlaceInput, adjust: Cell, final: boolean): { P: Placement; shift: Cell } {
+    /** Lock cell of `u` before normalization: the drawn cell minus the normalization shift of this run. */
+    const lockOf = (u: string): Cell | undefined => { const l = inp.lock[u]; return l && [l[0] - adjust[0], l[1] - adjust[1]]; };
     /** Move and lock unit of a vertex: its key, or `collapsed:<key>` (collapsed container). */
     const unitOf = (k: NodeKey) => (inp.vg.nodes.get(k)?.collapsed ? collapsedUnit(k) : k);
     const { vg } = inp;
-    const dbg = inp.debug;
+    const R = inp.rules ?? new Rules();
     // decisions of the current placement; trial placements truncate it on restore
     const logs: Decision[] = [];
-    const note = (d: Decision) => { if (dbg?.log) logs.push(d); };
+    const note = (d: Decision) => { if (R.log) logs.push(d); };
     const P: Placement = {
         blocks: [], frames: [], blockOf: new Map(), pos: new Map(), end: new Map(), port: new Map(), text: new Map(),
         width: 0, height: 0,
@@ -111,7 +127,7 @@ export function place(inp: PlaceInput): Placement {
         const crows = new Map<NodeKey, number[]>();
         const unitB = `block:${box.key}`;
         for (const k of keys) {
-            const rows = isOff(dbg, 'h13_caller_alignment') ? [] : callerRows(k, keys);
+            const rows = R.on('h13_caller_alignment') ? callerRows(k, keys) : [];
             if (rows.length) crows.set(k, rows);
         }
         if (crows.size) note({ rule: 'h13_caller_alignment', fn: 'placeBlock', unit: unitB, text: `${crows.size} functions with callers outside the block`,
@@ -122,6 +138,13 @@ export function place(inp: PlaceInput): Placement {
         };
         const L = layout({ ...inp.base, vg: sub, extIn, extOut, rootRank: rank });
 
+        // locked labels of the block (absolute cells): rows of the other functions skip them (R24); a locked
+        // function's tree below moves with it
+        const lockedKeys = [...keys].filter((k) => inp.lock[unitOf(k)] && L.rowOf.has(k));
+        const carried = new Set<NodeKey>();
+        const carry = (k: NodeKey) => { carried.add(k); for (const c of L.children.get(k) ?? []) carry(c); };
+        lockedKeys.forEach(carry);
+        const lockedSpans = lockedKeys.map((k) => { const l = lockOf(unitOf(k))!; return { row: l[1], c0: l[0] - 2, c1: l[0] + L.rows[L.rowOf.get(k)!].text.length + 1 }; });
         const rowsFrom = (t: number) => {
             const map: number[] = [];
             let prev = t - 1;
@@ -132,13 +155,17 @@ export function place(inp: PlaceInput): Placement {
                 const rows = at?.kind === 'node' && !L.parent.get(at.key) ? crows.get(at.key) : undefined;
                 const want = rows?.find((x) => x - lead >= prev + 1);
                 prev = Math.max(prev + 1, want !== undefined ? want - lead : -Infinity);
+                if (lockedSpans.length && !carried.has(r.key)) {
+                    const c0 = col + r.col, c1 = col + Math.max(r.end, r.col + 1);
+                    while (lockedSpans.some((x) => x.row === prev && x.c1 >= c0 && x.c0 <= c1)) prev++;
+                }
                 map[i] = prev;
             });
             return map;
         };
         let rowMap = rowsFrom(top);
         const rectOf = (m: number[]): Rect => ({ c0: col, r0: m[0] ?? top, c1: col + Math.max(0, L.width - 1), r1: m[m.length - 1] ?? top });
-        if (auto && !isOff(dbg, 'h15_block_descent')) {
+        if (auto && R.on('h15_block_descent')) {
             const first = rowMap[0] ?? top;
             const hits: Rect[] = [];
             for (let guard = 0; guard < 1000; guard++) {
@@ -150,7 +177,7 @@ export function place(inp: PlaceInput): Placement {
             }
             const slid = (rowMap[0] ?? top) - first;
             if (hits.length) note({ rule: 'h15_block_descent', fn: 'placeBlock', unit: unitB, text: `rows ${first} → ${first + slid}`,
-                values: { hits }, ...(slid >= FLAGS.descent ? { flag: `slid ${slid} rows below its trial row` } : {}) });
+                values: { hits }, ...(slid >= R.p('h15_block_descent', 'flag') ? { flag: `slid ${slid} rows below its trial row` } : {}) });
         }
 
         // subtree shifts, parents before children (layout row order)
@@ -162,7 +189,7 @@ export function place(inp: PlaceInput): Placement {
             const p = L.parent.get(k);
             const inherited: Cell = p ? shift.get(p)! : [0, 0];
             const u = unitOf(k);
-            const lock = inp.lock[u];
+            const lock = lockOf(u);
             const off = inp.offset[u];
             if (lock) {
                 const b = base(k);
@@ -189,16 +216,17 @@ export function place(inp: PlaceInput): Placement {
 
         // unlocked shifted subtrees descend until clear of the block's other labels
         const descendants = (k: NodeKey): NodeKey[] => [k, ...(L.children.get(k) ?? []).flatMap(descendants)];
+        const gap = R.p('h21_moved_function_descent', 'margin');
         for (const r of L.rows) {
             const k = r.key;
-            if (r.kind !== 'node' || !inp.offset[unitOf(k)] || inp.lock[unitOf(k)] || isOff(dbg, 'h21_moved_function_descent')) continue;
+            if (r.kind !== 'node' || !inp.offset[unitOf(k)] || inp.lock[unitOf(k)] || !R.on('h21_moved_function_descent')) continue;
             const mine = new Set(descendants(k));
             const others = [...keys].filter((x) => !mine.has(x));
             const clash = () => [...mine].some((m) => {
                 const pm = P.pos.get(m)!, em = P.end.get(m)!;
                 return others.some((o) => {
                     const po = P.pos.get(o)!, eo = P.end.get(o)!;
-                    return po.row === pm.row && po.col - 2 < em + 2 && pm.col - 2 < eo + 2;
+                    return po.row === pm.row && po.col - gap < em + gap && pm.col - gap < eo + gap;
                 });
             });
             let down = 0;
@@ -208,7 +236,7 @@ export function place(inp: PlaceInput): Placement {
                 down++;
             }
             if (down) note({ rule: 'h21_moved_function_descent', fn: 'placeBlock', unit: unitOf(k), text: `${down} rows down, clear of its block's labels`,
-                values: { offset: inp.offset[unitOf(k)], rows: down }, ...(down >= FLAGS.fnDescent ? { flag: `slid ${down} rows past its offset` } : {}) });
+                values: { offset: inp.offset[unitOf(k)], rows: down }, ...(down >= R.p('h21_moved_function_descent', 'flag') ? { flag: `slid ${down} rows past its offset` } : {}) });
         }
 
         P.blocks.push(block);
@@ -274,7 +302,7 @@ export function place(inp: PlaceInput): Placement {
         if (order.length > 1) note({ rule: 'h16_item_order', fn: 'placeBox', unit: boxUnit(box.key), text: 'locked items first, then call order',
             values: { order: order.map(itemName) } });
 
-        const placed: { i: number; rect: Rect; base: Rect }[] = [];
+        const placed: { i: number; rect: Rect; base: Rect; f0: number; f1: number }[] = [];   // f0, f1: its frames in P.frames
         // tight: content only, no computed corner
         const corner: Rect = { c0: cc, r0: cr, c1: cc, r1: cr };
         let rect: Rect = inp.tight && items.length ? { c0: Infinity, r0: Infinity, c1: -Infinity, r1: -Infinity } : corner;
@@ -290,27 +318,29 @@ export function place(inp: PlaceInput): Placement {
             const entering = new Set<string>();
             for (const v of inside) for (const e of vg.inc.get(v) ?? []) if (sibCallers.some((p) => itemOf.get(e.from) === p.i)) entering.add(v);
             // column, row, stacking: from unmoved earlier items
-            const colOn = sibCallers.length && !isOff(dbg, 'h17_item_column');
-            const col = colOn ? Math.max(...sibCallers.map((p) => p.base.c1)) + 1 + inp.channel + entering.size : cc;
+            const channel = R.p('h17_item_column', 'channel');
+            const colOn = sibCallers.length && R.on('h17_item_column');
+            const col = colOn ? Math.max(...sibCallers.map((p) => p.base.c1)) + 1 + channel + entering.size : cc;
             // stacking ignores locked siblings, unless overlapped
             const stack = placed.filter((p) => !inp.lock[unitOf(p.i)]);
             const below = stack.length ? Math.max(...stack.map((p) => p.base.r1)) + 1 : cr;
-            const rowOn = !isOff(dbg, 'h18_item_row');
+            const rowOn = R.on('h18_item_row');
             const top = rowOn && callers.length ? Math.max(cr, Math.min(...callers.map(baseRow))) : (rowOn && sibCallers.length ? cr : below);
             const name = itemName(i);
             note({ rule: 'h17_item_column', fn: 'placeBox', unit: name, text: colOn ? `column ${col}: right of ${sibCallers.length} calling siblings` : `column ${col}: content column`,
-                values: colOn ? { callers: sibCallers.map((p) => itemName(p.i)), right: Math.max(...sibCallers.map((p) => p.base.c1)), channel: inp.channel, entering: entering.size } : {} });
+                values: colOn ? { callers: sibCallers.map((p) => itemName(p.i)), right: Math.max(...sibCallers.map((p) => p.base.c1)), channel, entering: entering.size } : {} });
             note({ rule: 'h18_item_row', fn: 'placeBox', unit: name, text: rowOn && callers.length ? `row ${top}: topmost caller row` : `row ${top}: below earlier siblings`,
                 values: rowOn && callers.length ? { callerRows: [...new Set(callers.map(baseRow))].sort((a, b) => a - b).slice(0, 12) } : { below } });
             // obstacles: a sibling moved by an offset at its unmoved place (settle.ts clears collisions);
             // a locked sibling, or a frame stretched by moves inside it, where drawn
             const avoid = [...placed.map((p) => (inp.offset[unitOf(p.i)] && !inp.lock[unitOf(p.i)] ? p.base : p.rect)), ...avoidOuter];
+            const fi = P.frames.length;
             let r: Area;
             if (it.kind === 'block') {
                 r = placeBlock(box, col, top, true, avoid);
             } else {
                 const unit = boxUnit(it.box.key);
-                const lock = inp.lock[unit];
+                const lock = lockOf(unit);
                 const off = inp.offset[unit];
                 if (lock || off) {
                     // rigid move: placed at its unmoved (trial) row, then labels, lanes and frames translate by
@@ -319,39 +349,60 @@ export function place(inp: PlaceInput): Placement {
                     const b0 = P.blocks.length, f0 = P.frames.length;
                     const u = placeBox(it.box, col, home, []);
                     const [dc, dr] = lock ? [lock[0] - u.c0, lock[1] - u.r0] : off!;
-                    translate(b0, f0, inside, dc, dr);
-                    if (!lock) for (const v of inside) addMove(v, dc, dr);
+                    translate(b0, f0, inside, dc, dr, unit);
+                    if (!lock) for (const v of inside) if (P.pos.get(v)) addMove(v, dc, dr);
                     r = { ...shifted(u, dc, dr), base: lock ? shifted(u.base, dc, dr) : u.base };
                     note({ rule: 'h19_lock_and_box_offset', fn: 'placeBox', unit, text: lock ? `locked: frame corner at (${lock[0]}, ${lock[1]})` : `moved by (${dc}, ${dr}) from row ${home}`,
                         values: { from: [u.c0, u.r0], to: [r.c0, r.r0] } });
                 } else {
-                    // trial placement; on overlap descend by max(1, hit.r1 + 1 − r.r0)
+                    // trial placement; on overlap (h38: frames whose content clashes) down by max(1, hit.r1 + 1 − r.r0)
+                    // or right past the hit, the cheaper by `down`, `right` (0: never), `cross` (calls the frame spans)
                     // (r.r0 < rr when inner content moved up)
-                    let rr = Math.max(cr, top - 1);
+                    let rr = Math.max(cr, top - 1), dcol = 0;
                     const rr0 = rr;
                     const snapshot = snapshotP();
                     r = placeBox(it.box, col, rr, []);
                     const hits: string[] = [];
-                    let pushed: string | undefined;
-                    for (let guard = 0; guard < 200 && !isOff(dbg, 'h20_unmoved_box_descent'); guard++) {
-                        const hit = avoid.find((a) => overlaps(a, r));
+                    const overlapped: string[] = [];
+                    let pushed: string | undefined, pinned: string | undefined;
+                    const soft = R.on('h38_frame_overlap') && !!it.box.frame;
+                    const wDown = R.p('h20_unmoved_box_descent', 'down'), wRight = R.p('h20_unmoved_box_descent', 'right'), wCross = R.p('h20_unmoved_box_descent', 'cross');
+                    const blocking = (a: Rect): boolean => {
+                        if (!overlaps(a, r)) return false;
+                        const by = placed.find((p) => p.rect === a || p.base === a);
+                        if (!soft || !by || items[by.i].kind !== 'box' || !(items[by.i] as { box: BoxNode }).box.frame) return true;
+                        // h38: frames may overlap where neither holds a label, header or arrival cell of the other
+                        const clash = frameClash(sets[i], P.frames.slice(fi), r, sets[by.i], P.frames.slice(by.f0, by.f1), by.rect, a, R.p('h38_frame_overlap', 'margin'));
+                        if (!clash && !overlapped.includes(itemName(by.i))) overlapped.push(itemName(by.i));
+                        return clash;
+                    };
+                    for (let guard = 0; guard < 200 && R.on('h20_unmoved_box_descent'); guard++) {
+                        const hit = avoid.find(blocking);
                         if (!hit) break;
                         const by = placed.find((p) => p.rect === hit || p.base === hit);
                         const who = by ? itemName(by.i) : 'outer content';
                         hits.push(who);
                         if (by && by.rect === hit && (by.rect.r0 !== by.base.r0 || by.rect.r1 !== by.base.r1)) pushed = who;
+                        const down = Math.max(1, hit.r1 + 1 - r.r0), right = Math.max(1, hit.c1 + 2 - r.c0);
+                        const costDown = wDown * down + wCross * spanned(shifted(r, 0, down), inside);
+                        const costRight = wRight > 0 ? wRight * right + wCross * spanned(shifted(r, right, 0), inside) : Infinity;
                         restoreP(snapshot);
-                        rr += Math.max(1, hit.r1 + 1 - r.r0);
-                        r = placeBox(it.box, col, rr, []);
+                        const top0 = r.r0, left0 = r.c0;
+                        if (costRight < costDown) dcol += right; else rr += down;
+                        r = placeBox(it.box, col + dcol, rr, []);
+                        // locked content pins the frame (locks are absolute): moving the rest makes no progress
+                        if (r.r0 <= top0 && r.c0 <= left0) { pinned = who; break; }
                     }
                     if (hits.length) {
-                        const flag = pushed ? `pushed below ${pushed}, a frame stretched by moves inside it`
-                            : rr - rr0 >= FLAGS.descent ? `slid ${rr - rr0} rows below its trial row` : undefined;
-                        note({ rule: 'h20_unmoved_box_descent', fn: 'placeBox', unit, text: `rows ${rr0} → ${rr}`, values: { below: [...new Set(hits)] }, ...(flag ? { flag } : {}) });
+                        const flag = pinned ? `overlaps ${pinned}: a locked unit inside pins the frame` : pushed ? `pushed below ${pushed}, a frame stretched by moves inside it`
+                            : rr - rr0 >= R.p('h20_unmoved_box_descent', 'flag') ? `slid ${rr - rr0} rows below its trial row` : undefined;
+                        note({ rule: 'h20_unmoved_box_descent', fn: 'placeBox', unit, text: `rows ${rr0} → ${rr}${dcol ? `, ${dcol} columns right` : ''}`,
+                            values: { below: [...new Set(hits)], from: [col, rr0], to: [col + dcol, rr] }, ...(flag ? { flag } : {}) });
                     }
+                    if (overlapped.length) note({ rule: 'h38_frame_overlap', fn: 'placeBox', unit, text: `frame overlaps ${overlapped.join(', ')}: no label inside the other`, values: { with: overlapped } });
                 }
             }
-            placed.push({ i, rect: r, base: r.base });
+            placed.push({ i, rect: r, base: r.base, f0: fi, f1: P.frames.length });
             rect = { c0: Math.min(rect.c0, r.c0), r0: Math.min(rect.r0, r.r0), c1: Math.max(rect.c1, r.c1), r1: Math.max(rect.r1, r.r1) };
             unmoved = { c0: Math.min(unmoved.c0, r.base.c0), r0: Math.min(unmoved.r0, r.base.r0), c1: Math.max(unmoved.c1, r.base.c1), r1: Math.max(unmoved.r1, r.base.r1) };
         }
@@ -369,20 +420,58 @@ export function place(inp: PlaceInput): Placement {
         return { ...rect, base: unmoved };
     };
 
-    /** Translates vertices `keys`, and the blocks and frames placed from indices `b0`, `f0`, by (dc, dr). */
-    const translate = (b0: number, f0: number, keys: Iterable<NodeKey>, dc: number, dr: number) => {
+    /**
+     * h38: content of two frames clashes: a label (with its two arrival cells) or header of one lies within `margin`
+     * of the other's frame. `a` (first frame) at `ra`; the second at `rb` as drawn, tested at `at` (its unmoved
+     * place for a sibling moved by an offset: its content shifts with it, the moves being rigid).
+     */
+    const frameClash = (va: ReadonlySet<NodeKey>, fa: Frame[], ra: Rect, vb: ReadonlySet<NodeKey>, fb: Frame[], rb: Rect, at: Rect, margin: number): boolean => {
+        const spans = (vs: ReadonlySet<NodeKey>, fs: Frame[], dc: number, dr: number) => [
+            ...[...vs].filter((v) => P.pos.has(v)).map((v) => { const p = P.pos.get(v)!; return { row: p.row + dr, c0: p.col - 2 + dc, c1: p.col + P.text.get(v)!.length - 1 + dc }; }),
+            ...fs.map((f) => ({ row: f.r0 + dr, c0: f.c0 + 2 + dc, c1: f.c0 + 3 + f.box.label.length + dc })),
+        ];
+        const within = (sp: { row: number; c0: number; c1: number }, x: Rect) => sp.row >= x.r0 - margin && sp.row <= x.r1 + margin && sp.c1 >= x.c0 - margin && sp.c0 <= x.c1 + margin;
+        return spans(va, fa, 0, 0).some((sp) => within(sp, at)) || spans(vb, fb, at.c0 - rb.c0, at.r0 - rb.r0).some((sp) => within(sp, ra));
+    };
+
+    /** E5: calls between placed functions outside `own` whose bounding box (caller to callee) meets `x`. */
+    const spanned = (x: Rect, own: ReadonlySet<NodeKey>): number => {
+        let n = 0;
+        for (const e of vg.edges) {
+            if (own.has(e.from) || own.has(e.to)) continue;
+            const a = P.pos.get(e.from), b = P.pos.get(e.to);
+            if (a && b && overlaps(x, { c0: Math.min(a.col, b.col), r0: Math.min(a.row, b.row), c1: Math.max(a.col, b.col), r1: Math.max(a.row, b.row) })) n++;
+        }
+        return n;
+    };
+
+    /**
+     * Translates vertices `keys`, and the blocks and frames placed from indices `b0`, `f0`, by (dc, dr). Locks are
+     * absolute: a moved box (`unit`, h19) leaves the locked units inside it in place, a locked function with its tree
+     * below, a locked box with its content; the final normalization (`unit` undefined) moves everything.
+     */
+    const translate = (b0: number, f0: number, keys: Iterable<NodeKey>, dc: number, dr: number, unit?: string) => {
         if (!dc && !dr) return;
+        const held = unit === undefined ? [] : P.frames.slice(f0).filter((f) => f.unit !== unit && inp.lock[f.unit]);
+        const heldKeys = new Set(held.flatMap((f) => verticesOf(f.box)));
+        const lockedTree = (k: NodeKey): boolean => {
+            if (unit === undefined) return false;
+            const L = P.blockOf.get(k)?.L;
+            for (let x: NodeKey | null | undefined = k; x; x = L?.parent.get(x)) if (inp.lock[unitOf(x)]) return true;
+            return false;
+        };
+        const within = (b: BoxNode) => held.some((f) => f.box === b || verticesOf(f.box).some((v) => verticesOf(b).includes(v)) && verticesOf(b).every((v) => heldKeys.has(v)));
         for (const k of keys) {
             const p = P.pos.get(k);
-            if (!p) continue;
+            if (!p || heldKeys.has(k) || lockedTree(k)) continue;
             // new objects: trial snapshots share the Pos objects
             P.pos.set(k, { row: p.row + dr, col: p.col + dc });
             P.end.set(k, P.end.get(k)! + dc);
             const q = P.port.get(k);
             if (q) P.port.set(k, { row: q.row + dr, col: q.col + dc });
         }
-        for (const f of P.frames.slice(f0)) { f.c0 += dc; f.c1 += dc; f.r0 += dr; f.r1 += dr; }
-        for (const b of P.blocks.slice(b0)) { b.col0 += dc; b.rowMap = b.rowMap.map((r) => r + dr); }
+        for (const f of P.frames.slice(f0)) { if (!within(f.box)) { f.c0 += dc; f.c1 += dc; f.r0 += dr; f.r1 += dr; } }
+        for (const b of P.blocks.slice(b0)) { if (!within(b.box)) { b.col0 += dc; b.rowMap = b.rowMap.map((r) => r + dr); } }
     };
 
     // trial-placement snapshots include `moved`: else retries re-add inner moves,
@@ -406,12 +495,14 @@ export function place(inp: PlaceInput): Placement {
     for (const p of P.pos.values()) { minC = Math.min(minC, p.col); minR = Math.min(minR, p.row); }
     for (const f of P.frames) { minC = Math.min(minC, f.c0); minR = Math.min(minR, f.r0); }
     translate(0, 0, [...P.pos.keys()], -minC, -minR);
+    // a run with locks whose shift differs from the one assumed runs again (place); its decisions are not kept
+    if (!final && (-minC !== adjust[0] || -minR !== adjust[1])) return { P, shift: [-minC, -minR] };
     let W = Math.max(0, all.c1 + 1), H = Math.max(0, all.r1 + 1);
     for (const [k, p] of P.pos) { W = Math.max(W, P.end.get(k)! + 1); H = Math.max(H, p.row + 1); }
     for (const f of P.frames) { W = Math.max(W, f.c1 + 1); H = Math.max(H, f.r1 + 1); }
     for (const b of P.blocks) for (const l of b.L.lanes) W = Math.max(W, b.col0 + l.col + 1);
     P.width = W;
     P.height = H;
-    for (const d of logs) dbg?.log?.(d);
-    return P;
+    for (const d of logs) R.note(d);
+    return { P, shift: [-minC, -minR] };
 }

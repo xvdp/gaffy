@@ -1,0 +1,1963 @@
+{
+ "gaffy": 1,
+ "name": "bindings",
+ "view": {
+  "seeds": [
+   "ts:gaffy/src/core/bindings.ts#close",
+   "ts:gaffy/src/core/bindings.ts#statements",
+   "ts:gaffy/src/core/bindings.ts#targetOf",
+   "ts:gaffy/src/core/bindings.ts#scanNative",
+   "ts:gaffy/src/core/bindings.ts#maskPy",
+   "ts:gaffy/src/core/bindings.ts#pyImports",
+   "ts:gaffy/src/core/bindings.ts#pyCallSites",
+   "ts:gaffy/src/core/bindings.ts#pyBases",
+   "ts:gaffy/src/core/bindings.ts#extModules",
+   "ts:gaffy/src/core/bindings.ts#slangLoads",
+   "ts:gaffy/src/core/bindings.ts#slangCalls",
+   "ts:gaffy/src/core/bindings.ts#resolveDotted",
+   "ts:gaffy/src/core/bindings.ts#matchBindings",
+   "ts:gaffy/src/core/bindings.ts#maskRust",
+   "ts:gaffy/src/core/bindings.ts#scanWasm",
+   "ts:gaffy/src/core/bindings.ts#jsImports",
+   "ts:gaffy/src/core/bindings.ts#jsCallSites",
+   "ts:gaffy/src/core/bindings.ts#matchWasm"
+  ],
+  "direction": "in",
+  "depth": 3,
+  "collapsed": [],
+  "hidden": [],
+  "depthUp": 1,
+  "depthDown": 0,
+  "depthRule": "shortest",
+  "sibling": {},
+  "offset": {},
+  "lock": {},
+  "exclude": [],
+  "include": [],
+  "group": [],
+  "ungroup": [],
+  "tags": {},
+  "arrange": "auto",
+  "boxes": true,
+  "edges": "vector",
+  "curve": "rounded",
+  "parentRule": "joint",
+  "tight": true,
+  "external": true,
+  "stdlib": true
+ },
+ "graph": {
+  "nodes": {
+   "dir:gaffy": {
+    "key": "dir:gaffy",
+    "kind": "folder",
+    "name": "gaffy",
+    "qual": "",
+    "module": "gaffy",
+    "parent": null,
+    "path": "gaffy"
+   },
+   "dir:gaffy/src": {
+    "key": "dir:gaffy/src",
+    "kind": "folder",
+    "name": "src",
+    "qual": "",
+    "module": "gaffy/src",
+    "parent": "dir:gaffy",
+    "path": "gaffy/src"
+   },
+   "dir:gaffy/src/core": {
+    "key": "dir:gaffy/src/core",
+    "kind": "folder",
+    "name": "core",
+    "qual": "",
+    "module": "gaffy/src/core",
+    "parent": "dir:gaffy/src",
+    "path": "gaffy/src/core"
+   },
+   "ts:gaffy/src/core/bindings.ts": {
+    "key": "ts:gaffy/src/core/bindings.ts",
+    "kind": "file",
+    "name": "bindings",
+    "qual": "",
+    "module": "gaffy/src/core/bindings",
+    "parent": "dir:gaffy/src/core",
+    "path": "gaffy/src/core/bindings.ts",
+    "line": 0,
+    "external": false
+   },
+   "ts:gaffy/src/core/bindings.ts#close": {
+    "key": "ts:gaffy/src/core/bindings.ts#close",
+    "kind": "function",
+    "name": "close",
+    "qual": "close",
+    "module": "gaffy/src/core/bindings",
+    "parent": "ts:gaffy/src/core/bindings.ts",
+    "path": "gaffy/src/core/bindings.ts",
+    "line": 38,
+    "external": false
+   },
+   "ts:gaffy/src/core/bindings.ts#statements": {
+    "key": "ts:gaffy/src/core/bindings.ts#statements",
+    "kind": "function",
+    "name": "statements",
+    "qual": "statements",
+    "module": "gaffy/src/core/bindings",
+    "parent": "ts:gaffy/src/core/bindings.ts",
+    "path": "gaffy/src/core/bindings.ts",
+    "line": 50,
+    "external": false
+   },
+   "ts:gaffy/src/core/bindings.ts#targetOf": {
+    "key": "ts:gaffy/src/core/bindings.ts#targetOf",
+    "kind": "function",
+    "name": "targetOf",
+    "qual": "targetOf",
+    "module": "gaffy/src/core/bindings",
+    "parent": "ts:gaffy/src/core/bindings.ts",
+    "path": "gaffy/src/core/bindings.ts",
+    "line": 64,
+    "external": false
+   },
+   "ts:gaffy/src/core/bindings.ts#scanNative": {
+    "key": "ts:gaffy/src/core/bindings.ts#scanNative",
+    "kind": "function",
+    "name": "scanNative",
+    "qual": "scanNative",
+    "module": "gaffy/src/core/bindings",
+    "parent": "ts:gaffy/src/core/bindings.ts",
+    "path": "gaffy/src/core/bindings.ts",
+    "line": 74,
+    "external": false
+   },
+   "ts:gaffy/src/core/bindings.ts#maskPy": {
+    "key": "ts:gaffy/src/core/bindings.ts#maskPy",
+    "kind": "function",
+    "name": "maskPy",
+    "qual": "maskPy",
+    "module": "gaffy/src/core/bindings",
+    "parent": "ts:gaffy/src/core/bindings.ts",
+    "path": "gaffy/src/core/bindings.ts",
+    "line": 134,
+    "external": false
+   },
+   "ts:gaffy/src/core/bindings.ts#pyImports": {
+    "key": "ts:gaffy/src/core/bindings.ts#pyImports",
+    "kind": "function",
+    "name": "pyImports",
+    "qual": "pyImports",
+    "module": "gaffy/src/core/bindings",
+    "parent": "ts:gaffy/src/core/bindings.ts",
+    "path": "gaffy/src/core/bindings.ts",
+    "line": 155,
+    "external": false
+   },
+   "ts:gaffy/src/core/bindings.ts#pyCallSites": {
+    "key": "ts:gaffy/src/core/bindings.ts#pyCallSites",
+    "kind": "function",
+    "name": "pyCallSites",
+    "qual": "pyCallSites",
+    "module": "gaffy/src/core/bindings",
+    "parent": "ts:gaffy/src/core/bindings.ts",
+    "path": "gaffy/src/core/bindings.ts",
+    "line": 177,
+    "external": false
+   },
+   "ts:gaffy/src/core/bindings.ts#pyBases": {
+    "key": "ts:gaffy/src/core/bindings.ts#pyBases",
+    "kind": "function",
+    "name": "pyBases",
+    "qual": "pyBases",
+    "module": "gaffy/src/core/bindings",
+    "parent": "ts:gaffy/src/core/bindings.ts",
+    "path": "gaffy/src/core/bindings.ts",
+    "line": 193,
+    "external": false
+   },
+   "ts:gaffy/src/core/bindings.ts#extModules": {
+    "key": "ts:gaffy/src/core/bindings.ts#extModules",
+    "kind": "function",
+    "name": "extModules",
+    "qual": "extModules",
+    "module": "gaffy/src/core/bindings",
+    "parent": "ts:gaffy/src/core/bindings.ts",
+    "path": "gaffy/src/core/bindings.ts",
+    "line": 210,
+    "external": false
+   },
+   "ts:gaffy/src/core/bindings.ts#slangLoads": {
+    "key": "ts:gaffy/src/core/bindings.ts#slangLoads",
+    "kind": "function",
+    "name": "slangLoads",
+    "qual": "slangLoads",
+    "module": "gaffy/src/core/bindings",
+    "parent": "ts:gaffy/src/core/bindings.ts",
+    "path": "gaffy/src/core/bindings.ts",
+    "line": 236,
+    "external": false
+   },
+   "ts:gaffy/src/core/bindings.ts#slangCalls": {
+    "key": "ts:gaffy/src/core/bindings.ts#slangCalls",
+    "kind": "function",
+    "name": "slangCalls",
+    "qual": "slangCalls",
+    "module": "gaffy/src/core/bindings",
+    "parent": "ts:gaffy/src/core/bindings.ts",
+    "path": "gaffy/src/core/bindings.ts",
+    "line": 254,
+    "external": false
+   },
+   "ts:gaffy/src/core/bindings.ts#resolveDotted": {
+    "key": "ts:gaffy/src/core/bindings.ts#resolveDotted",
+    "kind": "function",
+    "name": "resolveDotted",
+    "qual": "resolveDotted",
+    "module": "gaffy/src/core/bindings",
+    "parent": "ts:gaffy/src/core/bindings.ts",
+    "path": "gaffy/src/core/bindings.ts",
+    "line": 272,
+    "external": false
+   },
+   "ts:gaffy/src/core/bindings.ts#matchBindings": {
+    "key": "ts:gaffy/src/core/bindings.ts#matchBindings",
+    "kind": "function",
+    "name": "matchBindings",
+    "qual": "matchBindings",
+    "module": "gaffy/src/core/bindings",
+    "parent": "ts:gaffy/src/core/bindings.ts",
+    "path": "gaffy/src/core/bindings.ts",
+    "line": 279,
+    "external": false
+   },
+   "ts:gaffy/src/core/bindings.ts#maskRust": {
+    "key": "ts:gaffy/src/core/bindings.ts#maskRust",
+    "kind": "function",
+    "name": "maskRust",
+    "qual": "maskRust",
+    "module": "gaffy/src/core/bindings",
+    "parent": "ts:gaffy/src/core/bindings.ts",
+    "path": "gaffy/src/core/bindings.ts",
+    "line": 292,
+    "external": false
+   },
+   "ts:gaffy/src/core/bindings.ts#scanWasm": {
+    "key": "ts:gaffy/src/core/bindings.ts#scanWasm",
+    "kind": "function",
+    "name": "scanWasm",
+    "qual": "scanWasm",
+    "module": "gaffy/src/core/bindings",
+    "parent": "ts:gaffy/src/core/bindings.ts",
+    "path": "gaffy/src/core/bindings.ts",
+    "line": 327,
+    "external": false
+   },
+   "ts:gaffy/src/core/bindings.ts#jsImports": {
+    "key": "ts:gaffy/src/core/bindings.ts#jsImports",
+    "kind": "function",
+    "name": "jsImports",
+    "qual": "jsImports",
+    "module": "gaffy/src/core/bindings",
+    "parent": "ts:gaffy/src/core/bindings.ts",
+    "path": "gaffy/src/core/bindings.ts",
+    "line": 364,
+    "external": false
+   },
+   "ts:gaffy/src/core/bindings.ts#jsCallSites": {
+    "key": "ts:gaffy/src/core/bindings.ts#jsCallSites",
+    "kind": "function",
+    "name": "jsCallSites",
+    "qual": "jsCallSites",
+    "module": "gaffy/src/core/bindings",
+    "parent": "ts:gaffy/src/core/bindings.ts",
+    "path": "gaffy/src/core/bindings.ts",
+    "line": 392,
+    "external": false
+   },
+   "ts:gaffy/src/core/bindings.ts#matchWasm": {
+    "key": "ts:gaffy/src/core/bindings.ts#matchWasm",
+    "kind": "function",
+    "name": "matchWasm",
+    "qual": "matchWasm",
+    "module": "gaffy/src/core/bindings",
+    "parent": "ts:gaffy/src/core/bindings.ts",
+    "path": "gaffy/src/core/bindings.ts",
+    "line": 404,
+    "external": false
+   },
+   "dir:gaffy/test": {
+    "key": "dir:gaffy/test",
+    "kind": "folder",
+    "name": "test",
+    "qual": "",
+    "module": "gaffy/test",
+    "parent": "dir:gaffy",
+    "path": "gaffy/test"
+   },
+   "dir:gaffy/src/host": {
+    "key": "dir:gaffy/src/host",
+    "kind": "folder",
+    "name": "host",
+    "qual": "",
+    "module": "gaffy/src/host",
+    "parent": "dir:gaffy/src",
+    "path": "gaffy/src/host"
+   },
+   "ts:gaffy/test/bindings.test.ts": {
+    "key": "ts:gaffy/test/bindings.test.ts",
+    "kind": "file",
+    "name": "bindings.test",
+    "qual": "",
+    "module": "gaffy/test/bindings.test",
+    "parent": "dir:gaffy/test",
+    "path": "gaffy/test/bindings.test.ts",
+    "line": 0,
+    "external": false
+   },
+   "ts:gaffy/src/host/bridges.ts": {
+    "key": "ts:gaffy/src/host/bridges.ts",
+    "kind": "file",
+    "name": "bridges",
+    "qual": "",
+    "module": "gaffy/src/host/bridges",
+    "parent": "dir:gaffy/src/host",
+    "path": "gaffy/src/host/bridges.ts",
+    "line": 0,
+    "external": false
+   },
+   "ts:gaffy/test/bindings.test.ts#<module>": {
+    "key": "ts:gaffy/test/bindings.test.ts#<module>",
+    "kind": "other",
+    "name": "<module>",
+    "qual": "<module>",
+    "module": "gaffy/test/bindings.test",
+    "parent": "ts:gaffy/test/bindings.test.ts",
+    "path": "gaffy/test/bindings.test.ts",
+    "line": 0,
+    "external": false
+   },
+   "ts:gaffy/src/host/bridges.ts#Bridges": {
+    "key": "ts:gaffy/src/host/bridges.ts#Bridges",
+    "kind": "class",
+    "name": "Bridges",
+    "qual": "Bridges",
+    "module": "gaffy/src/host/bridges",
+    "parent": "ts:gaffy/src/host/bridges.ts",
+    "path": "gaffy/src/host/bridges.ts",
+    "line": 40,
+    "external": false
+   },
+   "ts:gaffy/src/host/bridges.ts#Bridges.bindings": {
+    "key": "ts:gaffy/src/host/bridges.ts#Bridges.bindings",
+    "kind": "method",
+    "name": "bindings",
+    "qual": "Bridges.bindings",
+    "module": "gaffy/src/host/bridges",
+    "parent": "ts:gaffy/src/host/bridges.ts#Bridges",
+    "path": "gaffy/src/host/bridges.ts",
+    "line": 101,
+    "external": false
+   },
+   "ts:gaffy/src/host/bridges.ts#Bridges.bound": {
+    "key": "ts:gaffy/src/host/bridges.ts#Bridges.bound",
+    "kind": "method",
+    "name": "bound",
+    "qual": "Bridges.bound",
+    "module": "gaffy/src/host/bridges",
+    "parent": "ts:gaffy/src/host/bridges.ts#Bridges",
+    "path": "gaffy/src/host/bridges.ts",
+    "line": 133,
+    "external": false
+   },
+   "ts:gaffy/src/host/bridges.ts#Bridges.incoming": {
+    "key": "ts:gaffy/src/host/bridges.ts#Bridges.incoming",
+    "kind": "method",
+    "name": "incoming",
+    "qual": "Bridges.incoming",
+    "module": "gaffy/src/host/bridges",
+    "parent": "ts:gaffy/src/host/bridges.ts#Bridges",
+    "path": "gaffy/src/host/bridges.ts",
+    "line": 363,
+    "external": false
+   },
+   "ts:gaffy/src/host/bridges.ts#Bridges.outgoing": {
+    "key": "ts:gaffy/src/host/bridges.ts#Bridges.outgoing",
+    "kind": "method",
+    "name": "outgoing",
+    "qual": "Bridges.outgoing",
+    "module": "gaffy/src/host/bridges",
+    "parent": "ts:gaffy/src/host/bridges.ts#Bridges",
+    "path": "gaffy/src/host/bridges.ts",
+    "line": 312,
+    "external": false
+   },
+   "ts:gaffy/src/host/bridges.ts#Bridges.exportsOf": {
+    "key": "ts:gaffy/src/host/bridges.ts#Bridges.exportsOf",
+    "kind": "method",
+    "name": "exportsOf",
+    "qual": "Bridges.exportsOf",
+    "module": "gaffy/src/host/bridges",
+    "parent": "ts:gaffy/src/host/bridges.ts#Bridges",
+    "path": "gaffy/src/host/bridges.ts",
+    "line": 242,
+    "external": false
+   },
+   "ts:gaffy/src/host/bridges.ts#Bridges.wasmCalls": {
+    "key": "ts:gaffy/src/host/bridges.ts#Bridges.wasmCalls",
+    "kind": "method",
+    "name": "wasmCalls",
+    "qual": "Bridges.wasmCalls",
+    "module": "gaffy/src/host/bridges",
+    "parent": "ts:gaffy/src/host/bridges.ts#Bridges",
+    "path": "gaffy/src/host/bridges.ts",
+    "line": 288,
+    "external": false
+   },
+   "ts:gaffy/test/bindings.test.ts#describe": {
+    "key": "ts:gaffy/test/bindings.test.ts#describe",
+    "kind": "function",
+    "name": "describe",
+    "qual": "describe",
+    "module": "gaffy/test/bindings.test",
+    "parent": "ts:gaffy/test/bindings.test.ts",
+    "path": "gaffy/test/bindings.test.ts",
+    "line": 201,
+    "external": false
+   },
+   "dir:node_modules": {
+    "key": "dir:node_modules",
+    "kind": "folder",
+    "name": "node_modules",
+    "qual": "",
+    "module": "node_modules",
+    "parent": null,
+    "path": "node_modules"
+   },
+   "dir:node_modules/typescript": {
+    "key": "dir:node_modules/typescript",
+    "kind": "folder",
+    "name": "typescript",
+    "qual": "",
+    "module": "node_modules/typescript",
+    "parent": "dir:node_modules",
+    "path": "node_modules/typescript"
+   },
+   "dir:node_modules/typescript/lib": {
+    "key": "dir:node_modules/typescript/lib",
+    "kind": "folder",
+    "name": "lib",
+    "qual": "",
+    "module": "node_modules/typescript/lib",
+    "parent": "dir:node_modules/typescript",
+    "path": "node_modules/typescript/lib"
+   },
+   "ts:node_modules/typescript/lib/lib.es5.d.ts": {
+    "key": "ts:node_modules/typescript/lib/lib.es5.d.ts",
+    "kind": "file",
+    "name": "lib.es5.d",
+    "qual": "",
+    "module": "node_modules/typescript/lib/lib.es5.d",
+    "parent": "dir:node_modules/typescript/lib",
+    "path": "node_modules/typescript/lib/lib.es5.d.ts",
+    "line": 0,
+    "external": true
+   },
+   "ts:node_modules/typescript/lib/lib.es2015.collection.d.ts": {
+    "key": "ts:node_modules/typescript/lib/lib.es2015.collection.d.ts",
+    "kind": "file",
+    "name": "lib.es2015.collection.d",
+    "qual": "",
+    "module": "node_modules/typescript/lib/lib.es2015.collection.d",
+    "parent": "dir:node_modules/typescript/lib",
+    "path": "node_modules/typescript/lib/lib.es2015.collection.d.ts",
+    "line": 0,
+    "external": true
+   },
+   "ts:node_modules/typescript/lib/lib.es2020.string.d.ts": {
+    "key": "ts:node_modules/typescript/lib/lib.es2020.string.d.ts",
+    "kind": "file",
+    "name": "lib.es2020.string.d",
+    "qual": "",
+    "module": "node_modules/typescript/lib/lib.es2020.string.d",
+    "parent": "dir:node_modules/typescript/lib",
+    "path": "node_modules/typescript/lib/lib.es2020.string.d.ts",
+    "line": 0,
+    "external": true
+   },
+   "ts:node_modules/typescript/lib/lib.es2015.symbol.wellknown.d.ts": {
+    "key": "ts:node_modules/typescript/lib/lib.es2015.symbol.wellknown.d.ts",
+    "kind": "file",
+    "name": "lib.es2015.symbol.wellknown.d",
+    "qual": "",
+    "module": "node_modules/typescript/lib/lib.es2015.symbol.wellknown.d",
+    "parent": "dir:node_modules/typescript/lib",
+    "path": "node_modules/typescript/lib/lib.es2015.symbol.wellknown.d.ts",
+    "line": 0,
+    "external": true
+   },
+   "ts:node_modules/typescript/lib/lib.es5.d.ts#RegExp": {
+    "key": "ts:node_modules/typescript/lib/lib.es5.d.ts#RegExp",
+    "kind": "class",
+    "name": "RegExp",
+    "qual": "RegExp",
+    "module": "node_modules/typescript/lib/lib.es5.d",
+    "parent": "ts:node_modules/typescript/lib/lib.es5.d.ts",
+    "path": "node_modules/typescript/lib/lib.es5.d.ts",
+    "line": 990,
+    "external": true
+   },
+   "ts:node_modules/typescript/lib/lib.es2015.collection.d.ts#Set": {
+    "key": "ts:node_modules/typescript/lib/lib.es2015.collection.d.ts#Set",
+    "kind": "class",
+    "name": "Set",
+    "qual": "Set",
+    "module": "node_modules/typescript/lib/lib.es2015.collection.d",
+    "parent": "ts:node_modules/typescript/lib/lib.es2015.collection.d.ts",
+    "path": "node_modules/typescript/lib/lib.es2015.collection.d.ts",
+    "line": 89,
+    "external": true
+   },
+   "ts:node_modules/typescript/lib/lib.es5.d.ts#Array": {
+    "key": "ts:node_modules/typescript/lib/lib.es5.d.ts#Array",
+    "kind": "class",
+    "name": "Array",
+    "qual": "Array",
+    "module": "node_modules/typescript/lib/lib.es5.d",
+    "parent": "ts:node_modules/typescript/lib/lib.es5.d.ts",
+    "path": "node_modules/typescript/lib/lib.es5.d.ts",
+    "line": 1322,
+    "external": true
+   },
+   "ts:node_modules/typescript/lib/lib.es5.d.ts#String": {
+    "key": "ts:node_modules/typescript/lib/lib.es5.d.ts#String",
+    "kind": "class",
+    "name": "String",
+    "qual": "String",
+    "module": "node_modules/typescript/lib/lib.es5.d",
+    "parent": "ts:node_modules/typescript/lib/lib.es5.d.ts",
+    "path": "node_modules/typescript/lib/lib.es5.d.ts",
+    "line": 407,
+    "external": true
+   },
+   "ts:node_modules/typescript/lib/lib.es5.d.ts#RegExp.test": {
+    "key": "ts:node_modules/typescript/lib/lib.es5.d.ts#RegExp.test",
+    "kind": "method",
+    "name": "test",
+    "qual": "RegExp.test",
+    "module": "node_modules/typescript/lib/lib.es5.d",
+    "parent": "ts:node_modules/typescript/lib/lib.es5.d.ts#RegExp",
+    "path": "node_modules/typescript/lib/lib.es5.d.ts",
+    "line": 1001,
+    "external": true
+   },
+   "ts:node_modules/typescript/lib/lib.es2015.collection.d.ts#Set.add": {
+    "key": "ts:node_modules/typescript/lib/lib.es2015.collection.d.ts#Set.add",
+    "kind": "method",
+    "name": "add",
+    "qual": "Set.add",
+    "module": "node_modules/typescript/lib/lib.es2015.collection.d",
+    "parent": "ts:node_modules/typescript/lib/lib.es2015.collection.d.ts#Set",
+    "path": "node_modules/typescript/lib/lib.es2015.collection.d.ts",
+    "line": 93,
+    "external": true
+   },
+   "ts:node_modules/typescript/lib/lib.es2015.collection.d.ts#Set.has": {
+    "key": "ts:node_modules/typescript/lib/lib.es2015.collection.d.ts#Set.has",
+    "kind": "method",
+    "name": "has",
+    "qual": "Set.has",
+    "module": "node_modules/typescript/lib/lib.es2015.collection.d",
+    "parent": "ts:node_modules/typescript/lib/lib.es2015.collection.d.ts#Set",
+    "path": "node_modules/typescript/lib/lib.es2015.collection.d.ts",
+    "line": 110,
+    "external": true
+   },
+   "ts:node_modules/typescript/lib/lib.es5.d.ts#Array.pop": {
+    "key": "ts:node_modules/typescript/lib/lib.es5.d.ts#Array.pop",
+    "kind": "method",
+    "name": "pop",
+    "qual": "Array.pop",
+    "module": "node_modules/typescript/lib/lib.es5.d",
+    "parent": "ts:node_modules/typescript/lib/lib.es5.d.ts#Array",
+    "path": "node_modules/typescript/lib/lib.es5.d.ts",
+    "line": 1339,
+    "external": true
+   },
+   "ts:node_modules/typescript/lib/lib.es5.d.ts#String.split": {
+    "key": "ts:node_modules/typescript/lib/lib.es5.d.ts#String.split",
+    "kind": "method",
+    "name": "split",
+    "qual": "String.split",
+    "module": "node_modules/typescript/lib/lib.es5.d",
+    "parent": "ts:node_modules/typescript/lib/lib.es5.d.ts#String",
+    "path": "node_modules/typescript/lib/lib.es5.d.ts",
+    "line": 488,
+    "external": true
+   },
+   "ts:node_modules/typescript/lib/lib.es5.d.ts#String.slice": {
+    "key": "ts:node_modules/typescript/lib/lib.es5.d.ts#String.slice",
+    "kind": "method",
+    "name": "slice",
+    "qual": "String.slice",
+    "module": "node_modules/typescript/lib/lib.es5.d",
+    "parent": "ts:node_modules/typescript/lib/lib.es5.d.ts#String",
+    "path": "node_modules/typescript/lib/lib.es5.d.ts",
+    "line": 481,
+    "external": true
+   },
+   "ts:node_modules/typescript/lib/lib.es5.d.ts#RegExp.exec": {
+    "key": "ts:node_modules/typescript/lib/lib.es5.d.ts#RegExp.exec",
+    "kind": "method",
+    "name": "exec",
+    "qual": "RegExp.exec",
+    "module": "node_modules/typescript/lib/lib.es5.d",
+    "parent": "ts:node_modules/typescript/lib/lib.es5.d.ts#RegExp",
+    "path": "node_modules/typescript/lib/lib.es5.d.ts",
+    "line": 995,
+    "external": true
+   },
+   "ts:node_modules/typescript/lib/lib.es5.d.ts#Array.push": {
+    "key": "ts:node_modules/typescript/lib/lib.es5.d.ts#Array.push",
+    "kind": "method",
+    "name": "push",
+    "qual": "Array.push",
+    "module": "node_modules/typescript/lib/lib.es5.d",
+    "parent": "ts:node_modules/typescript/lib/lib.es5.d.ts#Array",
+    "path": "node_modules/typescript/lib/lib.es5.d.ts",
+    "line": 1344,
+    "external": true
+   },
+   "ts:gaffy/src/core/bindings.ts#extModules.strings": {
+    "key": "ts:gaffy/src/core/bindings.ts#extModules.strings",
+    "kind": "function",
+    "name": "strings",
+    "qual": "extModules.strings",
+    "module": "gaffy/src/core/bindings",
+    "parent": "ts:gaffy/src/core/bindings.ts#extModules",
+    "path": "gaffy/src/core/bindings.ts",
+    "line": 213,
+    "external": false
+   },
+   "ts:node_modules/typescript/lib/lib.es5.d.ts#String.replace": {
+    "key": "ts:node_modules/typescript/lib/lib.es5.d.ts#String.replace",
+    "kind": "method",
+    "name": "replace",
+    "qual": "String.replace",
+    "module": "node_modules/typescript/lib/lib.es5.d",
+    "parent": "ts:node_modules/typescript/lib/lib.es5.d.ts#String",
+    "path": "node_modules/typescript/lib/lib.es5.d.ts",
+    "line": 460,
+    "external": true
+   },
+   "ts:node_modules/typescript/lib/lib.es2015.core.d.ts": {
+    "key": "ts:node_modules/typescript/lib/lib.es2015.core.d.ts",
+    "kind": "file",
+    "name": "lib.es2015.core.d",
+    "qual": "",
+    "module": "node_modules/typescript/lib/lib.es2015.core.d",
+    "parent": "dir:node_modules/typescript/lib",
+    "path": "node_modules/typescript/lib/lib.es2015.core.d.ts",
+    "line": 0,
+    "external": true
+   },
+   "ts:node_modules/typescript/lib/lib.es2015.collection.d.ts#ReadonlySet": {
+    "key": "ts:node_modules/typescript/lib/lib.es2015.collection.d.ts#ReadonlySet",
+    "kind": "class",
+    "name": "ReadonlySet",
+    "qual": "ReadonlySet",
+    "module": "node_modules/typescript/lib/lib.es2015.collection.d",
+    "parent": "ts:node_modules/typescript/lib/lib.es2015.collection.d.ts",
+    "path": "node_modules/typescript/lib/lib.es2015.collection.d.ts",
+    "line": 123,
+    "external": true
+   },
+   "ts:node_modules/typescript/lib/lib.es2015.core.d.ts#Array": {
+    "key": "ts:node_modules/typescript/lib/lib.es2015.core.d.ts#Array",
+    "kind": "class",
+    "name": "Array",
+    "qual": "Array",
+    "module": "node_modules/typescript/lib/lib.es2015.core.d",
+    "parent": "ts:node_modules/typescript/lib/lib.es2015.core.d.ts",
+    "path": "node_modules/typescript/lib/lib.es2015.core.d.ts",
+    "line": 16,
+    "external": true
+   },
+   "ts:node_modules/typescript/lib/lib.es2015.collection.d.ts#ReadonlySet.has": {
+    "key": "ts:node_modules/typescript/lib/lib.es2015.collection.d.ts#ReadonlySet.has",
+    "kind": "method",
+    "name": "has",
+    "qual": "ReadonlySet.has",
+    "module": "node_modules/typescript/lib/lib.es2015.collection.d",
+    "parent": "ts:node_modules/typescript/lib/lib.es2015.collection.d.ts#ReadonlySet",
+    "path": "node_modules/typescript/lib/lib.es2015.collection.d.ts",
+    "line": 125,
+    "external": true
+   },
+   "ts:node_modules/typescript/lib/lib.es2015.core.d.ts#Array.find": {
+    "key": "ts:node_modules/typescript/lib/lib.es2015.core.d.ts#Array.find",
+    "kind": "method",
+    "name": "find",
+    "qual": "Array.find",
+    "module": "node_modules/typescript/lib/lib.es2015.core.d",
+    "parent": "ts:node_modules/typescript/lib/lib.es2015.core.d.ts#Array",
+    "path": "node_modules/typescript/lib/lib.es2015.core.d.ts",
+    "line": 26,
+    "external": true
+   },
+   "ts:node_modules/typescript/lib/lib.es5.d.ts#Array.map": {
+    "key": "ts:node_modules/typescript/lib/lib.es5.d.ts#Array.map",
+    "kind": "method",
+    "name": "map",
+    "qual": "Array.map",
+    "module": "node_modules/typescript/lib/lib.es5.d",
+    "parent": "ts:node_modules/typescript/lib/lib.es5.d.ts#Array",
+    "path": "node_modules/typescript/lib/lib.es5.d.ts",
+    "line": 1467,
+    "external": true
+   },
+   "ts:node_modules/typescript/lib/lib.es2015.collection.d.ts#ReadonlyMap": {
+    "key": "ts:node_modules/typescript/lib/lib.es2015.collection.d.ts#ReadonlyMap",
+    "kind": "class",
+    "name": "ReadonlyMap",
+    "qual": "ReadonlyMap",
+    "module": "node_modules/typescript/lib/lib.es2015.collection.d",
+    "parent": "ts:node_modules/typescript/lib/lib.es2015.collection.d.ts",
+    "path": "node_modules/typescript/lib/lib.es2015.collection.d.ts",
+    "line": 55,
+    "external": true
+   },
+   "ts:node_modules/typescript/lib/lib.es2015.collection.d.ts#ReadonlyMap.get": {
+    "key": "ts:node_modules/typescript/lib/lib.es2015.collection.d.ts#ReadonlyMap.get",
+    "kind": "method",
+    "name": "get",
+    "qual": "ReadonlyMap.get",
+    "module": "node_modules/typescript/lib/lib.es2015.collection.d",
+    "parent": "ts:node_modules/typescript/lib/lib.es2015.collection.d.ts#ReadonlyMap",
+    "path": "node_modules/typescript/lib/lib.es2015.collection.d.ts",
+    "line": 57,
+    "external": true
+   },
+   "ts:node_modules/typescript/lib/lib.es5.d.ts#Array.filter": {
+    "key": "ts:node_modules/typescript/lib/lib.es5.d.ts#Array.filter",
+    "kind": "method",
+    "name": "filter",
+    "qual": "Array.filter",
+    "module": "node_modules/typescript/lib/lib.es5.d",
+    "parent": "ts:node_modules/typescript/lib/lib.es5.d.ts#Array",
+    "path": "node_modules/typescript/lib/lib.es5.d.ts",
+    "line": 1473,
+    "external": true
+   },
+   "ts:node_modules/typescript/lib/lib.es5.d.ts#Array.slice": {
+    "key": "ts:node_modules/typescript/lib/lib.es5.d.ts#Array.slice",
+    "kind": "method",
+    "name": "slice",
+    "qual": "Array.slice",
+    "module": "node_modules/typescript/lib/lib.es5.d",
+    "parent": "ts:node_modules/typescript/lib/lib.es5.d.ts#Array",
+    "path": "node_modules/typescript/lib/lib.es5.d.ts",
+    "line": 1381,
+    "external": true
+   },
+   "ts:node_modules/typescript/lib/lib.es2020.string.d.ts#String": {
+    "key": "ts:node_modules/typescript/lib/lib.es2020.string.d.ts#String",
+    "kind": "class",
+    "name": "String",
+    "qual": "String",
+    "module": "node_modules/typescript/lib/lib.es2020.string.d",
+    "parent": "ts:node_modules/typescript/lib/lib.es2020.string.d.ts",
+    "path": "node_modules/typescript/lib/lib.es2020.string.d.ts",
+    "line": 20,
+    "external": true
+   },
+   "ts:node_modules/typescript/lib/lib.es5.d.ts#ReadonlyArray": {
+    "key": "ts:node_modules/typescript/lib/lib.es5.d.ts#ReadonlyArray",
+    "kind": "class",
+    "name": "ReadonlyArray",
+    "qual": "ReadonlyArray",
+    "module": "node_modules/typescript/lib/lib.es5.d",
+    "parent": "ts:node_modules/typescript/lib/lib.es5.d.ts",
+    "path": "node_modules/typescript/lib/lib.es5.d.ts",
+    "line": 1188,
+    "external": true
+   },
+   "ts:node_modules/typescript/lib/lib.es5.d.ts#ReadonlyArray.filter": {
+    "key": "ts:node_modules/typescript/lib/lib.es5.d.ts#ReadonlyArray.filter",
+    "kind": "method",
+    "name": "filter",
+    "qual": "ReadonlyArray.filter",
+    "module": "node_modules/typescript/lib/lib.es5.d",
+    "parent": "ts:node_modules/typescript/lib/lib.es5.d.ts#ReadonlyArray",
+    "path": "node_modules/typescript/lib/lib.es5.d.ts",
+    "line": 1278,
+    "external": true
+   },
+   "ts:node_modules/typescript/lib/lib.es5.d.ts#Array.every": {
+    "key": "ts:node_modules/typescript/lib/lib.es5.d.ts#Array.every",
+    "kind": "method",
+    "name": "every",
+    "qual": "Array.every",
+    "module": "node_modules/typescript/lib/lib.es5.d",
+    "parent": "ts:node_modules/typescript/lib/lib.es5.d.ts#Array",
+    "path": "node_modules/typescript/lib/lib.es5.d.ts",
+    "line": 1437,
+    "external": true
+   },
+   "ts:node_modules/typescript/lib/lib.es2015.symbol.wellknown.d.ts#String": {
+    "key": "ts:node_modules/typescript/lib/lib.es2015.symbol.wellknown.d.ts#String",
+    "kind": "class",
+    "name": "String",
+    "qual": "String",
+    "module": "node_modules/typescript/lib/lib.es2015.symbol.wellknown.d",
+    "parent": "ts:node_modules/typescript/lib/lib.es2015.symbol.wellknown.d.ts",
+    "path": "node_modules/typescript/lib/lib.es2015.symbol.wellknown.d.ts",
+    "line": 232,
+    "external": true
+   },
+   "ts:node_modules/typescript/lib/lib.es2015.core.d.ts#String": {
+    "key": "ts:node_modules/typescript/lib/lib.es2015.core.d.ts#String",
+    "kind": "class",
+    "name": "String",
+    "qual": "String",
+    "module": "node_modules/typescript/lib/lib.es2015.core.d",
+    "parent": "ts:node_modules/typescript/lib/lib.es2015.core.d.ts",
+    "path": "node_modules/typescript/lib/lib.es2015.core.d.ts",
+    "line": 399,
+    "external": true
+   },
+   "ts:node_modules/typescript/lib/lib.es2015.core.d.ts#String.startsWith": {
+    "key": "ts:node_modules/typescript/lib/lib.es2015.core.d.ts#String.startsWith",
+    "kind": "method",
+    "name": "startsWith",
+    "qual": "String.startsWith",
+    "module": "node_modules/typescript/lib/lib.es2015.core.d",
+    "parent": "ts:node_modules/typescript/lib/lib.es2015.core.d.ts#String",
+    "path": "node_modules/typescript/lib/lib.es2015.core.d.ts",
+    "line": 453,
+    "external": true
+   },
+   "ts:gaffy/src/core/bindings.ts#maskRust.blank": {
+    "key": "ts:gaffy/src/core/bindings.ts#maskRust.blank",
+    "kind": "function",
+    "name": "blank",
+    "qual": "maskRust.blank",
+    "module": "gaffy/src/core/bindings",
+    "parent": "ts:gaffy/src/core/bindings.ts#maskRust",
+    "path": "gaffy/src/core/bindings.ts",
+    "line": 294,
+    "external": false
+   },
+   "ts:node_modules/typescript/lib/lib.es5.d.ts#Array.join": {
+    "key": "ts:node_modules/typescript/lib/lib.es5.d.ts#Array.join",
+    "kind": "method",
+    "name": "join",
+    "qual": "Array.join",
+    "module": "node_modules/typescript/lib/lib.es5.d",
+    "parent": "ts:node_modules/typescript/lib/lib.es5.d.ts#Array",
+    "path": "node_modules/typescript/lib/lib.es5.d.ts",
+    "line": 1361,
+    "external": true
+   },
+   "ts:node_modules/typescript/lib/lib.es2020.string.d.ts#String.matchAll": {
+    "key": "ts:node_modules/typescript/lib/lib.es2020.string.d.ts#String.matchAll",
+    "kind": "method",
+    "name": "matchAll",
+    "qual": "String.matchAll",
+    "module": "node_modules/typescript/lib/lib.es2020.string.d",
+    "parent": "ts:node_modules/typescript/lib/lib.es2020.string.d.ts#String",
+    "path": "node_modules/typescript/lib/lib.es2020.string.d.ts",
+    "line": 26,
+    "external": true
+   },
+   "ts:node_modules/typescript/lib/lib.es2015.symbol.wellknown.d.ts#String.split": {
+    "key": "ts:node_modules/typescript/lib/lib.es2015.symbol.wellknown.d.ts#String.split",
+    "kind": "method",
+    "name": "split",
+    "qual": "String.split",
+    "module": "node_modules/typescript/lib/lib.es2015.symbol.wellknown.d",
+    "parent": "ts:node_modules/typescript/lib/lib.es2015.symbol.wellknown.d.ts#String",
+    "path": "node_modules/typescript/lib/lib.es2015.symbol.wellknown.d.ts",
+    "line": 265,
+    "external": true
+   },
+   "ts:node_modules/typescript/lib/lib.es2015.symbol.wellknown.d.ts#String.replace": {
+    "key": "ts:node_modules/typescript/lib/lib.es2015.symbol.wellknown.d.ts#String.replace",
+    "kind": "method",
+    "name": "replace",
+    "qual": "String.replace",
+    "module": "node_modules/typescript/lib/lib.es2015.symbol.wellknown.d",
+    "parent": "ts:node_modules/typescript/lib/lib.es2015.symbol.wellknown.d.ts#String",
+    "path": "node_modules/typescript/lib/lib.es2015.symbol.wellknown.d.ts",
+    "line": 245,
+    "external": true
+   },
+   "ts:gaffy/src/host/bridges.ts#Bridges.bindingsFor": {
+    "key": "ts:gaffy/src/host/bridges.ts#Bridges.bindingsFor",
+    "kind": "method",
+    "name": "bindingsFor",
+    "qual": "Bridges.bindingsFor",
+    "module": "gaffy/src/host/bridges",
+    "parent": "ts:gaffy/src/host/bridges.ts#Bridges",
+    "path": "gaffy/src/host/bridges.ts",
+    "line": 126,
+    "external": false
+   },
+   "ts:gaffy/src/core/bindings.ts#scanWasm.opt": {
+    "key": "ts:gaffy/src/core/bindings.ts#scanWasm.opt",
+    "kind": "function",
+    "name": "opt",
+    "qual": "scanWasm.opt",
+    "module": "gaffy/src/core/bindings",
+    "parent": "ts:gaffy/src/core/bindings.ts#scanWasm",
+    "path": "gaffy/src/core/bindings.ts",
+    "line": 332,
+    "external": false
+   },
+   "ts:gaffy/src/core/bindings.ts#scanWasm.inImpl": {
+    "key": "ts:gaffy/src/core/bindings.ts#scanWasm.inImpl",
+    "kind": "function",
+    "name": "inImpl",
+    "qual": "scanWasm.inImpl",
+    "module": "gaffy/src/core/bindings",
+    "parent": "ts:gaffy/src/core/bindings.ts#scanWasm",
+    "path": "gaffy/src/core/bindings.ts",
+    "line": 331,
+    "external": false
+   },
+   "ts:node_modules/typescript/lib/lib.es5.d.ts#String.indexOf": {
+    "key": "ts:node_modules/typescript/lib/lib.es5.d.ts#String.indexOf",
+    "kind": "method",
+    "name": "indexOf",
+    "qual": "String.indexOf",
+    "module": "node_modules/typescript/lib/lib.es5.d",
+    "parent": "ts:node_modules/typescript/lib/lib.es5.d.ts#String",
+    "path": "node_modules/typescript/lib/lib.es5.d.ts",
+    "line": 434,
+    "external": true
+   },
+   "ts:node_modules/typescript/lib/lib.es5.d.ts#Array.sort": {
+    "key": "ts:node_modules/typescript/lib/lib.es5.d.ts#Array.sort",
+    "kind": "method",
+    "name": "sort",
+    "qual": "Array.sort",
+    "module": "node_modules/typescript/lib/lib.es5.d",
+    "parent": "ts:node_modules/typescript/lib/lib.es5.d.ts#Array",
+    "path": "node_modules/typescript/lib/lib.es5.d.ts",
+    "line": 1392,
+    "external": true
+   },
+   "ts:gaffy/src/core/textcalls.ts": {
+    "key": "ts:gaffy/src/core/textcalls.ts",
+    "kind": "file",
+    "name": "textcalls",
+    "qual": "",
+    "module": "gaffy/src/core/textcalls",
+    "parent": "dir:gaffy/src/core",
+    "path": "gaffy/src/core/textcalls.ts",
+    "line": 0,
+    "external": false
+   },
+   "ts:gaffy/src/core/bindings.ts#jsImports.named": {
+    "key": "ts:gaffy/src/core/bindings.ts#jsImports.named",
+    "kind": "function",
+    "name": "named",
+    "qual": "jsImports.named",
+    "module": "gaffy/src/core/bindings",
+    "parent": "ts:gaffy/src/core/bindings.ts#jsImports",
+    "path": "gaffy/src/core/bindings.ts",
+    "line": 367,
+    "external": false
+   },
+   "ts:node_modules/typescript/lib/lib.es5.d.ts#Math": {
+    "key": "ts:node_modules/typescript/lib/lib.es5.d.ts#Math",
+    "kind": "class",
+    "name": "Math",
+    "qual": "Math",
+    "module": "node_modules/typescript/lib/lib.es5.d",
+    "parent": "ts:node_modules/typescript/lib/lib.es5.d.ts",
+    "path": "node_modules/typescript/lib/lib.es5.d.ts",
+    "line": 657,
+    "external": true
+   },
+   "ts:node_modules/typescript/lib/lib.es5.d.ts#Math.max": {
+    "key": "ts:node_modules/typescript/lib/lib.es5.d.ts#Math.max",
+    "kind": "method",
+    "name": "max",
+    "qual": "Math.max",
+    "module": "node_modules/typescript/lib/lib.es5.d",
+    "parent": "ts:node_modules/typescript/lib/lib.es5.d.ts#Math",
+    "path": "node_modules/typescript/lib/lib.es5.d.ts",
+    "line": 730,
+    "external": true
+   },
+   "ts:node_modules/typescript/lib/lib.es5.d.ts#String.lastIndexOf": {
+    "key": "ts:node_modules/typescript/lib/lib.es5.d.ts#String.lastIndexOf",
+    "kind": "method",
+    "name": "lastIndexOf",
+    "qual": "String.lastIndexOf",
+    "module": "node_modules/typescript/lib/lib.es5.d",
+    "parent": "ts:node_modules/typescript/lib/lib.es5.d.ts#String",
+    "path": "node_modules/typescript/lib/lib.es5.d.ts",
+    "line": 441,
+    "external": true
+   },
+   "ts:node_modules/typescript/lib/lib.es2015.core.d.ts#ReadonlyArray": {
+    "key": "ts:node_modules/typescript/lib/lib.es2015.core.d.ts#ReadonlyArray",
+    "kind": "class",
+    "name": "ReadonlyArray",
+    "qual": "ReadonlyArray",
+    "module": "node_modules/typescript/lib/lib.es2015.core.d",
+    "parent": "ts:node_modules/typescript/lib/lib.es2015.core.d.ts",
+    "path": "node_modules/typescript/lib/lib.es2015.core.d.ts",
+    "line": 339,
+    "external": true
+   },
+   "ts:node_modules/typescript/lib/lib.es2015.core.d.ts#ReadonlyArray.find": {
+    "key": "ts:node_modules/typescript/lib/lib.es2015.core.d.ts#ReadonlyArray.find",
+    "kind": "method",
+    "name": "find",
+    "qual": "ReadonlyArray.find",
+    "module": "node_modules/typescript/lib/lib.es2015.core.d",
+    "parent": "ts:node_modules/typescript/lib/lib.es2015.core.d.ts#ReadonlyArray",
+    "path": "node_modules/typescript/lib/lib.es2015.core.d.ts",
+    "line": 349,
+    "external": true
+   },
+   "ts:gaffy/src/host/bridges.ts#Bridges.boundIn": {
+    "key": "ts:gaffy/src/host/bridges.ts#Bridges.boundIn",
+    "kind": "method",
+    "name": "boundIn",
+    "qual": "Bridges.boundIn",
+    "module": "gaffy/src/host/bridges",
+    "parent": "ts:gaffy/src/host/bridges.ts#Bridges",
+    "path": "gaffy/src/host/bridges.ts",
+    "line": 146,
+    "external": false
+   },
+   "ts:gaffy/src/core/textcalls.ts#mask": {
+    "key": "ts:gaffy/src/core/textcalls.ts#mask",
+    "kind": "function",
+    "name": "mask",
+    "qual": "mask",
+    "module": "gaffy/src/core/textcalls",
+    "parent": "ts:gaffy/src/core/textcalls.ts",
+    "path": "gaffy/src/core/textcalls.ts",
+    "line": 24,
+    "external": false
+   },
+   "ts:gaffy/src/host/lsp.ts": {
+    "key": "ts:gaffy/src/host/lsp.ts",
+    "kind": "file",
+    "name": "lsp",
+    "qual": "",
+    "module": "gaffy/src/host/lsp",
+    "parent": "dir:gaffy/src/host",
+    "path": "gaffy/src/host/lsp.ts",
+    "line": 0,
+    "external": false
+   },
+   "ts:gaffy/src/host/lsp.ts#LspProvider": {
+    "key": "ts:gaffy/src/host/lsp.ts#LspProvider",
+    "kind": "class",
+    "name": "LspProvider",
+    "qual": "LspProvider",
+    "module": "gaffy/src/host/lsp",
+    "parent": "ts:gaffy/src/host/lsp.ts",
+    "path": "gaffy/src/host/lsp.ts",
+    "line": 145,
+    "external": false
+   },
+   "ts:gaffy/src/host/lsp.ts#LspProvider.incoming": {
+    "key": "ts:gaffy/src/host/lsp.ts#LspProvider.incoming",
+    "kind": "method",
+    "name": "incoming",
+    "qual": "LspProvider.incoming",
+    "module": "gaffy/src/host/lsp",
+    "parent": "ts:gaffy/src/host/lsp.ts#LspProvider",
+    "path": "gaffy/src/host/lsp.ts",
+    "line": 570,
+    "external": false
+   },
+   "ts:gaffy/src/host/lsp.ts#LspProvider.outgoing": {
+    "key": "ts:gaffy/src/host/lsp.ts#LspProvider.outgoing",
+    "kind": "method",
+    "name": "outgoing",
+    "qual": "LspProvider.outgoing",
+    "module": "gaffy/src/host/lsp",
+    "parent": "ts:gaffy/src/host/lsp.ts#LspProvider",
+    "path": "gaffy/src/host/lsp.ts",
+    "line": 518,
+    "external": false
+   },
+   "ts:gaffy/src/core/bindings.ts#maskPy.blank": {
+    "key": "ts:gaffy/src/core/bindings.ts#maskPy.blank",
+    "kind": "function",
+    "name": "blank",
+    "qual": "maskPy.blank",
+    "module": "gaffy/src/core/bindings",
+    "parent": "ts:gaffy/src/core/bindings.ts#maskPy",
+    "path": "gaffy/src/core/bindings.ts",
+    "line": 136,
+    "external": false
+   },
+   "ts:node_modules/typescript/lib/lib.es2015.core.d.ts#String.repeat": {
+    "key": "ts:node_modules/typescript/lib/lib.es2015.core.d.ts#String.repeat",
+    "kind": "method",
+    "name": "repeat",
+    "qual": "String.repeat",
+    "module": "node_modules/typescript/lib/lib.es2015.core.d",
+    "parent": "ts:node_modules/typescript/lib/lib.es2015.core.d.ts#String",
+    "path": "node_modules/typescript/lib/lib.es2015.core.d.ts",
+    "line": 446,
+    "external": true
+   },
+   "ts:node_modules/typescript/lib/lib.es5.d.ts#Math.min": {
+    "key": "ts:node_modules/typescript/lib/lib.es5.d.ts#Math.min",
+    "kind": "method",
+    "name": "min",
+    "qual": "Math.min",
+    "module": "node_modules/typescript/lib/lib.es5.d",
+    "parent": "ts:node_modules/typescript/lib/lib.es5.d.ts#Math",
+    "path": "node_modules/typescript/lib/lib.es5.d.ts",
+    "line": 735,
+    "external": true
+   },
+   "ts:node_modules/typescript/lib/lib.es2015.collection.d.ts#Map": {
+    "key": "ts:node_modules/typescript/lib/lib.es2015.collection.d.ts#Map",
+    "kind": "class",
+    "name": "Map",
+    "qual": "Map",
+    "module": "node_modules/typescript/lib/lib.es2015.collection.d",
+    "parent": "ts:node_modules/typescript/lib/lib.es2015.collection.d.ts",
+    "path": "node_modules/typescript/lib/lib.es2015.collection.d.ts",
+    "line": 16,
+    "external": true
+   },
+   "ts:node_modules/typescript/lib/lib.es2015.collection.d.ts#Map.set": {
+    "key": "ts:node_modules/typescript/lib/lib.es2015.collection.d.ts#Map.set",
+    "kind": "method",
+    "name": "set",
+    "qual": "Map.set",
+    "module": "node_modules/typescript/lib/lib.es2015.collection.d",
+    "parent": "ts:node_modules/typescript/lib/lib.es2015.collection.d.ts#Map",
+    "path": "node_modules/typescript/lib/lib.es2015.collection.d.ts",
+    "line": 41,
+    "external": true
+   }
+  },
+  "edges": [
+   {
+    "from": "ts:gaffy/src/host/bridges.ts#Bridges.bindings",
+    "to": "ts:gaffy/src/core/bindings.ts#extModules",
+    "line": 106
+   },
+   {
+    "from": "ts:gaffy/src/host/bridges.ts#Bridges.bound",
+    "to": "ts:gaffy/src/core/bindings.ts#extModules",
+    "line": 135
+   },
+   {
+    "from": "ts:gaffy/src/host/bridges.ts#Bridges.incoming",
+    "to": "ts:gaffy/src/core/bindings.ts#extModules",
+    "line": 440
+   },
+   {
+    "from": "ts:gaffy/test/bindings.test.ts#<module>",
+    "to": "ts:gaffy/src/core/bindings.ts#extModules",
+    "line": 97
+   },
+   {
+    "from": "ts:gaffy/src/host/bridges.ts#Bridges.outgoing",
+    "to": "ts:gaffy/src/core/bindings.ts#slangLoads",
+    "line": 340
+   },
+   {
+    "from": "ts:gaffy/src/host/bridges.ts#Bridges.incoming",
+    "to": "ts:gaffy/src/core/bindings.ts#slangLoads",
+    "line": 410
+   },
+   {
+    "from": "ts:gaffy/test/bindings.test.ts#<module>",
+    "to": "ts:gaffy/src/core/bindings.ts#slangLoads",
+    "line": 111
+   },
+   {
+    "from": "ts:gaffy/src/host/bridges.ts#Bridges.outgoing",
+    "to": "ts:gaffy/src/core/bindings.ts#slangCalls",
+    "line": 345
+   },
+   {
+    "from": "ts:gaffy/src/host/bridges.ts#Bridges.incoming",
+    "to": "ts:gaffy/src/core/bindings.ts#slangCalls",
+    "line": 415
+   },
+   {
+    "from": "ts:gaffy/test/bindings.test.ts#<module>",
+    "to": "ts:gaffy/src/core/bindings.ts#slangCalls",
+    "line": 141
+   },
+   {
+    "from": "ts:gaffy/src/host/bridges.ts#Bridges.exportsOf",
+    "to": "ts:gaffy/src/core/bindings.ts#scanWasm",
+    "line": 264
+   },
+   {
+    "from": "ts:gaffy/test/bindings.test.ts#<module>",
+    "to": "ts:gaffy/src/core/bindings.ts#scanWasm",
+    "line": 190
+   },
+   {
+    "from": "ts:gaffy/src/host/bridges.ts#Bridges.wasmCalls",
+    "to": "ts:gaffy/src/core/bindings.ts#jsImports",
+    "line": 293
+   },
+   {
+    "from": "ts:gaffy/test/bindings.test.ts#<module>",
+    "to": "ts:gaffy/src/core/bindings.ts#jsImports",
+    "line": 197
+   },
+   {
+    "from": "ts:gaffy/src/host/bridges.ts#Bridges.wasmCalls",
+    "to": "ts:gaffy/src/core/bindings.ts#jsCallSites",
+    "line": 299
+   },
+   {
+    "from": "ts:gaffy/test/bindings.test.ts#<module>",
+    "to": "ts:gaffy/src/core/bindings.ts#jsCallSites",
+    "line": 199
+   },
+   {
+    "from": "ts:gaffy/src/host/bridges.ts#Bridges.bound",
+    "to": "ts:gaffy/src/core/bindings.ts#resolveDotted",
+    "line": 138
+   },
+   {
+    "from": "ts:gaffy/src/host/bridges.ts#Bridges.incoming",
+    "to": "ts:gaffy/src/core/bindings.ts#resolveDotted",
+    "line": 442
+   },
+   {
+    "from": "ts:gaffy/test/bindings.test.ts#<module>",
+    "to": "ts:gaffy/src/core/bindings.ts#resolveDotted",
+    "line": 87
+   },
+   {
+    "from": "ts:gaffy/test/bindings.test.ts#describe",
+    "to": "ts:gaffy/src/core/bindings.ts#resolveDotted",
+    "line": 101
+   },
+   {
+    "from": "ts:gaffy/src/host/bridges.ts#Bridges.bound",
+    "to": "ts:gaffy/src/core/bindings.ts#matchBindings",
+    "line": 138
+   },
+   {
+    "from": "ts:gaffy/src/host/bridges.ts#Bridges.incoming",
+    "to": "ts:gaffy/src/core/bindings.ts#matchBindings",
+    "line": 442
+   },
+   {
+    "from": "ts:gaffy/test/bindings.test.ts#describe",
+    "to": "ts:gaffy/src/core/bindings.ts#matchBindings",
+    "line": 101
+   },
+   {
+    "from": "ts:gaffy/src/host/bridges.ts#Bridges.wasmCalls",
+    "to": "ts:gaffy/src/core/bindings.ts#matchWasm",
+    "line": 301
+   },
+   {
+    "from": "ts:gaffy/test/bindings.test.ts#describe",
+    "to": "ts:gaffy/src/core/bindings.ts#matchWasm",
+    "line": 201
+   },
+   {
+    "from": "ts:gaffy/src/core/bindings.ts#extModules",
+    "to": "ts:gaffy/src/core/bindings.ts#maskPy",
+    "line": 211
+   },
+   {
+    "from": "ts:gaffy/src/core/bindings.ts#extModules",
+    "to": "ts:gaffy/src/core/bindings.ts#pyImports",
+    "line": 216
+   },
+   {
+    "from": "ts:gaffy/src/core/bindings.ts#extModules",
+    "to": "ts:node_modules/typescript/lib/lib.es5.d.ts#RegExp.test",
+    "line": 216
+   },
+   {
+    "from": "ts:gaffy/src/core/bindings.ts#extModules",
+    "to": "ts:node_modules/typescript/lib/lib.es2015.collection.d.ts#Set.add",
+    "line": 216
+   },
+   {
+    "from": "ts:gaffy/src/core/bindings.ts#extModules",
+    "to": "ts:node_modules/typescript/lib/lib.es2020.string.d.ts#String.matchAll",
+    "line": 217
+   },
+   {
+    "from": "ts:gaffy/src/core/bindings.ts#extModules",
+    "to": "ts:node_modules/typescript/lib/lib.es2015.collection.d.ts#Set.has",
+    "line": 218
+   },
+   {
+    "from": "ts:gaffy/src/core/bindings.ts#extModules",
+    "to": "ts:node_modules/typescript/lib/lib.es5.d.ts#Array.pop",
+    "line": 218
+   },
+   {
+    "from": "ts:gaffy/src/core/bindings.ts#extModules",
+    "to": "ts:node_modules/typescript/lib/lib.es2015.symbol.wellknown.d.ts#String.split",
+    "line": 218
+   },
+   {
+    "from": "ts:gaffy/src/core/bindings.ts#extModules",
+    "to": "ts:node_modules/typescript/lib/lib.es5.d.ts#String.split",
+    "line": 218
+   },
+   {
+    "from": "ts:gaffy/src/core/bindings.ts#extModules",
+    "to": "ts:node_modules/typescript/lib/lib.es5.d.ts#String.slice",
+    "line": 219
+   },
+   {
+    "from": "ts:gaffy/src/core/bindings.ts#extModules",
+    "to": "ts:gaffy/src/core/bindings.ts#close",
+    "line": 219
+   },
+   {
+    "from": "ts:gaffy/src/core/bindings.ts#extModules",
+    "to": "ts:node_modules/typescript/lib/lib.es5.d.ts#RegExp.exec",
+    "line": 220
+   },
+   {
+    "from": "ts:gaffy/src/core/bindings.ts#extModules",
+    "to": "ts:node_modules/typescript/lib/lib.es5.d.ts#Array.push",
+    "line": 222
+   },
+   {
+    "from": "ts:gaffy/src/core/bindings.ts#extModules",
+    "to": "ts:gaffy/src/core/bindings.ts#extModules.strings",
+    "line": 222
+   },
+   {
+    "from": "ts:gaffy/src/core/bindings.ts#slangLoads",
+    "to": "ts:gaffy/src/core/bindings.ts#maskPy",
+    "line": 237
+   },
+   {
+    "from": "ts:gaffy/src/core/bindings.ts#slangLoads",
+    "to": "ts:node_modules/typescript/lib/lib.es2020.string.d.ts#String.matchAll",
+    "line": 239
+   },
+   {
+    "from": "ts:gaffy/src/core/bindings.ts#slangLoads",
+    "to": "ts:node_modules/typescript/lib/lib.es5.d.ts#String.slice",
+    "line": 241
+   },
+   {
+    "from": "ts:gaffy/src/core/bindings.ts#slangLoads",
+    "to": "ts:gaffy/src/core/bindings.ts#close",
+    "line": 241
+   },
+   {
+    "from": "ts:gaffy/src/core/bindings.ts#slangLoads",
+    "to": "ts:node_modules/typescript/lib/lib.es5.d.ts#RegExp.exec",
+    "line": 242
+   },
+   {
+    "from": "ts:gaffy/src/core/bindings.ts#slangLoads",
+    "to": "ts:node_modules/typescript/lib/lib.es2015.symbol.wellknown.d.ts#String.replace",
+    "line": 242
+   },
+   {
+    "from": "ts:gaffy/src/core/bindings.ts#slangLoads",
+    "to": "ts:node_modules/typescript/lib/lib.es5.d.ts#String.replace",
+    "line": 242
+   },
+   {
+    "from": "ts:gaffy/src/core/bindings.ts#slangLoads",
+    "to": "ts:node_modules/typescript/lib/lib.es5.d.ts#Array.push",
+    "line": 244
+   },
+   {
+    "from": "ts:gaffy/src/core/bindings.ts#slangLoads",
+    "to": "ts:node_modules/typescript/lib/lib.es5.d.ts#RegExp.test",
+    "line": 244
+   },
+   {
+    "from": "ts:gaffy/src/core/bindings.ts#slangCalls",
+    "to": "ts:gaffy/src/core/bindings.ts#pyCallSites",
+    "line": 256
+   },
+   {
+    "from": "ts:gaffy/src/core/bindings.ts#slangCalls",
+    "to": "ts:node_modules/typescript/lib/lib.es2015.symbol.wellknown.d.ts#String.split",
+    "line": 257
+   },
+   {
+    "from": "ts:gaffy/src/core/bindings.ts#slangCalls",
+    "to": "ts:node_modules/typescript/lib/lib.es5.d.ts#String.split",
+    "line": 257
+   },
+   {
+    "from": "ts:gaffy/src/core/bindings.ts#slangCalls",
+    "to": "ts:node_modules/typescript/lib/lib.es2015.collection.d.ts#ReadonlySet.has",
+    "line": 258
+   },
+   {
+    "from": "ts:gaffy/src/core/bindings.ts#slangCalls",
+    "to": "ts:node_modules/typescript/lib/lib.es5.d.ts#Array.push",
+    "line": 258
+   },
+   {
+    "from": "ts:gaffy/src/core/bindings.ts#slangCalls",
+    "to": "ts:node_modules/typescript/lib/lib.es5.d.ts#String.slice",
+    "line": 260
+   },
+   {
+    "from": "ts:gaffy/src/core/bindings.ts#slangCalls",
+    "to": "ts:gaffy/src/core/bindings.ts#maskPy",
+    "line": 260
+   },
+   {
+    "from": "ts:gaffy/src/core/bindings.ts#slangCalls",
+    "to": "ts:node_modules/typescript/lib/lib.es2015.core.d.ts#Array.find",
+    "line": 261
+   },
+   {
+    "from": "ts:gaffy/src/core/bindings.ts#slangCalls",
+    "to": "ts:node_modules/typescript/lib/lib.es2020.string.d.ts#String.matchAll",
+    "line": 261
+   },
+   {
+    "from": "ts:gaffy/src/core/bindings.ts#slangCalls",
+    "to": "ts:node_modules/typescript/lib/lib.es5.d.ts#Array.pop",
+    "line": 261
+   },
+   {
+    "from": "ts:gaffy/src/core/bindings.ts#slangCalls",
+    "to": "ts:node_modules/typescript/lib/lib.es5.d.ts#Array.map",
+    "line": 263
+   },
+   {
+    "from": "ts:gaffy/src/core/bindings.ts#slangCalls",
+    "to": "ts:node_modules/typescript/lib/lib.es2015.collection.d.ts#Set.has",
+    "line": 265
+   },
+   {
+    "from": "ts:gaffy/src/core/bindings.ts#slangCalls",
+    "to": "ts:node_modules/typescript/lib/lib.es2015.collection.d.ts#Set.add",
+    "line": 265
+   },
+   {
+    "from": "ts:gaffy/src/core/bindings.ts#resolveDotted",
+    "to": "ts:node_modules/typescript/lib/lib.es2015.symbol.wellknown.d.ts#String.split",
+    "line": 273
+   },
+   {
+    "from": "ts:gaffy/src/core/bindings.ts#resolveDotted",
+    "to": "ts:node_modules/typescript/lib/lib.es5.d.ts#String.split",
+    "line": 273
+   },
+   {
+    "from": "ts:gaffy/src/core/bindings.ts#resolveDotted",
+    "to": "ts:node_modules/typescript/lib/lib.es2015.collection.d.ts#ReadonlyMap.get",
+    "line": 274
+   },
+   {
+    "from": "ts:gaffy/src/core/bindings.ts#resolveDotted",
+    "to": "ts:node_modules/typescript/lib/lib.es5.d.ts#Array.filter",
+    "line": 275
+   },
+   {
+    "from": "ts:gaffy/src/core/bindings.ts#resolveDotted",
+    "to": "ts:node_modules/typescript/lib/lib.es5.d.ts#Array.slice",
+    "line": 275
+   },
+   {
+    "from": "ts:gaffy/src/core/bindings.ts#matchBindings",
+    "to": "ts:node_modules/typescript/lib/lib.es5.d.ts#ReadonlyArray.filter",
+    "line": 280
+   },
+   {
+    "from": "ts:gaffy/src/core/bindings.ts#matchBindings",
+    "to": "ts:node_modules/typescript/lib/lib.es2015.symbol.wellknown.d.ts#String.split",
+    "line": 281
+   },
+   {
+    "from": "ts:gaffy/src/core/bindings.ts#matchBindings",
+    "to": "ts:node_modules/typescript/lib/lib.es5.d.ts#String.split",
+    "line": 281
+   },
+   {
+    "from": "ts:gaffy/src/core/bindings.ts#matchBindings",
+    "to": "ts:node_modules/typescript/lib/lib.es5.d.ts#Array.slice",
+    "line": 284
+   },
+   {
+    "from": "ts:gaffy/src/core/bindings.ts#matchBindings",
+    "to": "ts:node_modules/typescript/lib/lib.es5.d.ts#Array.every",
+    "line": 285
+   },
+   {
+    "from": "ts:gaffy/src/core/bindings.ts#maskRust",
+    "to": "ts:node_modules/typescript/lib/lib.es2015.symbol.wellknown.d.ts#String.split",
+    "line": 293
+   },
+   {
+    "from": "ts:gaffy/src/core/bindings.ts#maskRust",
+    "to": "ts:node_modules/typescript/lib/lib.es5.d.ts#String.split",
+    "line": 293
+   },
+   {
+    "from": "ts:gaffy/src/core/bindings.ts#maskRust",
+    "to": "ts:node_modules/typescript/lib/lib.es2015.core.d.ts#String.startsWith",
+    "line": 296
+   },
+   {
+    "from": "ts:gaffy/src/core/bindings.ts#maskRust",
+    "to": "ts:gaffy/src/core/bindings.ts#maskRust.blank",
+    "line": 296
+   },
+   {
+    "from": "ts:gaffy/src/core/bindings.ts#maskRust",
+    "to": "ts:node_modules/typescript/lib/lib.es5.d.ts#RegExp.test",
+    "line": 302
+   },
+   {
+    "from": "ts:gaffy/src/core/bindings.ts#maskRust",
+    "to": "ts:node_modules/typescript/lib/lib.es5.d.ts#String.slice",
+    "line": 302
+   },
+   {
+    "from": "ts:gaffy/src/core/bindings.ts#maskRust",
+    "to": "ts:node_modules/typescript/lib/lib.es5.d.ts#Array.join",
+    "line": 311
+   },
+   {
+    "from": "ts:gaffy/src/host/bridges.ts#Bridges.bindingsFor",
+    "to": "ts:gaffy/src/host/bridges.ts#Bridges.bindings",
+    "line": 128
+   },
+   {
+    "from": "ts:gaffy/src/core/bindings.ts#scanWasm",
+    "to": "ts:gaffy/src/core/bindings.ts#maskRust",
+    "line": 328
+   },
+   {
+    "from": "ts:gaffy/src/core/bindings.ts#scanWasm",
+    "to": "ts:node_modules/typescript/lib/lib.es2020.string.d.ts#String.matchAll",
+    "line": 333
+   },
+   {
+    "from": "ts:gaffy/src/core/bindings.ts#scanWasm",
+    "to": "ts:node_modules/typescript/lib/lib.es5.d.ts#String.slice",
+    "line": 334
+   },
+   {
+    "from": "ts:gaffy/src/core/bindings.ts#scanWasm",
+    "to": "ts:node_modules/typescript/lib/lib.es5.d.ts#RegExp.exec",
+    "line": 336
+   },
+   {
+    "from": "ts:gaffy/src/core/bindings.ts#scanWasm",
+    "to": "ts:node_modules/typescript/lib/lib.es5.d.ts#Array.push",
+    "line": 342
+   },
+   {
+    "from": "ts:gaffy/src/core/bindings.ts#scanWasm",
+    "to": "ts:gaffy/src/core/bindings.ts#scanWasm.opt",
+    "line": 342
+   },
+   {
+    "from": "ts:gaffy/src/core/bindings.ts#scanWasm",
+    "to": "ts:node_modules/typescript/lib/lib.es5.d.ts#Array.pop",
+    "line": 342
+   },
+   {
+    "from": "ts:gaffy/src/core/bindings.ts#scanWasm",
+    "to": "ts:node_modules/typescript/lib/lib.es2015.symbol.wellknown.d.ts#String.split",
+    "line": 342
+   },
+   {
+    "from": "ts:gaffy/src/core/bindings.ts#scanWasm",
+    "to": "ts:node_modules/typescript/lib/lib.es5.d.ts#String.split",
+    "line": 342
+   },
+   {
+    "from": "ts:gaffy/src/core/bindings.ts#scanWasm",
+    "to": "ts:gaffy/src/core/bindings.ts#close",
+    "line": 342
+   },
+   {
+    "from": "ts:gaffy/src/core/bindings.ts#scanWasm",
+    "to": "ts:gaffy/src/core/bindings.ts#scanWasm.inImpl",
+    "line": 346
+   },
+   {
+    "from": "ts:gaffy/src/core/bindings.ts#scanWasm",
+    "to": "ts:node_modules/typescript/lib/lib.es5.d.ts#RegExp.test",
+    "line": 352
+   },
+   {
+    "from": "ts:gaffy/src/core/bindings.ts#scanWasm",
+    "to": "ts:node_modules/typescript/lib/lib.es5.d.ts#String.indexOf",
+    "line": 354
+   },
+   {
+    "from": "ts:gaffy/src/core/bindings.ts#scanWasm",
+    "to": "ts:node_modules/typescript/lib/lib.es5.d.ts#Array.sort",
+    "line": 358
+   },
+   {
+    "from": "ts:gaffy/src/core/bindings.ts#matchWasm",
+    "to": "ts:node_modules/typescript/lib/lib.es2015.symbol.wellknown.d.ts#String.split",
+    "line": 405
+   },
+   {
+    "from": "ts:gaffy/src/core/bindings.ts#matchWasm",
+    "to": "ts:node_modules/typescript/lib/lib.es5.d.ts#String.split",
+    "line": 405
+   },
+   {
+    "from": "ts:gaffy/src/core/bindings.ts#matchWasm",
+    "to": "ts:node_modules/typescript/lib/lib.es2015.core.d.ts#ReadonlyArray.find",
+    "line": 406
+   },
+   {
+    "from": "ts:gaffy/src/core/bindings.ts#matchWasm",
+    "to": "ts:node_modules/typescript/lib/lib.es5.d.ts#Array.slice",
+    "line": 408
+   },
+   {
+    "from": "ts:gaffy/src/core/bindings.ts#matchWasm",
+    "to": "ts:node_modules/typescript/lib/lib.es5.d.ts#ReadonlyArray.filter",
+    "line": 410
+   },
+   {
+    "from": "ts:gaffy/src/host/bridges.ts#Bridges.boundIn",
+    "to": "ts:gaffy/src/host/bridges.ts#Bridges.bound",
+    "line": 149
+   },
+   {
+    "from": "ts:gaffy/src/host/bridges.ts#Bridges.outgoing",
+    "to": "ts:gaffy/src/host/bridges.ts#Bridges.bound",
+    "line": 352
+   },
+   {
+    "from": "ts:gaffy/src/core/bindings.ts#jsImports",
+    "to": "ts:gaffy/src/core/textcalls.ts#mask",
+    "line": 365
+   },
+   {
+    "from": "ts:gaffy/src/core/bindings.ts#jsImports",
+    "to": "ts:node_modules/typescript/lib/lib.es2020.string.d.ts#String.matchAll",
+    "line": 373
+   },
+   {
+    "from": "ts:gaffy/src/core/bindings.ts#jsImports",
+    "to": "ts:node_modules/typescript/lib/lib.es5.d.ts#RegExp.exec",
+    "line": 375
+   },
+   {
+    "from": "ts:gaffy/src/core/bindings.ts#jsImports",
+    "to": "ts:node_modules/typescript/lib/lib.es5.d.ts#Array.push",
+    "line": 376
+   },
+   {
+    "from": "ts:gaffy/src/core/bindings.ts#jsImports",
+    "to": "ts:gaffy/src/core/bindings.ts#jsImports.named",
+    "line": 380
+   },
+   {
+    "from": "ts:gaffy/src/core/bindings.ts#jsImports",
+    "to": "ts:node_modules/typescript/lib/lib.es2015.core.d.ts#String.startsWith",
+    "line": 383
+   },
+   {
+    "from": "ts:gaffy/src/core/bindings.ts#jsImports",
+    "to": "ts:node_modules/typescript/lib/lib.es2015.symbol.wellknown.d.ts#String.replace",
+    "line": 383
+   },
+   {
+    "from": "ts:gaffy/src/core/bindings.ts#jsImports",
+    "to": "ts:node_modules/typescript/lib/lib.es5.d.ts#String.replace",
+    "line": 383
+   },
+   {
+    "from": "ts:gaffy/src/core/bindings.ts#jsImports",
+    "to": "ts:node_modules/typescript/lib/lib.es5.d.ts#String.slice",
+    "line": 383
+   },
+   {
+    "from": "ts:gaffy/src/core/bindings.ts#jsCallSites",
+    "to": "ts:node_modules/typescript/lib/lib.es5.d.ts#String.slice",
+    "line": 393
+   },
+   {
+    "from": "ts:gaffy/src/core/bindings.ts#jsCallSites",
+    "to": "ts:gaffy/src/core/textcalls.ts#mask",
+    "line": 393
+   },
+   {
+    "from": "ts:gaffy/src/core/bindings.ts#jsCallSites",
+    "to": "ts:node_modules/typescript/lib/lib.es2020.string.d.ts#String.matchAll",
+    "line": 395
+   },
+   {
+    "from": "ts:gaffy/src/core/bindings.ts#jsCallSites",
+    "to": "ts:node_modules/typescript/lib/lib.es2015.symbol.wellknown.d.ts#String.replace",
+    "line": 396
+   },
+   {
+    "from": "ts:gaffy/src/core/bindings.ts#jsCallSites",
+    "to": "ts:node_modules/typescript/lib/lib.es5.d.ts#String.replace",
+    "line": 396
+   },
+   {
+    "from": "ts:gaffy/src/core/bindings.ts#jsCallSites",
+    "to": "ts:node_modules/typescript/lib/lib.es2015.collection.d.ts#Set.has",
+    "line": 397
+   },
+   {
+    "from": "ts:gaffy/src/core/bindings.ts#jsCallSites",
+    "to": "ts:node_modules/typescript/lib/lib.es5.d.ts#RegExp.test",
+    "line": 397
+   },
+   {
+    "from": "ts:gaffy/src/core/bindings.ts#jsCallSites",
+    "to": "ts:node_modules/typescript/lib/lib.es5.d.ts#Math.max",
+    "line": 397
+   },
+   {
+    "from": "ts:gaffy/src/core/bindings.ts#jsCallSites",
+    "to": "ts:node_modules/typescript/lib/lib.es5.d.ts#Array.push",
+    "line": 398
+   },
+   {
+    "from": "ts:gaffy/src/core/bindings.ts#jsCallSites",
+    "to": "ts:node_modules/typescript/lib/lib.es5.d.ts#String.lastIndexOf",
+    "line": 398
+   },
+   {
+    "from": "ts:gaffy/src/core/bindings.ts#jsCallSites",
+    "to": "ts:node_modules/typescript/lib/lib.es5.d.ts#Array.pop",
+    "line": 398
+   },
+   {
+    "from": "ts:gaffy/src/core/bindings.ts#jsCallSites",
+    "to": "ts:node_modules/typescript/lib/lib.es2015.symbol.wellknown.d.ts#String.split",
+    "line": 398
+   },
+   {
+    "from": "ts:gaffy/src/core/bindings.ts#jsCallSites",
+    "to": "ts:node_modules/typescript/lib/lib.es5.d.ts#String.split",
+    "line": 398
+   },
+   {
+    "from": "ts:gaffy/test/bindings.test.ts#<module>",
+    "to": "ts:gaffy/test/bindings.test.ts#describe",
+    "line": 202
+   },
+   {
+    "from": "ts:gaffy/src/host/bridges.ts#Bridges.wasmCalls",
+    "to": "ts:gaffy/src/host/bridges.ts#Bridges.exportsOf",
+    "line": 289
+   },
+   {
+    "from": "ts:gaffy/src/host/bridges.ts#Bridges.incoming",
+    "to": "ts:gaffy/src/host/bridges.ts#Bridges.exportsOf",
+    "line": 369
+   },
+   {
+    "from": "ts:gaffy/src/host/bridges.ts#Bridges.outgoing",
+    "to": "ts:gaffy/src/host/bridges.ts#Bridges.wasmCalls",
+    "line": 318
+   },
+   {
+    "from": "ts:gaffy/src/host/bridges.ts#Bridges.incoming",
+    "to": "ts:gaffy/src/host/bridges.ts#Bridges.wasmCalls",
+    "line": 373
+   },
+   {
+    "from": "ts:gaffy/src/host/lsp.ts#LspProvider.incoming",
+    "to": "ts:gaffy/src/host/bridges.ts#Bridges.incoming",
+    "line": 576
+   },
+   {
+    "from": "ts:gaffy/src/host/lsp.ts#LspProvider.outgoing",
+    "to": "ts:gaffy/src/host/bridges.ts#Bridges.outgoing",
+    "line": 540
+   },
+   {
+    "from": "ts:gaffy/src/core/bindings.ts#maskPy",
+    "to": "ts:node_modules/typescript/lib/lib.es2015.symbol.wellknown.d.ts#String.split",
+    "line": 135
+   },
+   {
+    "from": "ts:gaffy/src/core/bindings.ts#maskPy",
+    "to": "ts:node_modules/typescript/lib/lib.es5.d.ts#String.split",
+    "line": 135
+   },
+   {
+    "from": "ts:gaffy/src/core/bindings.ts#maskPy",
+    "to": "ts:gaffy/src/core/bindings.ts#maskPy.blank",
+    "line": 139
+   },
+   {
+    "from": "ts:gaffy/src/core/bindings.ts#maskPy",
+    "to": "ts:node_modules/typescript/lib/lib.es2015.core.d.ts#String.startsWith",
+    "line": 141
+   },
+   {
+    "from": "ts:gaffy/src/core/bindings.ts#maskPy",
+    "to": "ts:node_modules/typescript/lib/lib.es2015.core.d.ts#String.repeat",
+    "line": 141
+   },
+   {
+    "from": "ts:gaffy/src/core/bindings.ts#maskPy",
+    "to": "ts:node_modules/typescript/lib/lib.es5.d.ts#Math.min",
+    "line": 145
+   },
+   {
+    "from": "ts:gaffy/src/core/bindings.ts#maskPy",
+    "to": "ts:node_modules/typescript/lib/lib.es5.d.ts#Array.join",
+    "line": 151
+   },
+   {
+    "from": "ts:gaffy/src/core/bindings.ts#pyImports",
+    "to": "ts:gaffy/src/core/bindings.ts#maskPy",
+    "line": 156
+   },
+   {
+    "from": "ts:gaffy/src/core/bindings.ts#pyImports",
+    "to": "ts:node_modules/typescript/lib/lib.es2020.string.d.ts#String.matchAll",
+    "line": 158
+   },
+   {
+    "from": "ts:gaffy/src/core/bindings.ts#pyImports",
+    "to": "ts:node_modules/typescript/lib/lib.es2015.symbol.wellknown.d.ts#String.split",
+    "line": 159
+   },
+   {
+    "from": "ts:gaffy/src/core/bindings.ts#pyImports",
+    "to": "ts:node_modules/typescript/lib/lib.es5.d.ts#String.split",
+    "line": 159
+   },
+   {
+    "from": "ts:gaffy/src/core/bindings.ts#pyImports",
+    "to": "ts:node_modules/typescript/lib/lib.es5.d.ts#RegExp.exec",
+    "line": 160
+   },
+   {
+    "from": "ts:gaffy/src/core/bindings.ts#pyImports",
+    "to": "ts:node_modules/typescript/lib/lib.es2015.collection.d.ts#Map.set",
+    "line": 162
+   },
+   {
+    "from": "ts:gaffy/src/core/bindings.ts#pyImports",
+    "to": "ts:node_modules/typescript/lib/lib.es2015.symbol.wellknown.d.ts#String.replace",
+    "line": 166
+   },
+   {
+    "from": "ts:gaffy/src/core/bindings.ts#pyImports",
+    "to": "ts:node_modules/typescript/lib/lib.es5.d.ts#String.replace",
+    "line": 166
+   },
+   {
+    "from": "ts:gaffy/src/core/bindings.ts#pyCallSites",
+    "to": "ts:node_modules/typescript/lib/lib.es5.d.ts#String.slice",
+    "line": 178
+   },
+   {
+    "from": "ts:gaffy/src/core/bindings.ts#pyCallSites",
+    "to": "ts:gaffy/src/core/bindings.ts#maskPy",
+    "line": 178
+   },
+   {
+    "from": "ts:gaffy/src/core/bindings.ts#pyCallSites",
+    "to": "ts:node_modules/typescript/lib/lib.es2020.string.d.ts#String.matchAll",
+    "line": 180
+   },
+   {
+    "from": "ts:gaffy/src/core/bindings.ts#pyCallSites",
+    "to": "ts:node_modules/typescript/lib/lib.es2015.symbol.wellknown.d.ts#String.replace",
+    "line": 181
+   },
+   {
+    "from": "ts:gaffy/src/core/bindings.ts#pyCallSites",
+    "to": "ts:node_modules/typescript/lib/lib.es5.d.ts#String.replace",
+    "line": 181
+   },
+   {
+    "from": "ts:gaffy/src/core/bindings.ts#pyCallSites",
+    "to": "ts:node_modules/typescript/lib/lib.es2015.collection.d.ts#Set.has",
+    "line": 182
+   },
+   {
+    "from": "ts:gaffy/src/core/bindings.ts#pyCallSites",
+    "to": "ts:node_modules/typescript/lib/lib.es5.d.ts#RegExp.test",
+    "line": 182
+   },
+   {
+    "from": "ts:gaffy/src/core/bindings.ts#pyCallSites",
+    "to": "ts:node_modules/typescript/lib/lib.es5.d.ts#Math.max",
+    "line": 182
+   },
+   {
+    "from": "ts:gaffy/src/core/bindings.ts#pyCallSites",
+    "to": "ts:node_modules/typescript/lib/lib.es5.d.ts#Array.push",
+    "line": 183
+   },
+   {
+    "from": "ts:gaffy/src/core/bindings.ts#pyCallSites",
+    "to": "ts:node_modules/typescript/lib/lib.es5.d.ts#String.lastIndexOf",
+    "line": 183
+   },
+   {
+    "from": "ts:gaffy/src/core/bindings.ts#pyCallSites",
+    "to": "ts:node_modules/typescript/lib/lib.es5.d.ts#Array.pop",
+    "line": 183
+   },
+   {
+    "from": "ts:gaffy/src/core/bindings.ts#pyCallSites",
+    "to": "ts:node_modules/typescript/lib/lib.es2015.symbol.wellknown.d.ts#String.split",
+    "line": 183
+   },
+   {
+    "from": "ts:gaffy/src/core/bindings.ts#pyCallSites",
+    "to": "ts:node_modules/typescript/lib/lib.es5.d.ts#String.split",
+    "line": 183
+   }
+  ]
+ },
+ "explored": {
+  "ts:gaffy/src/core/bindings.ts#close": "both",
+  "ts:gaffy/src/core/bindings.ts#statements": "both",
+  "ts:gaffy/src/core/bindings.ts#targetOf": "both",
+  "ts:gaffy/src/core/bindings.ts#scanNative": "both",
+  "ts:gaffy/src/core/bindings.ts#maskPy": "both",
+  "ts:gaffy/src/core/bindings.ts#pyImports": "both",
+  "ts:gaffy/src/core/bindings.ts#pyCallSites": "both",
+  "ts:gaffy/src/core/bindings.ts#pyBases": "both",
+  "ts:gaffy/src/core/bindings.ts#maskRust": "both",
+  "ts:gaffy/src/core/bindings.ts#extModules": "both",
+  "ts:gaffy/src/core/bindings.ts#slangLoads": "both",
+  "ts:gaffy/src/core/bindings.ts#slangCalls": "both",
+  "ts:gaffy/src/core/bindings.ts#scanWasm": "both",
+  "ts:gaffy/src/core/bindings.ts#jsImports": "both",
+  "ts:gaffy/src/core/bindings.ts#jsCallSites": "both",
+  "ts:gaffy/src/core/bindings.ts#resolveDotted": "both",
+  "ts:gaffy/src/core/bindings.ts#matchBindings": "both",
+  "ts:gaffy/src/core/bindings.ts#matchWasm": "both",
+  "ts:gaffy/test/bindings.test.ts#<module>": "in",
+  "ts:gaffy/src/host/bridges.ts#Bridges.bindings": "in",
+  "ts:gaffy/src/host/bridges.ts#Bridges.bound": "in",
+  "ts:gaffy/test/bindings.test.ts#describe": "in",
+  "ts:gaffy/src/host/bridges.ts#Bridges.exportsOf": "in",
+  "ts:gaffy/src/host/bridges.ts#Bridges.wasmCalls": "in",
+  "ts:gaffy/src/host/bridges.ts#Bridges.incoming": "in",
+  "ts:gaffy/src/host/bridges.ts#Bridges.outgoing": "in"
+ }
+}

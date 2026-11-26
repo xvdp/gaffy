@@ -6,6 +6,7 @@
  * `offset`: unlocked moves from computed placement; `lock`: absolute cells of locked units, avoided by unlocked ones.
  */
 import { ancestors, emptyGraph, GEdge, GNode, NodeKey, Subgraph } from './model';
+import { parseRules, RuleConfig } from './rules';
 import type { Curve } from './style';
 
 export type Direction = 'in' | 'out' | 'both';
@@ -25,15 +26,18 @@ export const boxUnit = (containerKey: string) => `box:${containerKey}`;
 export const collapsedUnit = (containerKey: string) => `collapsed:${containerKey}`;
 
 /**
- * Drops moves and locks of `container` and its content (boxes, functions, collapsed units). Offsets are relative
- * to the enclosing box, so after group or ungroup the content returns to computed places. Moves outside stay.
+ * Drops moves and locks of `container` and its content (boxes, functions, collapsed units), and moves and locks
+ * of the boxes around it (their chain compression, hence their keys, change with the grouping). Offsets are relative
+ * to the enclosing box, so after group or ungroup the content returns to computed places. Other moves stay.
  */
 export function dropMovesWithin(doc: ViewDoc, container: NodeKey): void {
     const inside = (k: NodeKey) => k === container || ancestors(doc.graph.nodes, k).includes(container);
+    // boxes around the container: grouping changes their chain compression, so their keys may change too
+    const around = new Set(ancestors(doc.graph.nodes, container));
     for (const table of [doc.view.offset, doc.view.lock]) {
         for (const u of Object.keys(table)) {
             const key = u.startsWith('box:') ? u.slice(4) : u.startsWith('collapsed:') ? u.slice('collapsed:'.length) : u;
-            if (inside(key)) delete table[u];
+            if (inside(key) || (u.startsWith('box:') && around.has(key))) delete table[u];
         }
     }
 }
@@ -68,6 +72,8 @@ export interface ViewSpec {
     save?: boolean;                          // file saved after every change, whatever gaffy.autoSave says (script views)
     between?: boolean;                       // drawn: only functions on call paths between seeds (scene.ts `onPaths`)
     pinned?: NodeKey[];                      // grow: functions shown without an opener (the paths left by `between` off)
+    joins?: NodeKey[];                       // seeds added to a view: closed until a side opens, drawn with the call paths to the other seeds
+    rules?: RuleConfig;                      // rule switches, alternatives, parameters over style.json `rules` (rules.ts)
     pinPaths?: boolean;                      // grow + between: after the first build, the paths pinned, `between` off (giddy)
     tags: Record<NodeKey, string>;
     straight?: string[];                     // calls routed first (caller\u0000callee)
@@ -153,6 +159,10 @@ export function parseDoc(text: string, fallbackName = 'view'): ViewDoc {
     if (v.open) view.open = keyed(v.open, (x) => oneOf(x, ['up', 'down', 'both', 'none'] as const));
     const pinned = strs(v.pinned);
     if (pinned.length) view.pinned = pinned;
+    const joins = strs(v.joins).filter((k) => view.seeds.includes(k));
+    if (joins.length) view.joins = joins;
+    const rules = parseRules(v.rules);
+    if (rules) view.rules = rules;
     if (v.pinPaths === true) view.pinPaths = true;
     const straight = strs(v.straight);
     if (straight.length) view.straight = straight;
@@ -177,7 +187,8 @@ export function parseDoc(text: string, fallbackName = 'view'): ViewDoc {
     const doc = emptyDoc(typeof raw.name === 'string' ? raw.name : fallbackName, view);
     /* secure tooling: node keys `<lang>:<path>#<qual>`; prototype keys (JSON `__proto__`) dropped. */
     const nodes = keyed(raw.graph?.nodes, (x) => (x && typeof x === 'object' && typeof (x as GNode).key === 'string' ? x as GNode : undefined));
-    const edgeList = Array.isArray(raw.graph?.edges) ? raw.graph!.edges.filter((e: unknown) => !!e && typeof (e as GEdge).from === 'string' && typeof (e as GEdge).to === 'string') : [];
+    const edgeList: GEdge[] = (Array.isArray(raw.graph?.edges) ? raw.graph!.edges.filter((e: unknown) => !!e && typeof (e as GEdge).from === 'string' && typeof (e as GEdge).to === 'string') : [])
+        .map((e: GEdge) => (e.seen === undefined || e.seen === 'in' || e.seen === 'out' || e.seen === 'both' ? e : { ...e, seen: undefined }));
     doc.graph = { nodes, edges: edgeList };
     if (raw.explored) doc.explored = keyed(raw.explored, (x) => oneOf(x, ['in', 'out', 'both'] as const));
     if (raw.truncated) doc.truncated = true;

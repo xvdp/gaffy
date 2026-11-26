@@ -1,6 +1,7 @@
 /** @xvdp
- * Style merge order: defaults, `gaffy.style` setting, `.baggy/gaffy/style.json`, per-view overrides (ViewSpec.boxes,
- * edges, curve, parentRule). `view`: initial layout and traverse of a new view, written to its file.
+ * Style merge order: defaults, `gaffy.style` setting, `.baggy/gaffy/style.json`, each restricted to USER_STYLE
+ * (appearance); per-view choices (ViewSpec.boxes, edges, curve, parentRule, tight, rules) come from Options and the
+ * Rules panel. `view.traverse`: traversal of a new view.
  */
 import type { EdgeMode, ParentRule } from './viewdoc';
 
@@ -41,6 +42,35 @@ export const DEFAULT_STYLE: Style = {
         twisty: 'var(--vscode-textLink-foreground)',
     },
 };
+
+/**
+ * Keys style.json and the `gaffy.style` setting set: appearance that Options does not choose. Options choose per view
+ * the layout (call expansion), parent rule, grouping, tight frames, edge mode and curve; the Rules panel holds spacing
+ * and route costs per view (rules.ts, `view.rules`). Other keys are ignored and reported (`userStyle`).
+ */
+export const USER_STYLE: Readonly<Record<string, true | readonly string[]>> = {
+    view: ['traverse'], font: true, labels: true, colors: true,
+    edges: ['glyphs', 'arrow', 'cross', 'width', 'lead', 'tension'],
+    boxes: ['modules', 'root', 'fill', 'alpha', 'line'],
+};
+
+/** Keys of `x` (style.json, `gaffy.style`) in USER_STYLE, and the dotted names of the others. */
+export function userStyle(x: unknown): { style: Record<string, unknown>; ignored: string[] } {
+    const style: Record<string, unknown> = {}, ignored: string[] = [];
+    if (!isPlain(x)) return { style, ignored };
+    for (const [sec, v] of Object.entries(x)) {
+        const allow = Object.hasOwn(USER_STYLE, sec) ? USER_STYLE[sec] : undefined;
+        if (!allow) { ignored.push(sec); continue; }
+        if (allow === true || !isPlain(v)) { style[sec] = v; continue; }
+        const kept: Record<string, unknown> = {};
+        for (const [k, w] of Object.entries(v)) { if (allow.includes(k)) kept[k] = w; else ignored.push(`${sec}.${k}`); }
+        style[sec] = kept;
+    }
+    return { style, ignored };
+}
+
+/** DEFAULT_STYLE restricted to USER_STYLE: the text of a new style.json. */
+export const userDefaults = (): Record<string, unknown> => userStyle(structuredClone(DEFAULT_STYLE)).style;
 
 type Plain = Record<string, unknown>;
 const isPlain = (v: unknown): v is Plain => typeof v === 'object' && v !== null && !Array.isArray(v);

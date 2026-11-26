@@ -53,17 +53,21 @@ Not followed (a call trace would see them): backprop, hooks, `with` blocks, iter
 |---|---|
 | `npm install` | dependencies, after cloning or a `package.json` change |
 | `npm run typecheck` | `tsc --noEmit` over `src/` and `test/` |
-| `npm test` | vitest: core, routing invariants, golden text pictures in `test/golden/` |
+| `npm test` | vitest: core, routing invariants, golden text pictures in `test/golden/`, rule configuration, edge rules on `test/data/bindings.gaffy`, a subset of the rule matrix, seeded operation sequences |
+| `npm run test:matrix` | the whole rule matrix (fixtures × boxes × tight × parent rule × switched-off rules × moves; about 3 minutes) |
 | `UPDATE_GOLDEN=1 npm test` | goldens rewritten after an intended layout change |
 | `npm run build` | esbuild bundles: `dist/extension.js` (host), `dist/webview.js` (webview) |
 | `npm run watch` | build on every save |
 | `npm run package` | typecheck, test, build, `vsce package` → `gaffy-<version>.vsix` |
+| `npm run release` | typecheck, test; when both pass, the patch version + 1 (`npm version patch --no-git-tag-version`: package.json, package-lock.json, no commit or tag), then build and `vsce package` → `gaffy-<new version>.vsix` |
 | `npm run install:local` | `code --install-extension gaffy-<version>.vsix`, version from `package.json` |
 | `npm run preview` | `dist/preview.html`: the webview in a browser with fixture views; `GAFFY_PREVIEW_FILE=<view.gaffy> npm run preview` for any view |
-| `npm run heuristics` | `docs/heuristics.md`, `docs/heuristics.gaffy`, `docs/ordering.md` regenerated from the code |
-| `npm run docs:check` | `npm run heuristics`, then a failure when `docs/` differs from the commit |
+| `npm run heuristics` | `docs/heuristics.md`, `docs/heuristics.gaffy`, `docs/ordering.md`, `src/core/rules.lines.ts` (code sites per rule), regenerated from the code; `schemas/style.schema.json` restricted to the appearance keys of `USER_STYLE` |
+| `npm run docs:check` | `npm run heuristics`, then a failure when `docs/`, `rules.lines.ts` or the schema differs from the commit |
 | `npm run explain -- <view.gaffy> [--unit <text>] [--flags] [--off <rules>] [--trace <trace.jsonl>]` | placement decision log with code lines, rule ablation, trace replay (README: Layout debugging) |
 | `node tools/gaffy-trace.mjs <trace.jsonl>` | view change log (setting `gaffy.trace`) as a list |
+| `npm run metrics -- <view.gaffy> ['<rules JSON>' …]` | edge metrics per rule configuration: picture size, crossing cells, bends, routed cells, unrouted calls, route cost, build time |
+| `npm run providers -- [folder]` | language providers outside VS Code: languages with files under the folder, the extension each needs, installed or missing (`code --list-extensions`, else the extension folder) |
 
 
 
@@ -73,7 +77,7 @@ Not followed (a call trace would see them): backprop, hooks, `with` blocks, iter
 ```
 package.json          manifest: identity, VS Code version range, entry point, activation, contributions; npm scripts
 esbuild.mjs           two bundles: host (Node, CommonJS⁸, `vscode` left external) and webview (browser, IIFE⁹)
-schemas/              JSON schema of .baggy/gaffy/style.json (completion and validation in the editor)
+schemas/              JSON schema of .baggy/gaffy/style.json: appearance keys (font, colors, labels, frame and edge drawing); layout choices live in the view (Options, Rules panel)
 media/webview.css     webview styles, mapped to VS Code theme variables
 src/core/             TypeScript, no VS Code API: runs in the host (export), the webview (render) and tests
   model.ts              graph types: nodes (definitions, containers), edges (calls)
@@ -84,7 +88,9 @@ src/core/             TypeScript, no VS Code API: runs in the host (export), the
   layout.ts             rows, tree parents, lanes inside one box
   place.ts              boxes and blocks in 2D, moves, locks
   settle.ts             moved units the picture grew into: nearest clear offset, least displacement first
-  explain.ts            layout debugging: decision log, flags, rule switches of place.ts and settle.ts
+  rules.ts              rule registry: id, stage, text, switch, alternatives, parameters; configuration layers (defaults, legacy style keys, style.json `rules`, view `rules`)
+  rules.lines.ts        generated: code sites per rule (npm run heuristics)
+  explain.ts            layout debugging: decision log and flags
   grid.ts               character grid, A* routing, glyphs (call kinds), text export
   bindings.ts           binding declarations parsed from source text (pybind11, nanobind, torch, slangpy, wasm-bindgen)
   scene.ts              pipeline: document → quotient → visibility → boxes → layout → placement → grid
@@ -98,21 +104,26 @@ src/host/             extension host: Node.js, VS Code API
   build.ts, cache.ts    answers folded into the view; persistent call cache
   bridges.ts            calls across languages from bindings.ts, joined to the language-server graph
   implicit.ts           implicit calls: construction, instance call
-  servers.ts            which language servers the workspace needs, and whether they are installed
+  servers.ts            language providers per workspace language: installed, active, live probe; List Language Providers; warning with actions
+  settings.ts           gaffy.autoSave read per folder, written where it takes effect
+  sources.ts            rule links of the debugging panel: local gaffy sources, else GitHub at the build commit
   scope.ts              URI scheme gate (`readable`)
   safefs.ts             no writes through symbolic links under `.baggy/gaffy/` (`noLinks`)
   seedspec.ts           seeds written by name in a view file (`<path>#<qualified name>`, `<path>:<line>`)
   trace.ts, tracerec.ts view change records (setting gaffy.trace)
   style.ts              style.json per workspace folder
 src/webview/main.ts   webview: D3 rendering, interaction, toolbar and options
+src/webview/dbgpanel.ts  layout debugging panel: Rules, Actions (running log), Edges (routing record per call)
 test/                 vitest tests, fixtures, golden text renders
 scripts/preview.mjs   browser preview of the webview with fixtures and simulated steps (GAFFY_PREVIEW_FILE=<view> for any view file; steps=…, trace=1)
 scripts/heuristics.ts the layout heuristics as a graph: writes docs/heuristics.md and docs/heuristics.gaffy (`npm run heuristics`)
 scripts/ordering.ts   every function that changes what is shown or where: writes docs/ordering.md (`npm run heuristics`)
 scripts/rules.ts      pipeline functions, calls and rules with their code anchors (heuristics.ts, explain.ts)
 scripts/explain.ts    placement decision log of a view file (`npm run explain`; core: src/core/explain.ts)
+scripts/providers.ts  language providers outside VS Code (`npm run providers`)
+scripts/metrics.ts    edge metrics of a view per rule configuration (`npm run metrics`)
 tools/gaffy-trace.mjs standalone, no dependencies, not packaged: prints a view trace (.baggy/gaffy/trace/<view>.jsonl, setting gaffy.trace)
-test/data/            view files reduced from real cases, names made up (runaway.gaffy: box descent drift)
+test/data/            view files reduced from real cases (runaway.gaffy: box descent drift, names made up; bindings.gaffy: gaffy's bindings.ts and its callers, redundant crossings)
 ```
 
 ## 2. D3 in gaffy
@@ -145,7 +156,7 @@ Threat model: a workspace or a `.gaffy` file comes from someone else (a cloned r
 |---|---|
 | Webview | Content Security Policy: `default-src 'none'`; scripts only with a per-page nonce from `crypto.randomBytes`; styles from the extension and inline; images and fonts from the extension only. Labels, tooltips and toolbar text are set as text, never as HTML. `localResourceRoots`: `dist/`, `media/`. |
 | Text shown from outside data | Labels, box headers, tooltips, hover cards (language-server signature text, set as text, never as markup), the quick pick of hidden neighbors and the text and HTML exports show C0/C1 controls, zero-width characters and bidirectional controls¹⁷ as `\u{…}` (`visible` in `src/core/model.ts`): a name cannot display as another name (Trojan Source, CVE-2021-42574 [boucher2023trojan], keys in [refs.bib](../refs.bib)). Notification and progress messages pass through `plain`, which also splits every `](`: VS Code renders `[label](https:…|command:…|file:…)` in a notification as a link and runs a `command:` link on click [api: microsoft/vscode main, `src/vs/base/common/linkedText.ts` `parseLinkedText`; `src/vs/workbench/browser/parts/notifications/notificationsViewer.ts`, `openerService.open(URI.parse(link), { allowCommands: true })`; read 2026-11-19], so a name, path or error message cannot carry one. |
-| Messages from the webview | The host acts on a fixed set of message types; `setting` writes only `includeExternal`, `includeStandardLibrary` and `saveViews` (booleans); `expand` takes `in` or `out` and a key the view holds as its own property; `openAt` takes a non-negative integer line; `save` runs a fixed command; the trace fields `cause` and `moved` are reduced to strings of at most 200 characters, integer cells and at most 2000 entries (`checkedCause` in `src/host/tracerec.ts`). |
+| Messages from the webview | The host acts on a fixed set of message types; `setting` writes only `autoSave` (through the command `gaffy.toggleAutoSave`) and `debugLayout` (booleans); `openRule` takes a rule id of the registry and a site index of `rules.lines.ts` or `doc`, and opens that file from the gaffy sources or a github.com URL built from package.json `repository`; `expand` takes `in` or `out` and a key the view holds as its own property; `openAt` takes a non-negative integer line; `save` runs a fixed command; the trace fields `cause` and `moved` are reduced to strings of at most 200 characters, integer cells and at most 2000 entries (`checkedCause` in `src/host/tracerec.ts`). |
 | Node records in `.gaffy` files and the call cache | Opened only for the scheme `file` or a workspace folder's scheme (`readable` in `src/host/scope.ts`); shown with `showTextDocument` (read only), never executed. Node keys `__proto__`, `constructor`, `prototype` are dropped on load; the cache looks up the modification times of its files for those schemes only. |
 | Language-server answers | Call hierarchy items, incoming and outgoing calls, definitions, references, document and workspace symbols: a location of another scheme is dropped where the answer arrives, before any document is opened, hashed or asked about (`readable`); gaffy sends no request for a URI of another scheme. At most 5000 calls per answer (`MAX_CALLS`; a longer answer is cut, cached with its full length, and reported once per view in a warning), 30 s per request (`REQUEST_MS`) in `src/host/lsp.ts`. A file outside every workspace folder is keyed from its library root (`externalPath` in `src/core/langs.ts`: `site-packages/torch/functional.py`), so its folder chain is finite. Answer data reaches no command id, setting, process argument, file path outside `.gaffy/`, HTML markup, or the network; every `executeCommand` id is a constant. |
 | `style.json` | Merged without the keys `__proto__`, `constructor`, `prototype` (prototype pollution); colors become CSS custom properties, which cannot load external resources under the policy above. |

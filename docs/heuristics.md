@@ -16,54 +16,58 @@ Reading the graph: a function calls the functions and rules below it in code ord
 ## Pipeline graph
 
 <pre>
-╭┄ src ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄╮
-┆  ╭┄ webview/main ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄╮     ╭┄ core ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄╮ ┆
-┆  ┆  <a href="../src/webview/main.ts#L403"><b>render()</b></a> ──────────────────────────────┬────────&gt; <a href="../src/core/scene.ts#L106">scene.buildScene()</a>                                      ┆ ┆
-┆  ┆  ├─&gt; <a href="#h37_hops">h37_hops()</a>                         │ ┆     ┆  ├─&gt; <a href="../src/core/scene.ts#L317">scene.revealView()</a>                                  ┆ ┆
-┆  ┆  └─&gt; <a href="../src/webview/main.ts#L645">afterRender()</a> ─────────────────┐   │ ┆     ┆  │   ├─&gt; <a href="../src/core/reveal.ts#L78">reveal.revealDepth()</a>                            ┆ ┆
-┆  ┆      └─&gt; <a href="#h35_save_what_is_drawn">h35_save_what_is_drawn()</a>   │   │ ┆     ┆  │   │   └─&gt; <a href="#h02_call_depth_by_path">reveal.h02_call_depth_by_path()</a>             ┆ ┆
-┆  ┆  <a href="../src/webview/main.ts#L747"><b>setSide()</b></a> ─────────────────────────┼─┐ │ ┆     ┆  │   └─&gt; <a href="../src/core/reveal.ts#L44">reveal.reveal()</a>                                 ┆ ┆
-┆  ┆  ┌──────────────────────────────────┘ │ │ ┆     ┆  │       └─&gt; <a href="#h01_first_revealer">reveal.h01_first_revealer()</a>                 ┆ ┆
-┆  ┆  └─&gt; <a href="#h34_offset_handover">h34_offset_handover()</a>            │ │ ┆     ┆  ├─&gt; <a href="../src/core/boxes.ts#L45">boxes.boxTree()</a>                                     ┆ ┆
-┆  ┆  <a href="../src/webview/main.ts#L1080"><b>dragUnit()</b></a> ─────────────────────┬────┤ │ ┆     ┆  │   └─&gt; <a href="#h03_box_order">boxes.h03_box_order()</a>                           ┆ ┆
-┆  ┆  ├─&gt; <a href="../src/webview/main.ts#L1071">topUnits()</a>                  │    │ │ ┆     ┆  ├─&gt; <a href="../src/core/place.ts#L77">place.place()</a>                                       ┆ ┆
-┆  ┆  │   └─&gt; <a href="#h32_multi_unit_drag">h32_multi_unit_drag()</a>   │    │ │ ┆     ┆  │   └─&gt; <a href="../src/core/place.ts#L242">place.placeBox() ↻</a>                              ┆ ┆
-┆  ┆  └─&gt; <a href="../src/webview/main.ts#L1181">settleDrop()</a>                │    │ │ ┆     ┆  │       ├─&gt; <a href="#h16_item_order">place.h16_item_order()</a>                      ┆ ┆
-┆  ┆      └─&gt; <a href="#h33_drop_repulsion">h33_drop_repulsion()</a>    │    │ │ ┆     ┆  │       ├─&gt; <a href="#h17_item_column">place.h17_item_column()</a>                     ┆ ┆
-┆  ┆  <a href="../src/webview/main.ts#L1249"><b>runCmd()</b></a> ───────────────────────┼────┤ │ ┆     ┆  │       ├─&gt; <a href="#h18_item_row">place.h18_item_row()</a>                        ┆ ┆
-┆  ┆      ┌───────────────────────────┘    │ │ ┆     ┆  │       ├─&gt; <a href="../src/core/place.ts#L100">place.placeBlock()</a>                          ┆ ┆
-┆  ┆      └─&gt; <a href="#h31_still_anchor">h31_still_anchor()</a>           │ │ ┆     ┆  │       │   ├─&gt; <a href="#h13_caller_alignment">place.h13_caller_alignment()</a>            ┆ ┆
-┆  ┆  ┌────────────────────────────────────┘ │ ┆     ┆  │       │   ├─&gt; <a href="../src/core/layout.ts#L78">layout.layout()</a>                         ┆ ┆
-┆  ┆  └─&gt; <a href="../src/webview/main.ts#L732">anchorAt()</a> ────────────────────────┤ ┆     ┆  │       │   │   ├─&gt; <a href="#h06_root_order">layout.h06_root_order()</a>             ┆ ┆
-┆  ┆      ┌──────────────────────────────────┘ ┆     ┆  │       │   │   ├─&gt; <a href="#h07_child_order">layout.h07_child_order()</a>            ┆ ┆
-┆  ┆      └─&gt; <a href="#h30_action_anchor">h30_action_anchor()</a>              ┆     ┆  │       │   │   ├─&gt; <a href="#h08_row_order">layout.h08_row_order()</a>              ┆ ┆
-┆  ╰┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄╯     ┆  │       │   │   ├─&gt; <a href="#tree_parent_rule">layout.tree_parent_rule()</a>           ┆ ┆
-┆                                                    ┆  │       │   │   │   ├─&gt; <a href="#h09_joint_parent">layout.h09_joint_parent()</a>       ┆ ┆
-┆                                                    ┆  │       │   │   │   └─&gt; <a href="#h10_dfs_nearest_parent">layout.h10_dfs_nearest_parent()</a> ┆ ┆
-┆                                                    ┆  │       │   │   ├─&gt; <a href="#h11_port_row">layout.h11_port_row()</a>               ┆ ┆
-┆                                                    ┆  │       │   │   └─&gt; <a href="#h12_lane_packing">layout.h12_lane_packing()</a>           ┆ ┆
-┆                                                    ┆  │       │   ├─&gt; <a href="#h14_monotone_rows">place.h14_monotone_rows()</a>               ┆ ┆
-┆                                                    ┆  │       │   ├─&gt; <a href="#h15_block_descent">place.h15_block_descent()</a>               ┆ ┆
-┆                                                    ┆  │       │   └─&gt; <a href="#h21_moved_function_descent">place.h21_moved_function_descent()</a>      ┆ ┆
-┆                                                    ┆  │       ├─&gt; <a href="#item_state">place.item_state()</a>                          ┆ ┆
-┆                                                    ┆  │       │   ├─&gt; <a href="#h19_lock_and_box_offset">place.h19_lock_and_box_offset()</a>         ┆ ┆
-┆                                                    ┆  │       │   └─&gt; <a href="#h20_unmoved_box_descent">place.h20_unmoved_box_descent()</a>         ┆ ┆
-┆                                                    ┆  │       └─&gt; <a href="#h22_frame_extent">place.h22_frame_extent()</a>                    ┆ ┆
-┆                                                    ┆  ├─&gt; <a href="#h05_marker_row_first">scene.h05_marker_row_first()</a>                        ┆ ┆
-┆                                                    ┆  ├─&gt; <a href="../src/core/scene.ts#L78">scene.sortKeyOf()</a>                                   ┆ ┆
-┆                                                    ┆  │   └─&gt; <a href="#h04_sort_key">scene.h04_sort_key()</a>                            ┆ ┆
-┆                                                    ┆  ├─&gt; <a href="../src/core/settle.ts#L47">settle.settleMoved()</a>                                ┆ ┆
-┆                                                    ┆  │   └─&gt; <a href="#h23_settle">settle.h23_settle()</a>                             ┆ ┆
-┆                                                    ┆  └─&gt; <a href="../src/core/grid.ts#L107">grid.buildGrid()</a>                                    ┆ ┆
-┆                                                    ┆      ├─&gt; <a href="#h24_tree_lines_first">grid.h24_tree_lines_first()</a>                     ┆ ┆
-┆                                                    ┆      ├─&gt; <a href="#h25_routing_order">grid.h25_routing_order()</a>                        ┆ ┆
-┆                                                    ┆      ├─&gt; <a href="#h26_arrival_side">grid.h26_arrival_side()</a>                         ┆ ┆
-┆                                                    ┆      ├─&gt; <a href="#h27_departure_reservation">grid.h27_departure_reservation()</a>                ┆ ┆
-┆                                                    ┆      ├─&gt; <a href="#h28_departure_point">grid.h28_departure_point()</a>                      ┆ ┆
-┆                                                    ┆      ├─&gt; <a href="#h29_route_cost">grid.h29_route_cost()</a>                           ┆ ┆
-┆                                                    ┆      └─&gt; <a href="#h36_call_kind_style">grid.h36_call_kind_style()</a>                      ┆ ┆
-┆                                                    ╰┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄╯ ┆
-╰┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄╯
+╭┄ src ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄╮
+┆  ╭┄ webview/main ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄╮     ╭┄ core ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄╮ ┆
+┆  ┆  <a href="../src/webview/main.ts#L436"><b>render()</b></a> ──────────────────────────────┬────────&gt; <a href="../src/core/scene.ts#L112">scene.buildScene()</a>                                          ┆ ┆
+┆  ┆  ├─&gt; <a href="#h37_hops">h37_hops()</a>                         │ ┆     ┆  ├─&gt; <a href="../src/core/scene.ts#L328">scene.revealView()</a>                                      ┆ ┆
+┆  ┆  └─&gt; <a href="../src/webview/main.ts#L687">afterRender()</a> ─────────────────┐   │ ┆     ┆  │   ├─&gt; <a href="../src/core/reveal.ts#L78">reveal.revealDepth()</a>                                ┆ ┆
+┆  ┆      └─&gt; <a href="#h35_save_what_is_drawn">h35_save_what_is_drawn()</a>   │   │ ┆     ┆  │   │   └─&gt; <a href="#h02_call_depth_by_path">reveal.h02_call_depth_by_path()</a>                 ┆ ┆
+┆  ┆  <a href="../src/webview/main.ts#L789"><b>setSide()</b></a> ─────────────────────────┼─┐ │ ┆     ┆  │   └─&gt; <a href="../src/core/reveal.ts#L44">reveal.reveal()</a>                                     ┆ ┆
+┆  ┆  ┌──────────────────────────────────┘ │ │ ┆     ┆  │       └─&gt; <a href="#h01_first_revealer">reveal.h01_first_revealer()</a>                     ┆ ┆
+┆  ┆  └─&gt; <a href="#h34_offset_handover">h34_offset_handover()</a>            │ │ ┆     ┆  ├─&gt; <a href="../src/core/boxes.ts#L45">boxes.boxTree()</a>                                         ┆ ┆
+┆  ┆  <a href="../src/webview/main.ts#L1125"><b>dragUnit()</b></a> ─────────────────────┬────┤ │ ┆     ┆  │   └─&gt; <a href="#h03_box_order">boxes.h03_box_order()</a>                               ┆ ┆
+┆  ┆  ├─&gt; <a href="../src/webview/main.ts#L1116">topUnits()</a>                  │    │ │ ┆     ┆  ├─&gt; <a href="../src/core/place.ts#L82">place.place()</a>                                           ┆ ┆
+┆  ┆  │   └─&gt; <a href="#h32_multi_unit_drag">h32_multi_unit_drag()</a>   │    │ │ ┆     ┆  │   └─&gt; <a href="../src/core/place.ts#L270">place.placeBox() ↻</a> ───────────────────────────────┐ ┆ ┆
+┆  ┆  └─&gt; <a href="../src/webview/main.ts#L1226">settleDrop()</a>                │    │ │ ┆     ┆  │       ├─&gt; <a href="#h16_item_order">place.h16_item_order()</a>                        │ ┆ ┆
+┆  ┆      └─&gt; <a href="#h33_drop_repulsion">h33_drop_repulsion()</a>    │    │ │ ┆     ┆  │       ├─&gt; <a href="#h17_item_column">place.h17_item_column()</a>                       │ ┆ ┆
+┆  ┆  <a href="../src/webview/main.ts#L1295"><b>runCmd()</b></a> ───────────────────────┼────┤ │ ┆     ┆  │       ├─&gt; <a href="#h18_item_row">place.h18_item_row()</a>                          │ ┆ ┆
+┆  ┆      ┌───────────────────────────┘    │ │ ┆     ┆  │       ├─&gt; <a href="../src/core/place.ts#L116">place.placeBlock()</a>                            │ ┆ ┆
+┆  ┆      └─&gt; <a href="#h31_still_anchor">h31_still_anchor()</a>           │ │ ┆     ┆  │       │   ├─&gt; <a href="#h13_caller_alignment">place.h13_caller_alignment()</a>              │ ┆ ┆
+┆  ┆  ┌────────────────────────────────────┘ │ ┆     ┆  │       │   ├─&gt; <a href="../src/core/layout.ts#L80">layout.layout()</a>                           │ ┆ ┆
+┆  ┆  └─&gt; <a href="../src/webview/main.ts#L774">anchorAt()</a> ────────────────────────┤ ┆     ┆  │       │   │   ├─&gt; <a href="#h06_root_order">layout.h06_root_order()</a>               │ ┆ ┆
+┆  ┆      ┌──────────────────────────────────┘ ┆     ┆  │       │   │   ├─&gt; <a href="#h07_child_order">layout.h07_child_order()</a>              │ ┆ ┆
+┆  ┆      └─&gt; <a href="#h30_action_anchor">h30_action_anchor()</a>              ┆     ┆  │       │   │   ├─&gt; <a href="#h08_row_order">layout.h08_row_order()</a>                │ ┆ ┆
+┆  ╰┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄╯     ┆  │       │   │   ├─&gt; <a href="#tree_parent_rule">layout.tree_parent_rule()</a>             │ ┆ ┆
+┆                                                    ┆  │       │   │   │   ├─&gt; <a href="#h09_joint_parent">layout.h09_joint_parent()</a>         │ ┆ ┆
+┆                                                    ┆  │       │   │   │   └─&gt; <a href="#h10_dfs_nearest_parent">layout.h10_dfs_nearest_parent()</a>   │ ┆ ┆
+┆                                                    ┆  │       │   │   ├─&gt; <a href="#h11_port_row">layout.h11_port_row()</a>                 │ ┆ ┆
+┆                                                    ┆  │       │   │   └─&gt; <a href="#h12_lane_packing">layout.h12_lane_packing()</a>             │ ┆ ┆
+┆                                                    ┆  │       │   ├─&gt; <a href="#h14_monotone_rows">place.h14_monotone_rows()</a>                 │ ┆ ┆
+┆                                                    ┆  │       │   ├─&gt; <a href="#h15_block_descent">place.h15_block_descent()</a>                 │ ┆ ┆
+┆                                                    ┆  │       │   └─&gt; <a href="#h21_moved_function_descent">place.h21_moved_function_descent()</a>        │ ┆ ┆
+┆                                                    ┆  │       ├─&gt; <a href="#item_state">place.item_state()</a>                            │ ┆ ┆
+┆                                                    ┆  │       │   ├─&gt; <a href="#h19_lock_and_box_offset">place.h19_lock_and_box_offset()</a>           │ ┆ ┆
+┆                                                    ┆  │       │   └─&gt; <a href="#h20_unmoved_box_descent">place.h20_unmoved_box_descent()</a>           │ ┆ ┆
+┆                                                    ┆  │       └─&gt; <a href="#h22_frame_extent">place.h22_frame_extent()</a>                      │ ┆ ┆
+┆                                                    ┆  ├─&gt; <a href="#h05_marker_row_first">scene.h05_marker_row_first()</a>                          │ ┆ ┆
+┆                                                    ┆  ├─&gt; <a href="../src/core/scene.ts#L79">scene.sortKeyOf()</a>                                     │ ┆ ┆
+┆                                                    ┆  │   └─&gt; <a href="#h04_sort_key">scene.h04_sort_key()</a>                              │ ┆ ┆
+┆                                                    ┆  ├─&gt; <a href="../src/core/settle.ts#L47">settle.settleMoved()</a> ─────────────────────────────────┤ ┆ ┆
+┆                                                    ┆  │   │   ┌─────────────────────────────────────────────────┘ ┆ ┆
+┆                                                    ┆  │   │   └─&gt; <a href="#h38_frame_overlap">place.h38_frame_overlap()</a>                       ┆ ┆
+┆                                                    ┆  │   └─&gt; <a href="#h23_settle">settle.h23_settle()</a>                                 ┆ ┆
+┆                                                    ┆  └─&gt; <a href="../src/core/grid.ts#L131">grid.buildGrid()</a>                                        ┆ ┆
+┆                                                    ┆      ├─&gt; <a href="#h39_reroute">grid.h39_reroute()</a>                                  ┆ ┆
+┆                                                    ┆      ├─&gt; <a href="#h24_tree_lines_first">grid.h24_tree_lines_first()</a>                         ┆ ┆
+┆                                                    ┆      ├─&gt; <a href="#h25_routing_order">grid.h25_routing_order()</a>                            ┆ ┆
+┆                                                    ┆      ├─&gt; <a href="#h26_arrival_side">grid.h26_arrival_side()</a>                             ┆ ┆
+┆                                                    ┆      ├─&gt; <a href="#h27_departure_reservation">grid.h27_departure_reservation()</a>                    ┆ ┆
+┆                                                    ┆      ├─&gt; <a href="#h40_lookahead">grid.h40_lookahead()</a>                                ┆ ┆
+┆                                                    ┆      ├─&gt; <a href="#h28_departure_point">grid.h28_departure_point()</a>                          ┆ ┆
+┆                                                    ┆      ├─&gt; <a href="#h29_route_cost">grid.h29_route_cost()</a>                               ┆ ┆
+┆                                                    ┆      └─&gt; <a href="#h36_call_kind_style">grid.h36_call_kind_style()</a>                          ┆ ┆
+┆                                                    ╰┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄╯ ┆
+╰┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄╯
 </pre>
 
 ## Reveal
@@ -77,6 +81,8 @@ Code: [reveal.ts:69](../src/core/reveal.ts#L69), in `reveal`.
 ### h02_call_depth_by_path
 
 **Call depth by path.** Full layout: a function's level is its fewest calls from a seed (shortest) or its most calls with loops ignored (longest).
+
+- Chosen by: Options > Call depth by (view.depthRule).
 
 Code: [reveal.ts:88](../src/core/reveal.ts#L88), in `revealDepth`.
 
@@ -94,61 +100,73 @@ Code: [boxes.ts:53](../src/core/boxes.ts#L53), in `boxTree`.
 
 **Sort key.** Ties are broken by (file path, definition line, name).
 
-Code: [scene.ts:79](../src/core/scene.ts#L79), in `sortKeyOf`.
+Code: [scene.ts:80](../src/core/scene.ts#L80), in `sortKeyOf`.
 
 ### h05_marker_row_first
 
 **Marker row first.** A `└─>>` marker has the empty sort key: it is always a function's first child row.
 
-Code: [scene.ts:193](../src/core/scene.ts#L193), in `buildScene`.
+Code: [scene.ts:201](../src/core/scene.ts#L201), in `buildScene`.
 
 ### h06_root_order
 
 **Root order.** The top-level functions of a block are ordered by your Move Up/Down order, then the rows of their outside callers (h13_caller_alignment), then seed order, then h04_sort_key.
 
-Code: [layout.ts:91](../src/core/layout.ts#L91), in `layout`.
+Code: [layout.ts:93](../src/core/layout.ts#L93), in `layout`.
 
 ### h07_child_order
 
 **Child order.** A function's calls are ordered by your Move Up/Down order, then call line, then h04_sort_key.
 
-Code: [layout.ts:98](../src/core/layout.ts#L98), in `layout`.
+- Alternatives (Rules panel): `line` (default): call line, then sort key; `definition`: definition order (h04_sort_key).
+
+Code: [layout.ts:102](../src/core/layout.ts#L102), in `layout`.
 
 ### h08_row_order
 
 **Row order.** Rows follow a depth-first walk from uncalled functions (seeds first where a loop has no entry). Every caller row lies above its callee rows, except calls back up a loop, which show as `↻` tags.
 
-Code: [layout.ts:148](../src/core/layout.ts#L148), in `layout`.
+Code: [layout.ts:152](../src/core/layout.ts#L152), in `layout`.
 
 ### tree_parent_rule
 
-**Decision: tree parent rule.** Chooses the caller a function hangs under (`└─>`): `joint` (style `grid.parentRule`, the default) for a function with two or more callers in the block, else `dfs` or `nearest`.
+**Decision: tree parent rule.** Chooses the caller a function hangs under (`└─>`): `joint` (Options > Parenting, the default) for a function with two or more callers in the block, else `dfs` or `nearest`.
 
-Code: [layout.ts:169](../src/core/layout.ts#L169), in `layout`.
+- Chosen by: Options > Parenting (view.parentRule).
+
+Code: [layout.ts:173](../src/core/layout.ts#L173), in `layout`.
 
 ### h09_joint_parent
 
 **Joint parent.** Two or more callers in the block: a caller directly above shares its branch (`├───┴─>`); otherwise the function takes no tree parent and every call enters from the left through one collector line (`┌──┘`, `└─>`).
 
-Code: [layout.ts:169](../src/core/layout.ts#L169), in `layout`.
+- Chosen by: Options > Parenting (view.parentRule).
+
+Code: [layout.ts:173](../src/core/layout.ts#L173), in `layout`.
 
 ### h10_dfs_nearest_parent
 
 **dfs / nearest parent.** `dfs`: the caller that first reached the function in the walk. `nearest`: the closest caller above whose vertical line no row in between would cross. Without a parent, a function is indented under its nearest caller.
 
-Code: [layout.ts:186](../src/core/layout.ts#L186), in `layout`.
+- Parameter `h10_dfs_nearest_parent.indent` = 4, range [3, 16]: columns from a tree parent to its child.
+- Chosen by: Options > Parenting (view.parentRule).
+
+Code: [layout.ts:190](../src/core/layout.ts#L190), in `layout`.
 
 ### h11_port_row
 
 **Port row.** A function that both receives and sends routed calls gets a row below it; its outgoing lines leave from there, so an incoming and an outgoing line never share a row.
 
-Code: [layout.ts:230](../src/core/layout.ts#L230), in `layout`.
+Code: [layout.ts:234](../src/core/layout.ts#L234), in `layout`.
 
 ### h12_lane_packing
 
 **Lane packing.** Vertical call lines are placed shortest first, each in the first free column right of every label it passes.
 
-Code: [layout.ts:255](../src/core/layout.ts#L255), in `layout`.
+- Alternatives (Rules panel): `shortest` (default): shortest lane first; `longest`: longest lane first.
+- Parameter `h12_lane_packing.gap` = 2, range [1, 8]: columns between lanes with overlapping rows.
+
+Code: [layout.ts:261](../src/core/layout.ts#L261), in `layout`.
 
 ## Placement
 
@@ -156,73 +174,111 @@ Code: [layout.ts:255](../src/core/layout.ts#L255), in `layout`.
 
 **Caller alignment.** Each top-level function of a block takes the earliest outside-caller row still free, so its incoming call can run level.
 
-Code: [place.ts:119](../src/core/place.ts#L119), in `placeBlock`.
+- Switch (Rules panel): off: block roots one row after another from the top, not at their callers' rows.
+
+Code: [place.ts:135](../src/core/place.ts#L135), in `placeBlock`.
 
 ### h14_monotone_rows
 
-**Monotone rows.** A row's position is the larger of "row above + 1" and its preferred row (h13_caller_alignment); an approach row stays directly above its function.
+**Monotone rows.** A row's position is the larger of "row above + 1" and its preferred row (h13_caller_alignment); an approach row stays directly above its function. Rows skip the cells of a locked function of the block (locks are absolute), whose tree below moves with it.
 
-Code: [place.ts:125](../src/core/place.ts#L125), in `placeBlock`.
+Code: [place.ts:148](../src/core/place.ts#L148), in `placeBlock`.
 
 ### h15_block_descent
 
 **Block descent.** A block that would overlap something already placed moves down until clear.
 
-Code: [place.ts:145](../src/core/place.ts#L145), in `placeBlock`.
+- Switch (Rules panel): off: blocks keep their row over earlier siblings.
+- Parameter `h15_block_descent.flag` = 12, range [1, 1000]: rows of descent that flag the decision (⚑).
+
+Code: [place.ts:172](../src/core/place.ts#L172), in `placeBlock`.
 
 ### h21_moved_function_descent
 
 **Moved function descent.** A moved, unlocked function with its tree moves down until its labels clear the other labels of its own block. A collapsed container moves and locks as `collapsed:<key>`, apart from its expanded vertex, so expanding it returns to the layout before the collapse.
 
-Code: [place.ts:195](../src/core/place.ts#L195), in `placeBlock`.
+- Switch (Rules panel): off: moved functions keep their row over labels of their block.
+- Parameter `h21_moved_function_descent.margin` = 2, range [0, 8]: cells kept between labels of one row.
+- Parameter `h21_moved_function_descent.flag` = 4, range [1, 1000]: rows of descent that flag the decision (⚑).
+
+Code: [place.ts:223](../src/core/place.ts#L223), in `placeBlock`.
 
 ### h16_item_order
 
 **Item order.** Within a box: locked items first, then callers' items before callees' items (ties by h03_box_order).
 
-Code: [place.ts:272](../src/core/place.ts#L272), in `placeBox`.
+Code: [place.ts:300](../src/core/place.ts#L300), in `placeBox`.
 
 ### h17_item_column
 
 **Item column.** An item goes right of the rightmost earlier item that calls into it, plus a channel of `route.channel` columns + 1 per incoming call; otherwise at the box's left edge.
 
-Code: [place.ts:294](../src/core/place.ts#L294), in `placeBox`.
+- Switch (Rules panel): off: child boxes at the content column, not right of their calling siblings.
+- Parameter `h17_item_column.channel` = 4, range [1, 16]: columns of the routing channel right of a calling item, plus one per entering call.
+
+Code: [place.ts:323](../src/core/place.ts#L323), in `placeBox`.
 
 ### h18_item_row
 
 **Item row.** An item starts at its first placed caller's row, else below the unlocked items already placed.
 
-Code: [place.ts:299](../src/core/place.ts#L299), in `placeBox`.
+- Switch (Rules panel): off: child boxes stacked below earlier siblings, not at their callers' rows.
+
+Code: [place.ts:328](../src/core/place.ts#L328), in `placeBox`.
 
 ### item_state
 
 **Decision: locked, moved or unmoved item.** A box item is placed by its lock, by its offset, or by trial placement.
 
-Code: [place.ts:313](../src/core/place.ts#L313), in `placeBox`.
+Code: [place.ts:343](../src/core/place.ts#L343), in `placeBox`.
 
 ### h19_lock_and_box_offset
 
 **Lock and box offset.** A moved box is placed as if unmoved (at its trial row), then translated whole by its offset: labels, lanes and inner frames keep their places relative to its frame. A locked box translates the same way, onto its fixed cell (frame corner).
 
-Code: [place.ts:321](../src/core/place.ts#L321), in `placeBox`.
+Code: [place.ts:351](../src/core/place.ts#L351), in `placeBox`.
 
 ### h20_unmoved_box_descent
 
-**Unmoved box descent.** An unmoved box that overlaps an earlier item moves down until clear, by the distance from its top to below that item. An earlier box moved by an offset counts at its unmoved place, so a move never pushes unmoved boxes down. Moved boxes are exempt; h23_settle handles them.
+**Unmoved box descent.** An unmoved box that overlaps an earlier item moves down until clear, by the distance from its top to below that item, or right past it when that costs less (`down`, `right`, `cross`). A box whose frame a locked unit inside pins (locks are absolute) stops where a further move gains nothing, flagged. An earlier box moved by an offset counts at its unmoved place, so a move never pushes unmoved boxes down. Moved boxes are exempt; h23_settle handles them.
 
-Code: [place.ts:332](../src/core/place.ts#L332), in `placeBox`.
+- Switch (Rules panel): off: unmoved boxes keep their trial row over earlier siblings.
+- Parameter `h20_unmoved_box_descent.flag` = 12, range [1, 1000]: rows of descent that flag the decision (⚑).
+- Parameter `h20_unmoved_box_descent.down` = 1, range [0, 10]: cost per row of descent.
+- Parameter `h20_unmoved_box_descent.right` = 0, range [0, 10]: cost per column of a move right past the overlapped item; 0: never right.
+- Parameter `h20_unmoved_box_descent.cross` = 0, range [0, 10]: cost per call between other functions whose span the box would cover (E5).
+
+Code: [place.ts:363](../src/core/place.ts#L363), in `placeBox`.
 
 ### h22_frame_extent
 
-**Frame extent.** Tight groups (style `boxes.tight`, the default): a frame is its content's bounding box plus margin. Otherwise the frame keeps the box's unmoved corner and only grows. Ungrouping or grouping a container drops the moves inside it (`dropMovesWithin`): offsets count from the box that held them.
+**Frame extent.** Tight groups (Options > Grouping > Tight, the default): a frame is its content's bounding box plus margin. Otherwise the frame keeps the box's unmoved corner and only grows. Ungrouping or grouping a container drops the moves inside it (`dropMovesWithin`): offsets count from the box that held them.
 
-Code: [place.ts:361](../src/core/place.ts#L361), in `placeBox`.
+- Chosen by: Options > Grouping > Tight (view.tight).
+
+Code: [place.ts:412](../src/core/place.ts#L412), in `placeBox`.
 
 ### h23_settle
 
 **Settle.** Every redraw, moved units whose labels or frames lie on other content, or whose frame touches another frame without a free row or column between (no corridor for calls), move to the nearest clear offset, up to 3 rounds (the loop in buildScene). The move that displaces least goes first (distance × labels moved: a small unit yields to a large one); ties: boxes before functions, then the smaller unit. Search: 12 cells around (vertical first), then straight lines up to 80, never off the top or left edge. Locked units never move. Lines are not considered.
 
-Code: [settle.ts:97](../src/core/settle.ts#L97), in `settleMoved`.
+- Switch (Rules panel): off: moved units stay where their offsets put them.
+- Parameter `h23_settle.range` = 12, range [1, 40]: Manhattan radius of the ring search.
+- Parameter `h23_settle.far` = 80, range [0, 400]: cells of the straight-line search past the rings.
+- Parameter `h23_settle.margin` = 4, range [1, 12]: cells between labels of one row.
+- Parameter `h23_settle.rounds` = 3, range [0, 8]: settle rounds per redraw.
+- Parameter `h23_settle.flag` = 12, range [1, 1000]: move length that flags the decision (⚑).
+
+Code: [settle.ts:104](../src/core/settle.ts#L104), in `settleMoved`.
+
+### h38_frame_overlap
+
+**Frame overlap.** Frames of sibling groups may overlap where their content does not. A group overlapping an earlier sibling group's frame stays when no label, header or arrival cell of either lies within `margin` of the other's frame: h20_unmoved_box_descent and h23_settle test labels against frames, not frames against frames. Blocks of functions (h15_block_descent) keep clear of other content. Labels never overlap.
+
+- Switch (Rules panel): off: frames nest or stay apart: an overlapping group descends.
+- Parameter `h38_frame_overlap.margin` = 1, range [0, 6]: cells kept between a label and a foreign frame border.
+
+Code: [place.ts:368](../src/core/place.ts#L368), in `placeBox`; [settle.ts:54](../src/core/settle.ts#L54), in `settleMoved`.
 
 ## Routing
 
@@ -230,43 +286,81 @@ Code: [settle.ts:97](../src/core/settle.ts#L97), in `settleMoved`.
 
 **Tree lines first.** Tree branches and lanes are drawn before routed calls; a branch between functions with different offsets is routed instead.
 
-Code: [grid.ts:260](../src/core/grid.ts#L260), in `buildGrid`.
+- Switch (Rules panel): off: every call routed by search: no tree elbows, no lanes.
+
+Code: [grid.ts:352](../src/core/grid.ts#L352), in `buildGrid`.
 
 ### h25_routing_order
 
-**Routing order.** Straightened calls first, then level calls (shortest first), then the rest (longest first).
+**Routing order.** Calls are routed one at a time, each an obstacle for the calls after it: the order decides which call takes a free corridor and which must cross it. Straightened calls first, then by the chosen alternative: `row` (default), callers top to bottom, a caller's calls together in callee order; `longest`, level calls shortest first, then the rest longest first; `shortest`, level calls, then the rest shortest first.
 
-Code: [grid.ts:327](../src/core/grid.ts#L327), in `buildGrid`.
+- Alternatives (Rules panel): `longest`: level calls shortest first, then the rest longest first; `shortest`: level calls, then the rest shortest first; `row` (default): by caller row, then callee row: top to bottom.
+
+Code: [grid.ts:424](../src/core/grid.ts#L424), in `buildGrid`.
 
 ### h26_arrival_side
 
 **Arrival side.** A call enters from the left when most callers are to the function's left, or the function sends from its label end, or the joint rule applies; else at its right end. The two cells on the entering side are reserved for its incoming calls.
 
-Code: [grid.ts:348](../src/core/grid.ts#L348), in `buildGrid`.
+Code: [grid.ts:448](../src/core/grid.ts#L448), in `buildGrid`.
 
 ### h27_departure_reservation
 
 **Departure reservation.** The two cells right of a caller's label end, or right of its port, are reserved for its outgoing calls.
 
-Code: [grid.ts:358](../src/core/grid.ts#L358), in `buildGrid`.
+- Switch (Rules panel): off: no cells reserved after a caller's label for its calls.
+
+Code: [grid.ts:465](../src/core/grid.ts#L465), in `buildGrid`.
 
 ### h28_departure_point
 
 **Departure point.** A call leaves from the label end (cost 0) or from under or over the first character (cost 2). A function whose end receives calls never sends from it; with no free start the call is drawn dashed.
 
-Code: [grid.ts:446](../src/core/grid.ts#L446), in `buildGrid`.
+- Parameter `h28_departure_point.under` = 2, range [0, 20]: cost of leaving under or over the first character instead of the label end.
+
+Code: [grid.ts:579](../src/core/grid.ts#L579), in `buildGrid`.
 
 ### h29_route_cost
 
 **Route cost.** A* over (cell, heading), guided by the grid (Manhattan) distance to the arrival cell. Each step costs 1; +4 entering a frame border (`route.border`), +6 crossing another call's line (`route.cross`), 0.3 along this target's own line (joining it), +3 per change of heading (`route.bend`), +2 for a vertical step next to another call's vertical line (`route.adjacent`). Never: label cells and padding, markers, reversing, running along a border, cells reserved for another call. The first pass forbids running along or turning on another line; a second pass allows them at +400 and +40. No route in both passes (400 000 search steps): dashed.
 
-Code: [grid.ts:518](../src/core/grid.ts#L518), in `buildGrid`.
+- Parameter `h29_route_cost.bend` = 3, range [0, 100]: per change of heading.
+- Parameter `h29_route_cost.cross` = 6, range [0, 100]: per crossing of another call's line.
+- Parameter `h29_route_cost.border` = 4, range [0, 100]: per frame border crossed.
+- Parameter `h29_route_cost.adjacent` = 2, range [0, 100]: per vertical step next to another call's vertical line.
+- Parameter `h29_route_cost.bundle` = 0.3, range [0.05, 1]: per step on a line of the same callee, or of the same caller alone (merging).
+- Parameter `h29_route_cost.relaxTurn` = 40, range [0, 1000]: second pass: turning on another line.
+- Parameter `h29_route_cost.relaxAlong` = 400, range [0, 10000]: second pass: running along another line.
+- Parameter `h29_route_cost.steps` = 400000, range [1000, 2000000]: search states per call before the dashed fallback.
+- Parameter `h29_route_cost.estimate` = 1, range [0.05, 1]: scale of the distance estimate; ≤ 0.3: admissible (cheapest routes, slower).
+
+Code: [grid.ts:653](../src/core/grid.ts#L653), in `buildGrid`.
+
+### h39_reroute
+
+**Reroute.** Rip-up and reroute: after routing, calls that calls routed later crossed at least `min` times, and the earlier call of each braid (two calls crossing each other twice), are candidates. Per attempt, the candidates of one caller, most crossed first, are routed again after the others; an attempt is kept when the total route cost (cells, bends, crossings) drops, else the next caller is tried: `tries` callers per round, `rounds` rounds.
+
+- Parameter `h39_reroute.rounds` = 0, range [0, 8]: reroute rounds; 0: off.
+- Parameter `h39_reroute.min` = 2, range [1, 50]: received crossings that send a call to reroute.
+- Parameter `h39_reroute.tries` = 3, range [1, 20]: callers tried per round.
+
+Code: [grid.ts:134](../src/core/grid.ts#L134), in `buildGrid`.
+
+### h40_lookahead
+
+**Lookahead.** Each cell costs `weight` per call not routed yet whose bounding box (caller to callee) holds it, so early routes leave the corridors later calls need; 0: off.
+
+- Parameter `h40_lookahead.weight` = 0, range [0, 4]: cost per pending call box over a cell.
+
+Code: [grid.ts:487](../src/core/grid.ts#L487), in `buildGrid`.
 
 ### h36_call_kind_style
 
 **Call kind style.** Cells that only implicit calls (construction, instance call) or only calls across languages pass are drawn in their kind's style: dotted and dash-dot, in text and export (`┈ ┊`, `─·─·`) and in every vector style; a plain call on a cell makes it plain.
 
-Code: [grid.ts:606](../src/core/grid.ts#L606), in `buildGrid`.
+- Switch (Rules panel): off: every call drawn plain.
+
+Code: [grid.ts:780](../src/core/grid.ts#L780), in `buildGrid`.
 
 ## Webview
 
@@ -274,40 +368,55 @@ Code: [grid.ts:606](../src/core/grid.ts#L606), in `buildGrid`.
 
 **Hops.** Where a horizontal call line crosses a vertical one (one cell, neither turning), the horizontal line hops over it with a half circle of 0.525 cell, in orthogonal and rounded edges; text shows the crossing glyph.
 
-Code: [main.ts:471](../src/webview/main.ts#L471), in `render`.
+- Switch (Rules panel): off: crossings drawn without hops.
+- Parameter `h37_hops.radius` = 0.525, range [0.1, 1]: hop radius in cells.
+
+Code: [main.ts:511](../src/webview/main.ts#L511), in `render`.
 
 ### h30_action_anchor
 
 **Action anchor.** The function you last opened, closed or removed keeps its spot on screen: the view pans to compensate.
 
-Code: [main.ts:422](../src/webview/main.ts#L422), in `render`; [main.ts:733](../src/webview/main.ts#L733), in `anchorAt`.
+- Switch (Rules panel): off: the view does not pan after an open, close or remove.
+
+Code: [main.ts:462](../src/webview/main.ts#L462), in `render`; [main.ts:775](../src/webview/main.ts#L775), in `anchorAt`.
 
 ### h31_still_anchor
 
 **Still anchor.** After a drag or Re-arrange Selection, the view stays fixed on a seed or another function that did not move.
 
-Code: [main.ts:1122](../src/webview/main.ts#L1122), in `dragUnit`; [main.ts:1379](../src/webview/main.ts#L1379), in `runCmd`.
+- Switch (Rules panel): off: the view does not pan after a drag or re-arrange.
+
+Code: [main.ts:1167](../src/webview/main.ts#L1167), in `dragUnit`; [main.ts:1433](../src/webview/main.ts#L1433), in `runCmd`.
 
 ### h32_multi_unit_drag
 
 **Multi-unit drag.** Dragging a selected function moves each selected function with the functions below it, each once; one inside another selected function's tree moves with that function.
 
-Code: [main.ts:1073](../src/webview/main.ts#L1073), in `topUnits`.
+Code: [main.ts:1118](../src/webview/main.ts#L1118), in `topUnits`.
 
 ### h33_drop_repulsion
 
-**Drop repulsion.** A drop on content, or one that leaves a call unroutable, moves on in the drag direction, then sideways, up to 12 cells or 1.5 s. Since h23_settle runs in buildScene, every trial spot looks clear and this rule changes nothing.
+**Drop repulsion.** A drop on content, or one that leaves a call unroutable, moves on in the drag direction, then sideways, up to `cells` cells (4) or `ms` (400 ms). Since h23_settle runs in buildScene, most trial spots look clear at once; each further trial is a full layout.
 
-Code: [main.ts:1194](../src/webview/main.ts#L1194), in `settleDrop`.
+- Switch (Rules panel): off: drops land where dropped.
+- Parameter `h33_drop_repulsion.cells` = 4, range [0, 40]: cells searched along and beside the drag.
+- Parameter `h33_drop_repulsion.ms` = 400, range [0, 5000]: time limit of the search.
+
+Code: [main.ts:1240](../src/webview/main.ts#L1240), in `settleDrop`.
 
 ### h34_offset_handover
 
 **Offset handover.** Opening the callers of a moved function: when a caller revealed by that opening becomes its tree parent and has no offset or lock, the caller takes the function's offset and the function loses it. The offset now moves both, so the caller sits right above the function where you put it.
 
-Code: [main.ts:656](../src/webview/main.ts#L656), in `afterRender`; [main.ts:752](../src/webview/main.ts#L752), in `setSide`.
+- Switch (Rules panel): off: a moved function keeps its offset when its callers open.
+
+Code: [main.ts:698](../src/webview/main.ts#L698), in `afterRender`; [main.ts:794](../src/webview/main.ts#L794), in `setSide`.
 
 ### h35_save_what_is_drawn
 
 **Save what is drawn.** The view saves the offsets h23_settle drew with, at most 3 saves in a row; any other change resets the count.
 
-Code: [main.ts:663](../src/webview/main.ts#L663), in `afterRender`.
+- Parameter `h35_save_what_is_drawn.saves` = 3, range [0, 10]: settled offsets saved in a row.
+
+Code: [main.ts:705](../src/webview/main.ts#L705), in `afterRender`.

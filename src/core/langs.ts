@@ -84,20 +84,44 @@ export function paramTypes(text: string): string | undefined {
     return undefined;
 }
 
-/** VS Code extension per language for document symbols and call hierarchy (messages). */
-export const SERVERS: Record<string, string> = {
-    py: 'Python with Pylance (ms-python.python)',
-    rs: 'rust-analyzer (rust-lang.rust-analyzer)',
-    c: 'C/C++ (ms-vscode.cpptools) or clangd (llvm-vs-code-extensions.vscode-clangd)',
-    cpp: 'C/C++ (ms-vscode.cpptools) or clangd (llvm-vs-code-extensions.vscode-clangd)',
-    cuda: 'C/C++ (ms-vscode.cpptools) or clangd (llvm-vs-code-extensions.vscode-clangd)',
-    go: 'Go (golang.go)',
-    java: 'Language Support for Java (redhat.java)',
-    cs: 'C# Dev Kit (ms-dotnettools.csdevkit)',
-    dart: 'Dart (Dart-Code.dart-code)',
-    slang: 'Slang (shader-slang.slang-language-extension)',
-    glsl: 'WebGL GLSL Editor (raczzalan.webgl-glsl-editor)',
+/**
+ * Language providers: VS Code extensions answering document symbols and call hierarchy, per language (`langs`: LANG
+ * ids). `any`: extension ids that serve it; `install`: the one to suggest; `restart`: commands restarting its server,
+ * offered only when registered; `optional`: gaffy draws the language without it (text calls), with this caveat.
+ * Read by host/servers.ts (start-up check, report, warnings) and scripts/providers.ts (list outside VS Code).
+ */
+export interface Provider { label: string; langs: string[]; glob: string; any: string[]; install: string; name: string; restart: string[]; optional?: string }
+
+export const PROVIDERS: Provider[] = [
+    { label: 'Python', langs: ['py'], glob: '**/*.{py,pyi}', any: ['ms-python.vscode-pylance', 'ms-pyright.pyright', 'detachhead.basedpyright'],
+        install: 'ms-python.vscode-pylance', name: 'Pylance', restart: ['python.analysis.restartLanguageServer', 'pyright.restartserver', 'basedpyright.restartserver'] },
+    { label: 'Rust', langs: ['rs'], glob: '**/*.rs', any: ['rust-lang.rust-analyzer'], install: 'rust-lang.rust-analyzer', name: 'rust-analyzer',
+        restart: ['rust-analyzer.restartServer'] },
+    { label: 'C, C++, CUDA', langs: ['c', 'cpp', 'cuda', 'objc', 'objcpp'], glob: '**/*.{c,cc,cpp,cxx,cu,cuh,h,hh,hpp,hxx}',
+        any: ['ms-vscode.cpptools', 'llvm-vs-code-extensions.vscode-clangd'], install: 'ms-vscode.cpptools', name: 'C/C++ or clangd',
+        restart: ['C_Cpp.RestartIntelliSenseForFile', 'clangd.restart'] },
+    { label: 'TypeScript, JavaScript', langs: ['ts', 'js'], glob: '**/*.{ts,tsx,js,jsx,mjs,cjs}', any: ['vscode.typescript-language-features'],
+        install: 'vscode.typescript-language-features', name: 'TypeScript (built in)', restart: ['typescript.restartTsServer'] },
+    { label: 'Go', langs: ['go'], glob: '**/*.go', any: ['golang.go'], install: 'golang.go', name: 'Go', restart: ['go.languageserver.restart'] },
+    { label: 'Java', langs: ['java'], glob: '**/*.java', any: ['redhat.java'], install: 'redhat.java', name: 'Language Support for Java', restart: ['java.restart'] },
+    { label: 'C#', langs: ['cs'], glob: '**/*.cs', any: ['ms-dotnettools.csdevkit', 'ms-dotnettools.csharp'], install: 'ms-dotnettools.csdevkit', name: 'C# Dev Kit',
+        restart: ['dotnet.restartServer'] },
+    { label: 'Dart', langs: ['dart'], glob: '**/*.dart', any: ['dart-code.dart-code'], install: 'Dart-Code.dart-code', name: 'Dart', restart: ['dart.restartAnalysisServer'] },
+    { label: 'Slang', langs: ['slang'], glob: '**/*.{slang,slangh}', any: ['shader-slang.slang-language-extension'], install: 'shader-slang.slang-language-extension',
+        name: 'Slang', restart: [], optional: 'gaffy finds Slang calls in the text without it; with it, go to definition makes them exact' },
+    { label: 'GLSL', langs: ['glsl'], glob: '**/*.{glsl,vert,frag,comp,geom,tesc,tese}', any: ['raczzalan.webgl-glsl-editor'], install: 'raczzalan.webgl-glsl-editor',
+        name: 'WebGL GLSL Editor', restart: [], optional: 'gaffy finds GLSL calls in the text without it' },
+];
+
+/** Provider of a file's language. */
+export const providerOf = (path: string): Provider | undefined => {
+    const lang = langOf(path);
+    return PROVIDERS.find((p) => p.langs.includes(lang));
 };
+
+/** VS Code extension per language for document symbols and call hierarchy (messages). */
+export const SERVERS: Record<string, string> = Object.fromEntries(PROVIDERS.flatMap((p) =>
+    p.langs.map((l) => [l, p.any.length > 1 ? `${p.name} (${p.any.join(' or ')})` : `${p.name} (${p.install})`])));
 
 /** Message: server lists the file's functions but returns no call hierarchy. */
 export const noHierarchyHint = (path: string) => langOf(path) === 'rs'

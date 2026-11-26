@@ -172,3 +172,43 @@ export function revealPaths(vg: VGraph, seeds: readonly NodeKey[], cut: Readonly
     for (const k of visible) if (!level.has(k)) { level.set(k, 0); order.push(k); }
     return { visible, order, opener: new Map(), allowed: new Map([...visible].map((k) => [k, 'both' as const])), level };
 }
+
+/**
+ * Vertices on call paths between `from` and the vertices of `to`, either direction, any length, `from` and `to`
+ * excluded: reached from `from` and reaching `to`, or reached from `to` and reaching `from` (`cut` calls not
+ * followed). O(V + E).
+ */
+export function pathsThrough(vg: VGraph, from: NodeKey, to: readonly NodeKey[], cut: ReadonlySet<string> = new Set()): Set<NodeKey> {
+    const ends = to.filter((t) => t !== from && vg.nodes.has(t));
+    if (!vg.nodes.has(from) || !ends.length) return new Set();
+    const walk = (start: readonly NodeKey[], down: boolean) => {
+        const seen = new Set(start);
+        const stack = [...start];
+        while (stack.length) {
+            const k = stack.pop()!;
+            for (const e of (down ? vg.out.get(k) : vg.inc.get(k)) ?? []) {
+                const n = down ? e.to : e.from;
+                if (!seen.has(n) && !cut.has(cutKey(e.from, e.to))) { seen.add(n); stack.push(n); }
+            }
+        }
+        return seen;
+    };
+    const fwd = walk([from], true), bwd = walk([from], false);
+    const toFwd = walk(ends, true), toBwd = walk(ends, false);
+    const out = new Set<NodeKey>();
+    for (const k of fwd) if (toBwd.has(k)) out.add(k);
+    for (const k of bwd) if (toFwd.has(k)) out.add(k);
+    out.delete(from);
+    for (const t of ends) out.delete(t);
+    return out;
+}
+
+/** `rev` plus `keys` as pinned vertices: visible, both sides allowed, level 0, no opener. */
+export function withPinned(rev: Reveal, keys: Iterable<NodeKey>): Reveal {
+    for (const k of keys) {
+        if (rev.visible.has(k)) continue;
+        rev.visible.add(k); rev.order.push(k); rev.allowed.set(k, 'both'); rev.level.set(k, 0);
+    }
+    return rev;
+}
+

@@ -29,6 +29,8 @@ dist/ffprofile/**
 dist/heuristics.cjs
 dist/ordering.cjs
 dist/explain.cjs
+dist/providers.cjs
+dist/metrics.cjs
 
 refs.bib
 plan.md

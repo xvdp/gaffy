@@ -2,7 +2,7 @@
   "name": "gaffy",
   "displayName": "gaffy",
   "description": "Persistent, manipulable call graphs on a character grid, rendered with D3",
-  "version": "0.9.33",
+  "version": "0.9.34",
   "publisher": "xvdp",
   "license": "Apache-2.0",
   "repository": {
@@ -69,8 +69,8 @@
         },
         "gaffy.autoSave": {
           "type": "boolean",
-          "default": true,
-          "description": "Save the .gaffy view file after every change made in the graph."
+          "default": false,
+          "description": "Autosave Graphs: a new view is written to .baggy/gaffy/ at once and every view is saved after each change. Off: a new view opens unsaved (bound to its .baggy/gaffy/ path); right click > Save writes it, closing it without saving discards it, and edits wait for Save. A view file with \"save\": true (written by a script) saves after each change either way. The canvas menu, Options > File > Autosave Graphs and this setting change the same value; changes from a view go to the workspace settings."
         },
         "gaffy.refreshOnSave": {
           "type": "string",
@@ -90,7 +90,7 @@
         "gaffy.style": {
           "type": "object",
           "default": {},
-          "description": "Style overrides; .baggy/gaffy/style.json overrides these."
+          "description": "Appearance: font, colors, labels, frame and edge drawing (keys of schemas/style.schema.json); .baggy/gaffy/style.json overrides these. Layout choices are made per view in Options, rule switches and parameters in Options > Arrange > Rules; style keys for them are ignored."
         },
         "gaffy.exclude": {
           "type": "array",
@@ -102,7 +102,7 @@
         },
         "gaffy.openCallHierarchy": {
           "type": "boolean",
-          "default": true,
+          "default": false,
           "description": "Also open the VS Code Call Hierarchy (References view) when a gaffy view is created from the editor."
         },
         "gaffy.bridges": {
@@ -110,15 +110,10 @@
           "default": true,
           "description": "Calls across languages, found from binding declarations in the workspace: Python calling C++/CUDA through pybind11, nanobind or torch operators; Python calling Slang through slangpy or slangtorch; TypeScript/JavaScript calling Rust through wasm-bindgen."
         },
-        "gaffy.saveViews": {
-          "type": "boolean",
-          "default": false,
-          "description": "Save gaffy views: a new view is written to .baggy/gaffy/ at once and saved after every change. Off: a new view opens unsaved (bound to its .baggy/gaffy/ path); right click > Save writes it there, closing it without saving discards it."
-        },
         "gaffy.debugLayout": {
           "type": "boolean",
           "default": false,
-          "description": "Layout debugging: right click a function or box > Why Here? lists the placement and settle decisions that put it there (rule, values, outcome); decisions past a threshold are flagged (⚑) on the graph; Options > Layout debugging switches rules off (the picture without them; nothing saved meanwhile) and opens the full decision log. Offline: npm run explain in the gaffy repository."
+          "description": "Layout debugging: right click a function or box > Why Here? lists the placement and settle decisions that put it there (rule, values, outcome); decisions past a threshold are flagged (⚑) on the graph; Options > Arrange opens the debugging panel: Rules (every layout rule: switch, alternative, parameters, saved with the graph; links to its explanation and code), Actions (running log of what moved where and the rules behind it), Edges (routing record per call: order, arrival, cost, crossings). Offline: npm run explain in the gaffy repository."
         },
         "gaffy.trace": {
           "type": "boolean",
@@ -378,7 +373,7 @@
       },
       {
         "command": "gaffy.checkServers",
-        "title": "Check Language Servers",
+        "title": "List Language Providers",
         "category": "gaffy"
       },
       {
@@ -402,12 +397,12 @@
         "category": "gaffy"
       },
       {
-        "command": "gaffy.toggleSaveViews",
+        "command": "gaffy.toggleAutoSave",
         "title": "Autosave Graphs",
         "category": "gaffy"
       },
       {
-        "command": "gaffy.toggleSaveViews.checked",
+        "command": "gaffy.toggleAutoSave.checked",
         "title": "✓ Autosave Graphs",
         "category": "gaffy"
       }
@@ -460,17 +455,17 @@
       "webview/context": [
         {
           "command": "gaffy.view.save",
-          "when": "webviewId == 'gaffy.view' && webviewSection == 'canvas' && !config.gaffy.saveViews",
+          "when": "webviewId == 'gaffy.view' && webviewSection == 'canvas' && !config.gaffy.autoSave",
           "group": "1_file@1"
         },
         {
-          "command": "gaffy.toggleSaveViews",
-          "when": "webviewId == 'gaffy.view' && webviewSection == 'canvas' && !config.gaffy.saveViews",
+          "command": "gaffy.toggleAutoSave",
+          "when": "webviewId == 'gaffy.view' && webviewSection == 'canvas' && !config.gaffy.autoSave",
           "group": "1_file@2"
         },
         {
-          "command": "gaffy.toggleSaveViews.checked",
-          "when": "webviewId == 'gaffy.view' && webviewSection == 'canvas' && config.gaffy.saveViews",
+          "command": "gaffy.toggleAutoSave.checked",
+          "when": "webviewId == 'gaffy.view' && webviewSection == 'canvas' && config.gaffy.autoSave",
           "group": "1_file@2"
         },
         {
@@ -746,7 +741,7 @@
       ],
       "commandPalette": [
         {
-          "command": "gaffy.toggleSaveViews.checked",
+          "command": "gaffy.toggleAutoSave.checked",
           "when": "false"
         },
         {
@@ -935,12 +930,16 @@
     "watch": "node esbuild.mjs --watch",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "test:matrix": "GAFFY_MATRIX=1 vitest run test/matrix.test.ts",
     "package": "npm run typecheck && npm test && npm run build && vsce package --no-dependencies",
+    "release": "npm run typecheck && npm test && npm version patch --no-git-tag-version && npm run build && vsce package --no-dependencies",
     "install:local": "code --install-extension gaffy-$npm_package_version.vsix",
-    "docs:check": "npm run heuristics && git diff --exit-code -- docs",
+    "docs:check": "npm run heuristics && git diff --exit-code -- docs src/core/rules.lines.ts schemas/style.schema.json",
     "preview": "npm run build && node scripts/preview.mjs",
     "heuristics": "node scripts/heuristics.mjs",
-    "explain": "node scripts/explain.mjs"
+    "explain": "node scripts/explain.mjs",
+    "providers": "node scripts/providers.mjs",
+    "metrics": "node scripts/metrics.mjs"
   },
   "dependencies": {
     "d3-drag": "3.0.1",

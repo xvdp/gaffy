@@ -11,13 +11,16 @@
  * - label within 4 cells (`name() ─> next()`) of another label on its row;
  * - another label on or inside its frame;
  * - its frame partly overlapping another, or touching it without a free row or column between (no corridor for
- *   calls; nesting allowed).
- * Search: Manhattan rings d ≤ `RANGE` (12), vertical first; then straight lines, vertical then horizontal, to
- * `FAR` (80): overlapping labels are worse than long moves. Never above row 0 or left of column 0 (layout returns
- * such content: no effect). No clean offset: unit stays.
- * Cost: O(U² · (RANGE² + FAR) · M · (L + F)); U colliding units, M labels and frames per unit, L labels, F frames.
+ *   calls; nesting allowed); with h38_frame_overlap on, instead: one of its labels or headers within `margin` of a
+ *   frame that does not hold it.
+ * Search: Manhattan rings d ≤ `range` (12), vertical first; then straight lines, vertical then horizontal, to
+ * `far` (80): overlapping labels are worse than long moves. Never above row 0 or left of column 0 (layout returns
+ * such content: no effect). No clean offset: unit stays. Parameters of rule h23_settle (rules.ts): range, far,
+ * margin (cells between labels of one row, 4), flag.
+ * Cost: O(U² · (range² + far) · M · (L + F)); U colliding units, M labels and frames per unit, L labels, F frames.
  */
-import { Debug, FLAGS, isOff } from './explain';
+import { boxVertices } from './boxes';
+import { Rules } from './rules';
 import { NodeKey } from './model';
 import type { Placement } from './place';
 import { ViewDoc } from './viewdoc';
@@ -26,10 +29,7 @@ import { ViewDoc } from './viewdoc';
 export interface Units { members: (unit: string) => NodeKey[]; placed: (unit: string) => boolean; stub: (key: NodeKey) => boolean }
 
 interface Span { key: NodeKey; row: number; c0: number; c1: number }
-interface Box { unit: string; r0: number; c0: number; r1: number; c1: number }
-
-const RANGE = 12;
-const FAR = 80;
+interface Box { unit: string; r0: number; c0: number; r1: number; c1: number; head: number; keys: ReadonlySet<NodeKey> }   // head: header label length; keys: vertices inside
 
 const inside = (a: Box, b: Box) => a.r0 >= b.r0 && a.r1 <= b.r1 && a.c0 >= b.c0 && a.c1 <= b.c1;
 const meets = (a: Box, b: Box) => a.r0 <= b.r1 && b.r0 <= a.r1 && a.c0 <= b.c1 && b.c0 <= a.c1;
@@ -44,11 +44,15 @@ const pad = (b: Box): Box => ({ ...b, r0: b.r0 - 1, c0: b.c0 - 1, r1: b.r1 + 1, 
 const within = (s: Span, f: Box) => s.row >= f.r0 && s.row <= f.r1 && s.c1 >= f.c0 && s.c0 - 2 <= f.c1;
 
 /** Offset changes `[unit, dc, dr]` clearing colliding moved units; empty if none collide. */
-export function settleMoved(P: Placement, doc: ViewDoc, units: Units, debug?: Debug, round = 0): [string, number, number][] {
-    if (isOff(debug, 'h23_settle')) return [];
+export function settleMoved(P: Placement, doc: ViewDoc, units: Units, R: Rules = new Rules(), round = 0): [string, number, number][] {
+    if (!R.on('h23_settle')) return [];
+    const RANGE = R.p('h23_settle', 'range'), FAR = R.p('h23_settle', 'far'), GAP = R.p('h23_settle', 'margin');
     const spans: Span[] = [...P.pos].filter(([k]) => !units.stub(k) && P.text.has(k))
         .map(([key, p]) => ({ key, row: p.row, c0: p.col, c1: p.col + P.text.get(key)!.length - 1 }));
-    const boxes: Box[] = P.frames.map((f) => ({ unit: f.unit, r0: f.r0, c0: f.c0, r1: f.r1, c1: f.c1 }));
+    const boxes: Box[] = P.frames.map((f) => ({ unit: f.unit, r0: f.r0, c0: f.c0, r1: f.r1, c1: f.c1, head: f.box.label.length, keys: new Set(boxVertices(f.box)) }));
+    // h38: frames may overlap; a label or header inside a frame that does not hold it collides instead
+    const soft = R.on('h38_frame_overlap'), m38 = R.p('h38_frame_overlap', 'margin');
+    const inFrame = (sp: Span, f: Box) => sp.row >= f.r0 - m38 && sp.row <= f.r1 + m38 && sp.c1 >= f.c0 - m38 && sp.c0 - 2 <= f.c1 + m38;
     const moved = Object.keys(doc.view.offset).filter((u) => !doc.view.lock[u] && units.placed(u))
         .map((u) => {
             const keys = new Set(units.members(u));
@@ -59,16 +63,19 @@ export function settleMoved(P: Placement, doc: ViewDoc, units: Units, debug?: De
     const hits = (x: Unit, a: number, d: number) => {
         const others = spans.filter((s) => !x.keys.has(s.key));
         const fixed = boxes.filter((b) => !x.own.includes(b));
+        const foreign = soft ? fixed.filter((f) => ![...x.keys].some((k) => f.keys.has(k))) : [];
         let n = 0;
         for (const s0 of x.mine) {
             const s = { ...s0, row: s0.row + d, c0: s0.c0 + a, c1: s0.c1 + a };
             if (fixed.some((f) => onBorder(s, f))) n++;
-            if (others.some((o) => o.row === s.row && (o.c0 < s.c0 ? s.c0 - o.c1 - 1 : o.c0 - s.c1 - 1) < 4)) n++;
+            if (foreign.some((f) => inFrame(s, f))) n++;
+            if (others.some((o) => o.row === s.row && (o.c0 < s.c0 ? s.c0 - o.c1 - 1 : o.c0 - s.c1 - 1) < GAP)) n++;
         }
         for (const b0 of x.own) {
             const b = { ...b0, r0: b0.r0 + d, r1: b0.r1 + d, c0: b0.c0 + a, c1: b0.c1 + a };
             if (others.some((o) => within(o, b))) n++;
-            if (fixed.some((f) => meets(pad(b), f) && !inside(b, f) && !inside(f, b))) n++;
+            if (!soft && fixed.some((f) => meets(pad(b), f) && !inside(b, f) && !inside(f, b))) n++;
+            if (soft && foreign.some((f) => inFrame({ key: b.unit, row: b.r0, c0: b.c0 + 4, c1: b.c0 + 3 + b.head }, f))) n++;
         }
         return n;
     };
@@ -101,9 +108,9 @@ export function settleMoved(P: Placement, doc: ViewDoc, units: Units, debug?: De
         const { x, to } = ranked[0];
         const [a, d] = to!;
         moves.push([x.u, a, d]);
-        debug?.log?.({ rule: 'h23_settle', fn: 'settleMoved', unit: x.u, text: `offset ${JSON.stringify(doc.view.offset[x.u])} + (${a}, ${d}): clear of other content`,
+        R.note({ rule: 'h23_settle', fn: 'settleMoved', unit: x.u, text: `offset ${JSON.stringify(doc.view.offset[x.u])} + (${a}, ${d}): clear of other content`,
             values: { round, collisions: hits(x, 0, 0), cost: cost(ranked[0]), waiting: ranked.length - 1 },
-            ...(Math.abs(a) + Math.abs(d) >= FLAGS.settle ? { flag: `moved ${Math.abs(a) + Math.abs(d)} cells` } : {}) });
+            ...(Math.abs(a) + Math.abs(d) >= R.p('h23_settle', 'flag') ? { flag: `moved ${Math.abs(a) + Math.abs(d)} cells` } : {}) });
         for (const s of x.mine) { s.row += d; s.c0 += a; s.c1 += a; }
         for (const b of x.own) { b.r0 += d; b.r1 += d; b.c0 += a; b.c1 += a; }
         todo = todo.filter((y) => y !== x && hits(y, 0, 0));

@@ -8,7 +8,7 @@
 import { readFileSync } from 'node:fs';
 import { Debug, Decision, decisionLine, SWITCHES } from '../src/core/explain';
 import { buildScene, Scene } from '../src/core/scene';
-import { boundedStyle, deepMerge, DEFAULT_STYLE, Style } from '../src/core/style';
+import { boundedStyle, deepMerge, DEFAULT_STYLE, Style, userStyle } from '../src/core/style';
 import { parseDoc, ViewDoc } from '../src/core/viewdoc';
 import { locate } from './rules';
 
@@ -21,14 +21,14 @@ if (!file) {
     console.log(`rules that switch off: ${Object.keys(SWITCHES).join(', ')}`);
     process.exit(1);
 }
-const style: Style = boundedStyle(deepMerge(DEFAULT_STYLE, opt('--style') ? JSON.parse(readFileSync(opt('--style')!, 'utf8')) : {}));
+const style: Style = boundedStyle(deepMerge(DEFAULT_STYLE, userStyle(opt('--style') ? JSON.parse(readFileSync(opt('--style')!, 'utf8')) : {}).style));
 const doc = parseDoc(readFileSync(file, 'utf8'), 'view');
 const { ruleLine, fileOf } = locate(ROOT);
 const where = (rule: string) => (ruleLine.has(rule) ? `${fileOf(rule)}:${ruleLine.get(rule)! + 1}` : undefined);
 
 const run = (d: ViewDoc, off: ReadonlySet<string> = new Set()) => {
     const log: Decision[] = [];
-    const debug: Debug = { off, log: (x) => log.push(x) };
+    const debug: Debug = { rules: { off: [...off] }, log: (x) => log.push(x) };
     return { sc: buildScene(d, style, [], true, debug), log };
 };
 
