@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { Decision } from '../src/core/explain';
 import { pathPairs, unconnected } from '../src/core/paths';
 import { buildScene } from '../src/core/scene';
 import { extendGraph } from '../src/host/build';
@@ -168,4 +169,33 @@ describe('h41: opening the callers of a function in another group', () => {
         const sa = side.frames.find((f) => f.box.label.includes('zoinks'))!, sb = side.frames.find((f) => f.box.label.includes('patata'))!;
         expect(sb.c0).toBeGreaterThan(sa.c1);                                       // right of the caller group
     });
+
+    it('two callers in the caller group: the callee group sits right of their label ends; the calls run right, down, in from the left', () => {
+        const E2: [string, string][] = [['zoinks.jinkies:scoobie_doo', 'aloo.patata:magoo'], ['zoinks.jinkies:jinkies', 'aloo.patata:magoo'], ['aloo.patata:magoo', 'aloo.patata:doo']];
+        const sc = buildScene(fixtureDoc(E2, { arrange: 'grow', seeds: [magoo], open: { [magoo]: 'up' } }), DEFAULT_STYLE);
+        invariants(sc);
+        const P = sc.placement;
+        const fa = P.frames.find((f) => f.box.label.includes('zoinks'))!, fb = P.frames.find((f) => f.box.label.includes('patata'))!;
+        expect(fb.r0).toBeGreaterThan(fa.r1);
+        const ends = [k('zoinks.jinkies:scoobie_doo'), k('zoinks.jinkies:jinkies')].map((u) => P.end.get(u)!);
+        expect(fb.c0).toBeGreaterThan(Math.max(...ends));
+        for (const p of sc.grid.paths.filter((x) => x.to === magoo)) expect(p.pts.length - 2, `${p.from} bends`).toBeLessThanOrEqual(3);
+    });
+
+    it('candidate search: both plan columns and nearby cells are routed; the cheapest is kept (two callers: the drop column detours)', () => {
+        const E2: [string, string][] = [['zoinks.jinkies:scoobie_doo', 'aloo.patata:magoo'], ['zoinks.jinkies:jinkies', 'aloo.patata:magoo'], ['aloo.patata:magoo', 'aloo.patata:doo']];
+        const log: Decision[] = [];
+        const sc = buildScene(fixtureDoc(E2, { arrange: 'grow', seeds: [magoo], open: { [magoo]: 'up' } }), DEFAULT_STYLE, [], true, { log: (d) => log.push(d) });
+        invariants(sc);
+        const d = log.find((x) => x.rule === 'h41_callee_below' && x.fn === 'buildScene')!;
+        const tried = (d.values.tried as string[]).map((t) => { const [cell, cost] = t.split(': '); return { cell, cost: Number(cost) }; });
+        expect(tried.length).toBe(6);
+        const kept = /\((\d+), (\d+)\) kept/.exec(d.text)!;
+        const best = Math.min(...tried.map((t) => t.cost));
+        expect(tried.find((t) => t.cell === `${kept[1]},${kept[2]}`)!.cost).toBe(best);
+        expect(tried[1].cost).toBeGreaterThan(tried[0].cost);   // the drop column (second) costs more than the label-end plan
+        const plain = buildScene(fixtureDoc(E2, { arrange: 'grow', seeds: [magoo], open: { [magoo]: 'up' }, rules: { params: { 'h41_callee_below.tries': 1 } } }), DEFAULT_STYLE);
+        invariants(plain);
+    });
 });
+

@@ -200,11 +200,8 @@ export function registerCommands(ctx: vscode.ExtensionContext, editor: GaffyEdit
         const sess = active();
         const s = await seedAtCursor();
         await showCallHierarchy(sess.doc().view.direction === 'out' ? 'out' : 'in');
-        // joined seed: closed, drawn with its call paths to the other seeds (scene.ts revealView, Session.pathData)
-        await sess.refresh((d) => {
-            Object.assign(d.graph.nodes, s.acc);
-            if (!d.view.seeds.includes(s.key)) { d.view.seeds.push(s.key); d.view.joins = [...(d.view.joins ?? []), s.key]; }
-        });
+        // joined seed, unfrozen view (Session.addSeed)
+        await sess.addSeed(s.key, s.acc);
     });
 
     reg('gaffy.graphFile', async (uri?: vscode.Uri) => {
@@ -473,6 +470,8 @@ export function registerCommands(ctx: vscode.ExtensionContext, editor: GaffyEdit
                 break;
             }
             case 'hold': await s.hold(m.on === true); break;
+            // Make Seed in a frozen view: added and unfrozen on the host, in one edit
+            case 'seed': if (key && Object.hasOwn(s.doc().graph.nodes, key)) await s.addSeed(key); break;
             // Options > Layout debugging > Decision log: text in an untitled editor beside the view
             case 'openText': {
                 const doc = await vscode.workspace.openTextDocument({ content: String(m.text ?? '').slice(0, 2_000_000), language: 'plaintext' });

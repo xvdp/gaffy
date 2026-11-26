@@ -122,7 +122,7 @@ subprocess.run(["code", str(p)])
     <symbol>_<commit>.txt      saved on exported text
     cache/calls.json           cached language-server answers
     trace/<view>.jsonl         gaffy.trace log
-    style.json                 appearance: font, colors, labels, frames, edges (Options set the rest per view)
+    style.json                 appearance: font, colors, labels, frames, call lines (Options set the rest per view)
 ```
 
 Placement: views created in VS Code under the workspace folder; views written by giddy or a script under their repository (seed paths, exports and the commit hash refer to the folder holding `.baggy/`). Style and call cache: per workspace folder. Views in a `.gaffy/views/` folder still open; new files go to `.baggy/gaffy/`.
@@ -130,9 +130,9 @@ Placement: views created in VS Code under the workspace folder; views written by
 ## Layout debugging
 
 Options > Arrange > Layout debug (setting `gaffy.debugLayout`). Right click a function or group > **Why Here?**: the decisions that placed it. The panel under the graph:
-- **Rules**: every layout rule with its switch, choice and parameters, saved with the graph; links to [docs/heuristics.md](docs/heuristics.md) and the code.
+- **Rules**: every layout rule with its switch, choice and parameters, saved with the graph; links to [docs/heuristics.md](docs/heuristics.md) and the code. Terms: [docs/terms.md](docs/terms.md).
 - **Actions**: each change, what moved where, the rule that moved it.
-- **Edges**: each call, routing order, crossings, cost.
+- **Calls**: how each call line is drawn (branch, trunk, path search), search order, crossings, cost.
 
 Offline, in this repository:
 

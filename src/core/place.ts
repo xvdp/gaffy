@@ -55,7 +55,12 @@ export interface Placement {
     height: number;
     elbows?: Map<NodeKey, NodeKey[]>;  // stable placement: tree elbows outside blocks
     markers?: Marker[];                // stable arrangement: markers of sides with hidden neighbors
+    h41?: Map<string, H41Plan>;        // groups placed by h41_callee_below: planned cell and plan columns (scene.ts tries others)
+    margin?: Cell;                     // blank margin trimmed before moved content: drawn cell + margin = cell with locks (scene.ts lockCell)
 }
+
+/** h41 plan of a group: planned column and row, the drop and label-end columns, its functions. */
+export interface H41Plan { unit: string; col: number; top: number; drop: number; ends: number; verts: NodeKey[] }
 
 export interface PlaceInput {
     vg: VGraph;                        // drawn graph (scene `drawn`)
@@ -66,6 +71,7 @@ export interface PlaceInput {
     tight?: boolean;                   // frames hug their content (view.tight)
     rules?: Rules;                     // switches, parameters, decision log (rules.ts)
     openedUp?: (k: NodeKey) => NodeKey | undefined;   // the function whose callers revealed `k` (reveal opener, side up)
+    h41At?: Record<string, Cell>;      // h41 groups: [column, row] to try instead of the plan (scene.ts)
 }
 
 interface Rect { c0: number; r0: number; c1: number; r1: number }
@@ -237,7 +243,7 @@ function placeOnce(inp: PlaceInput, adjust: Cell, final: boolean): { P: Placemen
                 down++;
             }
             if (down) note({ rule: 'h21_moved_function_descent', fn: 'placeBlock', unit: unitOf(k), text: `${down} rows down, clear of its block's labels`,
-                values: { offset: inp.offset[unitOf(k)], rows: down }, ...(down >= R.p('h21_moved_function_descent', 'flag') ? { flag: `slid ${down} rows past its offset` } : {}) });
+                values: { offset: inp.offset[unitOf(k)], rows: down }, ...(down >= R.p('h21_moved_function_descent', 'flag') ? { flag: `slid ${down} rows past its move` } : {}) });
         }
 
         P.blocks.push(block);
@@ -300,7 +306,7 @@ function placeOnce(inp: PlaceInput, adjust: Cell, final: boolean): { P: Placemen
         const unitOf = (i: number) => (items[i].kind === 'box' ? boxUnit((items[i] as { box: BoxNode }).box.key) : '');
         const order = [...topo.filter((i) => inp.lock[unitOf(i)]), ...topo.filter((i) => !inp.lock[unitOf(i)])];
         const itemName = (i: number) => (items[i].kind === 'box' ? unitOf(i) : `block:${box.key}`);
-        if (order.length > 1) note({ rule: 'h16_item_order', fn: 'placeBox', unit: boxUnit(box.key), text: 'locked items first, then call order',
+        if (order.length > 1) note({ rule: 'h16_item_order', fn: 'placeBox', unit: boxUnit(box.key), text: 'locked ones first, then callers before callees',
             values: { order: order.map(itemName) } });
 
         const placed: { i: number; rect: Rect; base: Rect; f0: number; f1: number }[] = [];   // f0, f1: its frames in P.frames
@@ -330,18 +336,37 @@ function placeOnce(inp: PlaceInput, adjust: Cell, final: boolean): { P: Placemen
             }) : undefined;
             const openedBy = opened !== undefined ? inp.openedUp!(opened)! : undefined;
             const colOn = sibCallers.length && R.on('h17_item_column');
-            // h41: the group's content column one indent right of the caller (frame border 3 cells left of it)
-            const col = opened !== undefined
-                ? Math.max(cc, P.pos.get(opened)!.col - (moved.get(opened)?.[0] ?? 0) + R.p('h10_dfs_nearest_parent', 'indent') - 3)
+            // h41 plan: the callers in the caller's group, and whether their calls can leave straight down (one
+            // caller, nothing hanging under it, no label below it in its group): content one indent right of the
+            // caller; else right of the callers' label ends and a channel, so their lines run right, down, in
+            const via = opened !== undefined ? [...new Set(callers.filter((u) => itemOf.get(u) === itemOf.get(opened)))] : [];
+            const unmovedCol = (u: NodeKey) => P.pos.get(u)!.col - (moved.get(u)?.[0] ?? 0);
+            const drops = via.length === 1 && (() => {
+                const u = via[0], at = P.pos.get(u)!;
+                if ((P.blockOf.get(u)?.L.children.get(u) ?? []).length) return false;
+                return ![...sets[itemOf.get(u)!]].some((w) => w !== u && P.pos.has(w) && P.pos.get(w)!.row > at.row
+                    && P.pos.get(w)!.col - 2 <= at.col && P.end.get(w)! >= at.col);
+            })();
+            const dropCol = opened !== undefined ? Math.max(cc, unmovedCol(opened) + R.p('h10_dfs_nearest_parent', 'indent') - 3) : cc;
+            const endsCol = opened !== undefined ? Math.max(cc, Math.max(...via.map((u) => P.end.get(u)! - (moved.get(u)?.[0] ?? 0))) + 1 + channel - 3 + via.length) : cc;
+            const h41Unit = opened !== undefined ? boxUnit((it as { box: BoxNode }).box.key) : '';
+            // a cell to try (scene.ts candidate search) replaces the plan
+            const tried = opened !== undefined ? inp.h41At?.[h41Unit] : undefined;
+            let col = opened !== undefined ? (drops ? dropCol : endsCol)
                 : colOn ? Math.max(...sibCallers.map((p) => p.base.c1)) + 1 + channel + entering.size : cc;
             // stacking ignores locked siblings, unless overlapped
             const stack = placed.filter((p) => !inp.lock[unitOf(p.i)]);
             const below = stack.length ? Math.max(...stack.map((p) => p.base.r1)) + 1 : cr;
             const rowOn = R.on('h18_item_row');
-            const top = opened !== undefined ? placed.find((p) => itemOf.get(opened) === p.i)!.base.r1 + 2
+            let top = opened !== undefined ? placed.find((p) => itemOf.get(opened) === p.i)!.base.r1 + 2
                 : rowOn && callers.length ? Math.max(cr, Math.min(...callers.map(baseRow))) : (rowOn && sibCallers.length ? cr : below);
+            if (opened !== undefined) {
+                P.h41 ??= new Map();
+                P.h41.set(h41Unit, { unit: h41Unit, col, top, drop: dropCol, ends: endsCol, verts: [...inside] });
+                if (tried) [col, top] = [Math.max(cc, tried[0]), Math.max(cr, tried[1])];
+            }
             const name = itemName(i);
-            if (opened !== undefined) note({ rule: 'h41_callee_below', fn: 'placeBox', unit: name, text: `column ${col}, row ${top}: below the group of ${opened.slice(opened.indexOf('#') + 1)}, whose callers opened from it`, values: { caller: opened, opener: openedBy } });
+            if (opened !== undefined) note({ rule: 'h41_callee_below', fn: 'placeBox', unit: name, text: `column ${col}, row ${top}: below the group of ${opened.slice(opened.indexOf('#') + 1)}, whose callers opened from it; ${drops ? 'its call drops straight down' : `right of ${via.length} callers' label ends`}`, values: { caller: opened, opener: openedBy, callers: via.length, drops } });
             if (opened === undefined) note({ rule: 'h17_item_column', fn: 'placeBox', unit: name, text: colOn ? `column ${col}: right of ${sibCallers.length} calling siblings` : `column ${col}: content column`,
                 values: colOn ? { callers: sibCallers.map((p) => itemName(p.i)), right: Math.max(...sibCallers.map((p) => p.base.c1)), channel, entering: entering.size } : {} });
             if (opened === undefined) note({ rule: 'h18_item_row', fn: 'placeBox', unit: name, text: rowOn && callers.length ? `row ${top}: topmost caller row` : `row ${top}: below earlier siblings`,
@@ -505,14 +530,20 @@ function placeOnce(inp: PlaceInput, adjust: Cell, final: boolean): { P: Placemen
     };
 
     const all = placeBox(inp.tree, 0, 0, []);
-    // normalize: no negative coordinates (from moves up or left)
-    let minC = 0, minR = 0;
+    // normalize: content starts at column 0 and row 0: no negative coordinates (moves up or left), no blank margin
+    // before moved content (moves down or right). With locks (cells of the drawn picture) only negative coordinates
+    // shift: a margin trimmed around a locked unit would move it
+    const trim = !Object.keys(inp.lock).length;
+    let minC = trim ? Infinity : 0, minR = trim ? Infinity : 0;
     for (const p of P.pos.values()) { minC = Math.min(minC, p.col); minR = Math.min(minR, p.row); }
     for (const f of P.frames) { minC = Math.min(minC, f.c0); minR = Math.min(minR, f.r0); }
+    if (!Number.isFinite(minC)) minC = 0;
+    if (!Number.isFinite(minR)) minR = 0;
     translate(0, 0, [...P.pos.keys()], -minC, -minR);
+    P.margin = [Math.max(0, minC), Math.max(0, minR)];
     // a run with locks whose shift differs from the one assumed runs again (place); its decisions are not kept
     if (!final && (-minC !== adjust[0] || -minR !== adjust[1])) return { P, shift: [-minC, -minR] };
-    let W = Math.max(0, all.c1 + 1), H = Math.max(0, all.r1 + 1);
+    let W = Math.max(0, all.c1 - minC + 1), H = Math.max(0, all.r1 - minR + 1);   // `all`: the root area before the shift
     for (const [k, p] of P.pos) { W = Math.max(W, P.end.get(k)! + 1); H = Math.max(H, p.row + 1); }
     for (const f of P.frames) { W = Math.max(W, f.c1 + 1); H = Math.max(H, f.r1 + 1); }
     for (const b of P.blocks) for (const l of b.L.lanes) W = Math.max(W, b.col0 + l.col + 1);

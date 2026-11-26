@@ -30,10 +30,10 @@ describe('edge rules on the bindings view', () => {
     const base = scene();                                               // default order: `row`
     const longest = scene({ alt: { h25_routing_order: 'longest' } });
 
-    it('routing order: `row` (default) 23 crossing cells, `longest` 53 (measured 2026-11-25)', () => {
+    it('search order: `row` (default) 13 crossing cells (23 before calls rode their caller\'s lines through crossings), `longest` 53', () => {
         invariants(base);
         invariants(longest);
-        expect(crossings(base.grid)).toBeLessThanOrEqual(23);
+        expect(crossings(base.grid)).toBeLessThanOrEqual(13);
         expect(crossings(longest.grid)).toBeLessThanOrEqual(53);
         expect(crossings(base.grid)).toBeLessThan(crossings(longest.grid));
     });

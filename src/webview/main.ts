@@ -16,7 +16,7 @@ import type { BoxNode } from '../core/boxes';
 import { Debug, Decision, decisionLine, decisionsOf, SWITCHES, TITLES } from '../core/explain';
 import { mergeRules, parseRules, RuleConfig, Rules } from '../core/rules';
 import { DebugPanel } from './dbgpanel';
-import { buildScene, isStub, pinPaths, rulesOf, Scene, siblingsOf, unitAnchor, unitMembers } from '../core/scene';
+import { buildScene, isStub, lockCell, pinPaths, rulesOf, Scene, siblingsOf, unitAnchor, unitMembers } from '../core/scene';
 import { Curve, E, glyphSet, N, S, Style, W } from '../core/style';
 import { splitTop } from '../core/langs';
 import { collapsedUnit, Depth, dropMovesWithin, excludedBy, globMatcher, isStandard, OpenSide, parseDoc, PathTest, ROOTS, serializeDoc, ViewDoc } from '../core/viewdoc';
@@ -1253,7 +1253,7 @@ function settleDrop(units: string[], dc: number, dr: number): [number, number] {
 function lockUnit(unit: string) {
     if (!scene || !doc) return;
     why('lockUnit', { unit });
-    const at = unitAnchor(scene, unit);
+    const at = lockCell(scene, unit);
     if (!at) return;
     commit((x) => { x.view.lock[unit] = at; delete x.view.offset[unit]; });
 }
@@ -1261,12 +1261,12 @@ function lockUnit(unit: string) {
 function unlockUnit(unit: string) {
     if (!scene || !doc || !doc.view.lock[unit]) return;
     why('unlockUnit', { unit });
-    const here = unitAnchor(scene, unit)!;
-    // unit stays put: offset = distance from its computed place
+    const here = lockCell(scene, unit)!;
+    // unit stays put: offset = distance from its computed place (both in lock coordinates: margins added back)
     const probe = structuredClone(doc);
     delete probe.view.lock[unit];
     delete probe.view.offset[unit];
-    const auto = unitAnchor(buildScene(probe, style!, excludes, outside(), debugOf()), unit);
+    const auto = lockCell(buildScene(probe, style!, excludes, outside(), debugOf()), unit);
     commit((x) => {
         delete x.view.lock[unit];
         if (auto && (here[0] !== auto[0] || here[1] !== auto[1])) x.view.offset[unit] = [here[0] - auto[0], here[1] - auto[1]];
@@ -1415,7 +1415,9 @@ function runCmd(cmd: string, key?: NodeKey, unit?: string, to?: NodeKey) {
             // seeds; the host asks around the seeds until they connect, within the view's depth (Session.pathData)
             if (need(k, NO_FN) && need(!doc.view.seeds.includes(k!), `makeSeed: ${k!.split('#').pop()} is a seed already`)) {
                 anchorAt(k!);
-                commit((x) => { x.view.seeds.push(k!); x.view.joins = [...(x.view.joins ?? []), k!]; });
+                // a frozen view unfreezes with the new seed: one edit on the host (Session.addSeed)
+                if (settings.held) api.postMessage({ type: 'seed', key: k });
+                else commit((x) => { x.view.seeds.push(k!); x.view.joins = [...(x.view.joins ?? []), k!]; });
             }
             return;
         case 'removeSeed':
@@ -1653,15 +1655,15 @@ function showWhy(unit: string) {
     if (el.empty()) el = select('body').append('div').attr('id', 'why');
     const chain = boxChain(unit);
     const mine = decisionsOf(decisions, unit, chain);
-    const name = unit.startsWith('box:') ? `box ${unit.slice(4)}` : scene?.graph.nodes[unit.replace(/^collapsed:/, '')]?.name ?? unit;
+    const name = unit.startsWith('box:') ? `group ${unit.slice(4)}` : scene?.graph.nodes[unit.replace(/^collapsed:/, '')]?.name ?? unit;
     el.selectAll('*').remove();
     el.classed('on', true);
     const head = el.append('div').attr('class', 'whyhead');
     const off = rulesOff();
     head.append('span').text(`Why here: ${name} · ${mine.length} decisions${off.size ? ` · rules off: ${[...off].map((r) => r.slice(0, 3)).join(' ')}` : ''}`);
-    head.append('button').text('actions').attr('title', 'running log of changes with the rules that moved each function and box (panel under the graph)').on('click', () => dbg.toggle('actions'));
+    head.append('button').text('actions').attr('title', 'running log of changes with the rules that moved each function and group (panel under the graph)').on('click', () => dbg.toggle('actions'));
     head.append('button').text('×').attr('title', 'close (Esc)').on('click', hideWhy);
-    el.append('div').attr('class', 'whynote').text('in placement order: outer boxes first, then the unit\'s block, settle moves last. Offline, with code lines: npm run explain -- <view> --unit <text>');
+    el.append('div').attr('class', 'whynote').text('in placement order: outer groups first, then the block, settle moves last. Offline, with code lines: npm run explain -- <view> --unit <text>');
     el.selectAll('div.why').data(mine).join('div')
         .attr('class', (d) => `why${d.flag ? ' flag' : ''}`)
         .text((d) => decisionLine(d))
@@ -1756,16 +1758,16 @@ function toolbar() {
             title: r === 'shortest' ? 'a function sits at the fewest calls from the seeds' : 'a function sits at the most calls from the seeds (loops not counted)',
             on: v.depthRule === r, act: () => commit((x) => { x.view.depthRule = r; }) })) } as Section] : []),
         { caption: 'Grouping', items: [
-            { label: 'by Namespace', title: 'boxes per package and folder (b); right click a box or function to group or ungroup one', on: boxes,
+            { label: 'by Namespace', title: 'groups per package and folder (b); right click a group or function to group or ungroup one', on: boxes,
                 act: () => commit((x) => { x.view.boxes = !boxes; }) },
             { label: 'Tight', title: 'namespace frames hug their content: functions moved right or down pull the frame edges along', on: v.tight ?? style!.boxes.tight,
                 act: () => commit((x) => { x.view.tight = !(v.tight ?? style!.boxes.tight); }) },
-            ...(v.group.length || v.ungroup.length ? [{ label: `Reset grouping (${v.group.length + v.ungroup.length})`, title: 'drop per-box group and ungroup choices',
+            ...(v.group.length || v.ungroup.length ? [{ label: `Reset grouping (${v.group.length + v.ungroup.length})`, title: 'drop per-group group and ungroup choices',
                 act: () => commit((x) => { for (const c of [...x.view.group, ...x.view.ungroup]) dropMovesWithin(x, c); x.view.group = []; x.view.ungroup = []; }) }] : []),
         ] },
         { caption: 'Parenting', radio: true, items: (['dfs', 'nearest', 'joint'] as const).map((m) => ({
             label: m === 'dfs' ? 'First caller found' : m === 'nearest' ? 'Nearest caller above' : 'Left merge incoming calls',
-            title: m === 'joint' ? 'no caller privileged: a caller right above joins the elbow (├───┴─>), several callers join one collector (┌──┘ └─>)'
+            title: m === 'joint' ? 'no caller privileged: a caller right above shares the branch (├───┴─>), several callers join one trunk entering from the left (┌──┘ └─>)'
                 : 'which caller a shared function hangs under', on: rule === m,
             act: () => commit((x) => { x.view.parentRule = m; }) })) },
         { caption: 'Edge Style', radio: true, items: (['glyph', 'vector'] as const).map((m) => ({
@@ -1783,18 +1785,18 @@ function toolbar() {
             { label: selected.size ? `Re-arrange selected (${selected.size})` : `Re-arrange (${Object.keys(v.offset).length})`,
                 title: 'the selected functions back to their computed place (moves and locks dropped), or every unlocked move (a)',
                 act: () => runCmd(selected.size ? 'rearrangeSelection' : 'rearrange') },
-            { label: `Unlock all (${Object.keys(v.lock).length})`, title: 'unlock every locked function and box', act: () => runCmd('unlockAll') },
+            { label: `Unlock all (${Object.keys(v.lock).length})`, title: 'unlock every locked function and group', act: () => runCmd('unlockAll') },
             { label: `Expand collapsed (${v.collapsed.length})`, title: 'expand every collapsed container', act: () => runCmd('expandAll') },
             { label: 'Layout debug', on: settings.debugLayout,
-                title: 'gaffy.debugLayout: right click a function or box > Why Here? lists the decisions that placed it; flagged decisions underlined; rule switches below',
+                title: 'gaffy.debugLayout: right click a function or group > Why Here? lists the decisions that placed it; flagged decisions underlined; the panel below the graph holds the rules and the logs',
                 act: () => api.postMessage({ type: 'setting', key: 'debugLayout', value: !settings.debugLayout }) },
             ...(settings.debugLayout ? [
                 { label: `Rules... (${rulesOff().size} off)`, sub: true, on: dbg.open && dbg.tab === 'rules',
                     title: 'every layout rule: switch, alternative, parameters, explanation and code; saved with the graph', act: () => dbg.toggle('rules') },
                 { label: `Actions log (${decisions.filter((d) => d.flag).length} flagged)`, sub: true, on: dbg.open && dbg.tab === 'actions',
                     title: 'running log: each change, what moved where, the rules that placed it, code links', act: () => dbg.toggle('actions') },
-                { label: `Edges log (${scene?.grid.routes.filter((r) => r.received).length ?? 0} crossed)`, sub: true, on: dbg.open && dbg.tab === 'edges',
-                    title: 'each call: routing order, arrival, cost parts, crossings paid and received, reroutes', act: () => dbg.toggle('edges') },
+                { label: `Calls log (${scene?.grid.routes.filter((r) => r.received).length ?? 0} crossed)`, sub: true, on: dbg.open && dbg.tab === 'calls',
+                    title: 'each call: how its line is drawn (branch, trunk, path search), search order, arrival, cost, crossings paid and received, search-again rounds', act: () => dbg.toggle('calls') },
             ] : []),
         ] },
         { caption: 'Folders', items: [

@@ -6,8 +6,9 @@
  * - Actions: running log, one entry per change of the picture: cause (event, target, interpreter), each moved box
  *   and function with old and new cell [row, column], the decisions of rules that placed it, with code links; the
  *   functions that moved with their box are counted under it.
- * - Edges: one row per drawn call (grid.ts `RouteRecord`): routing order, kind and pass, arrival side and reason,
- *   cost parts, crossings paid and received (by which calls), reroute round; a click selects the call.
+ * - Calls: one row per drawn call (grid.ts `RouteRecord`): how its line is drawn (branch, trunk, path search), search
+ *   order and pass, arrival side and reason, cost parts, crossings paid and received (by which calls), search-again
+ *   round; a click selects the call.
  * Links post `openRule` (rule id, site index or `doc`); the host opens the local clone or GitHub (host/sources.ts).
  */
 import { select, Selection } from 'd3-selection';
@@ -43,7 +44,7 @@ const cell = (c: [number, number] | null) => (c ? `(${c[0]}, ${c[1]})` : '-');
 
 export class DebugPanel {
     open = false;
-    tab: 'rules' | 'actions' | 'edges' = 'actions';
+    tab: 'rules' | 'actions' | 'calls' = 'actions';
     crossedOnly = true;
     private actions: Action[] = [];
     private scroll: Partial<Record<DebugPanel['tab'], number>> = {};
@@ -77,7 +78,7 @@ export class DebugPanel {
         if (!this.open) return;
         this.shown = this.tab;
         const head = el.append('div').attr('class', 'dbghead');
-        for (const [t, label] of [['rules', 'Rules'], ['actions', 'Actions'], ['edges', 'Edges']] as const) {
+        for (const [t, label] of [['rules', 'Rules'], ['actions', 'Actions'], ['calls', 'Calls']] as const) {
             head.append('button').attr('class', this.tab === t ? 'on' : null).text(label).on('click', () => { this.tab = t; this.render(); });
         }
         head.append('span').attr('class', 'grow');
@@ -86,7 +87,7 @@ export class DebugPanel {
         const body = el.append<HTMLDivElement>('div').attr('class', 'dbgbody');
         if (this.tab === 'rules') this.rules(body);
         else if (this.tab === 'actions') this.log(body);
-        else this.edges(body);
+        else this.calls(body);
         body.node()!.scrollTop = this.scroll[this.tab] ?? 0;
     }
 
@@ -197,14 +198,14 @@ export class DebugPanel {
     }
 
     // ---- edges ------------------------------------------------------------------------------------------
-    private edges(body: Div): void {
+    private calls(body: Div): void {
         const sc = this.host.scene();
         if (!sc) return;
         const g = sc.grid;
         const rs = [...g.routes].sort((a, b) => (a.order ?? -1) - (b.order ?? -1));
         const bar = body.append('div').attr('class', 'dbgnote');
         const crossed = rs.filter((r) => r.received || r.paid);
-        bar.append('span').text(`${rs.length} calls: ${rs.filter((r) => r.kind === 'routed').length} routed, ${rs.filter((r) => r.kind === 'elbow').length} elbows, ${rs.filter((r) => r.kind === 'lane').length} lanes, ${g.unrouted} dashed; ${crossed.length} with crossings; reroute rounds kept ${g.reroutes}. `);
+        bar.append('span').text(`${rs.length} calls: ${rs.filter((r) => r.kind === 'routed').length} by path search, ${rs.filter((r) => r.kind === 'elbow').length} branches, ${rs.filter((r) => r.kind === 'lane').length} on trunks, ${g.unrouted} dashed; ${crossed.length} with crossings; search-again rounds kept ${g.reroutes}. `);
         bar.append('label').call((l) => {
             l.append('input').attr('type', 'checkbox').property('checked', this.crossedOnly).on('change', () => { this.crossedOnly = !this.crossedOnly; this.render(); });
             l.append('span').text(' crossed only');
@@ -217,12 +218,12 @@ export class DebugPanel {
 
     private edge(body: Div, r: RouteRecord, name: (k: NodeKey) => string): void {
         const row = body.append('div').attr('class', 'dbgedge').on('click', () => this.host.selectCall(r.from, r.to));
-        const what = r.kind === 'routed' ? `#${r.order} ${r.pass ? 'relaxed pass' : 'strict pass'}` : r.kind;
+        const what = r.kind === 'routed' ? `search #${r.order}, ${r.pass ? 'relaxed pass' : 'strict pass'}` : r.kind === 'elbow' ? 'branch' : r.kind === 'lane' ? 'trunk' : 'dashed, no path';
         row.append('span').attr('class', 'title').text(`${name(r.from)}() → ${name(r.to)}()`);
-        row.append('span').text(` · ${what}${r.round ? ` · rerouted in round ${r.round}` : ''}`);
+        row.append('span').text(` · ${what}${r.round ? ` · searched again in round ${r.round}` : ''}`);
         if (r.kind === 'routed') {
             row.append('span').text(` · ${r.arrival} · cost ${r.cost!.toFixed(1)}: ${r.steps} steps, ${r.bends} bends, ${r.paid} crossings paid, ${r.borders} borders${r.relaxed ? `, ${r.relaxed.toFixed(0)} relaxed` : ''}`);
-        } else if (r.kind === 'fallback') row.append('span').text(` · ${r.arrival ?? ''} · no route: dashed`);
+        } else if (r.kind === 'fallback') row.append('span').text(` · ${r.arrival ?? ''}`);
         if (r.received) {
             const by = new Map<string, number>();
             for (const b of r.by) by.set(b, (by.get(b) ?? 0) + 1);

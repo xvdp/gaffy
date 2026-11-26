@@ -95,6 +95,7 @@ export interface RouteCost { bend: number; cross: number; border: number; adjace
 export type CallKind = 'implicit' | 'bridge';
 
 const STRIDE = 1 << 16;
+const ANON = '\u0000';   // segment drawn without a caller (trunk columns, frames)
 /** Max cells routed by search: 4 headings × 12 bytes per cell = 48 MB; view files bound moves to ±1000 cells. */
 const MAX_CELLS = 1_000_000;
 export const cellId = (r: number, c: number) => r * STRIDE + c;
@@ -151,7 +152,7 @@ export function buildGrid(P: Placement, vg: VGraph, opts: GridOpts): Grid {
             for (const r of group.sort((a, b) => b.received - a.received)) { next.delete(eid(r.from, r.to)); next.set(eid(r.from, r.to), next.size); }
             const g = gridOnce(P, vg, opts, R, next, round);
             const before = gridCost(best, R), after = gridCost(g, R);
-            R.note({ rule: 'h39_reroute', fn: 'buildGrid', unit: `round ${round}`, text: `calls of ${group[0].from.slice(group[0].from.indexOf('#') + 1)} routed after the others: cost ${before.toFixed(0)} → ${after.toFixed(0)}${after < before ? ', kept' : ', dropped'}`,
+            R.note({ rule: 'h39_reroute', fn: 'buildGrid', unit: `round ${round}`, text: `calls of ${group[0].from.slice(group[0].from.indexOf('#') + 1)} searched after the others: cost ${before.toFixed(0)} → ${after.toFixed(0)}${after < before ? ', kept' : ', dropped'}`,
                 values: { calls: group.slice(0, 12).map((r) => `${r.to.slice(r.to.indexOf('#') + 1)} (${r.received} received)`) } });
             if (after < before) { best = { ...g, reroutes: round }; last = next; kept = true; break; }
         }
@@ -195,11 +196,18 @@ function gridOnce(P: Placement, vg: VGraph, opts: GridOpts, R: Rules, last: Read
     const routable = RW * RH <= MAX_CELLS;
     const occN = new Uint8Array(routable ? RW * RH : 0);
     const inArea = (r: number, c: number) => r >= 0 && r < RH && c >= 0 && c < RW;
+    const srcNet = new Map<number, Map<string, Set<NodeKey>>>();
     const add = (r: number, c: number, net: string, m: number, src?: NodeKey) => {
         const id = cellId(r, c);
         let cell = cells.get(id);
         if (!cell) cells.set(id, (cell = new Map()));
         if (!cell.has(net) && routable && inArea(r, c) && occN[r * RW + c] < 255) occN[r * RW + c]++;
+        // callers per cell and line: a call rides only its caller's own lines (`ANON`: a segment without a caller)
+        let per = srcNet.get(id);
+        if (!per) srcNet.set(id, (per = new Map()));
+        let set = per.get(net);
+        if (!set) per.set(net, (set = new Set()));
+        set.add(src ?? ANON);
         cell.set(net, (cell.get(net) ?? 0) | m);
         if (src !== undefined) {
             let s = srcOf.get(id);
@@ -452,9 +460,9 @@ function gridOnce(P: Placement, vg: VGraph, opts: GridOpts, R: Rules, last: Read
         const approach = pv.col >= 3 && !blocked.has(a3) && (!border.has(a3) || (pv.col >= 4 && !blocked.has(cellId(pv.row, pv.col - 4))));
         const left = own || (sends && approach) || (!elbowInto.has(v) && (opts.joint || votes.get(v)! >= 0) && approach && free(pv.row, pv.col - 2) && free(pv.row, pv.col - 1));
         leftArrival.set(v, left);
-        arrivalWhy.set(v, own ? 'left: joins the lane or elbow entering from the left' : sends && left ? 'left: the function sends from its label end'
+        arrivalWhy.set(v, own ? 'left: joins the trunk or branch entering from the left' : sends && left ? 'left: the function sends from its label end'
             : !approach && !elbowInto.has(v) ? 'end: no cell to approach the left side'
-            : left ? (opts.joint ? 'left: joint parent rule' : 'left: callers mostly left, two cells free') : elbowInto.has(v) ? 'end: a tree elbow enters from the left' : 'end: callers mostly right, or the left cells taken');
+            : left ? (opts.joint ? 'left: shared entry (h09)' : 'left: callers mostly left, two cells free') : elbowInto.has(v) ? 'end: a branch enters from the left' : 'end: callers mostly right, or the left cells taken');
         if (left && !own) { reserved.set(cellId(pv.row, pv.col - 2), `l:${v}`); reserved.set(cellId(pv.row, pv.col - 1), `l:${v}`); }
     }
     // h27: departure cells reserved for the caller: two cells after the label or port
@@ -546,19 +554,20 @@ function gridOnce(P: Placement, vg: VGraph, opts: GridOpts, R: Rules, last: Read
             return top;
         };
         const srcKey = `src:${u}`;
+        /** Lines on a cell other than the callee's trunk and the caller's own calls (`mine`: their masks). */
         const otherNets = (id: number) => {
             const cell = cells.get(id);
             if (!cell) return null;
-            const owners = srcOf.get(id);
-            const shared = !!owners && owners.size === 1 && owners.has(u);
-            let other = 0, both = false, any = false;
+            const owners = srcNet.get(id);
+            let other = 0, both = false, any = false, mine = 0;
             for (const [n, m] of cell) {
-                if (n === net || shared) continue;
+                const by = owners?.get(n);
+                if (n === net || (by && by.size === 1 && by.has(u))) { mine |= m; continue; }
                 any = true;
                 other |= m;
                 if ((m & AXIS_V) && (m & AXIS_H)) both = true;
             }
-            return any ? { other, both } : { other: 0, both: false, sameNet: true };
+            return any ? { other, both, mine } : { other: 0, both: false, mine, sameNet: true };
         };
         // estimate: Manhattan distance × `estimate` (≤ OWN: admissible, cheapest routes; 1: faster, may miss them)
         const h = (r: number, c: number) => EST * (Math.abs(r - gr) + Math.abs(c - gc));
@@ -643,14 +652,13 @@ function gridOnce(P: Placement, vg: VGraph, opts: GridOpts, R: Rules, last: Read
                 }
                 const o = occN[ni] ? otherNets(nid) : null;
                 if (o) {
+                    const along = nd < 2 ? AXIS_V : AXIS_H;
                     if ('sameNet' in o) step = OWN;
-                    else {
-                        const along = nd < 2 ? AXIS_V : AXIS_H;
-                        if (o.both || (o.other & along)) {
-                            if (!relaxed) continue;
-                            step += RELAX_ALONG;
-                        } else step += cost.cross;
-                    }
+                    else if (o.both || (o.other & along)) {
+                        if (!relaxed) continue;
+                        step += RELAX_ALONG;
+                    } else if (o.mine & along) step = OWN;   // along the caller's own line through a crossing it already has
+                    else step += cost.cross;
                 }
                 if (nd !== d) step += cost.bend + turnPenalty;
                 if (pending) step += LOOK * pending[nr * RW + nc];
@@ -661,9 +669,12 @@ function gridOnce(P: Placement, vg: VGraph, opts: GridOpts, R: Rules, last: Read
                         if (c2 < 0 || c2 >= RW || !occN[nr * RW + c2]) continue;
                         const sc2 = cellId(nr, c2);
                         const sm = cells.get(sc2)!;
-                        const own = srcOf.get(sc2);
-                        if (own && own.size === 1 && own.has(u)) continue;
-                        for (const [n2, m2] of sm) if (n2 !== net && (m2 & AXIS_V)) { step += cost.adjacent; break; }
+                        const by2 = srcNet.get(sc2);
+                        for (const [n2, m2] of sm) {
+                            const b = by2?.get(n2);
+                            if (n2 === net || (b && b.size === 1 && b.has(u))) continue;
+                            if (m2 & AXIS_V) { step += cost.adjacent; break; }
+                        }
                     }
                 }
                 const ns = sid(nr, nc, nd);

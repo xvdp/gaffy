@@ -81,6 +81,23 @@ export class Session {
         void this.open();
     }
 
+    /**
+     * Adds a seed (editor: Add to Call Graph; graph: Make Seed in a frozen view): joined (`view.joins`: closed,
+     * drawn with its call paths to the other seeds); a frozen view unfreezes in the same edit, so the language
+     * server is asked for the seed's calls and the paths (revalidate, Session.pathData).
+     */
+    async addSeed(key: NodeKey, nodes: Record<NodeKey, GNode> = {}): Promise<void> {
+        const thaw = this.held;
+        const style = thaw ? await this.host.styles.get(this.folder) : undefined;
+        const cfg = vscode.workspace.getConfiguration('gaffy', this.document.uri);
+        await this.update((d) => {
+            Object.assign(d.graph.nodes, nodes);
+            if (!d.view.seeds.includes(key)) { d.view.seeds.push(key); d.view.joins = [...(d.view.joins ?? []), key]; }
+            if (thaw) { d.view.live = this.opening.id; localOptions(d, style!, cfg); }
+        });
+        await this.revalidate();
+    }
+
     /** External code and standard library drawn and asked: the view's values, else the settings. */
     outside(): { external: boolean; standard: boolean } {
         const cfg = vscode.workspace.getConfiguration('gaffy', this.document.uri);

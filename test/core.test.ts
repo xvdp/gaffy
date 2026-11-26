@@ -135,9 +135,13 @@ describe('addendum 1a: scoobie and its callees', () => {
         invariants(tight);
         // the frame keeps its corner: 6 empty columns left of the content, 2 empty rows above it
         expect([frameOf(loose).c0, frameOf(loose).r0]).toEqual([base.c0, base.r0]);
-        // tight: the frame moves with its content and keeps its size
+        // tight: the frame moves with its content and keeps its size (measured from an unmoved label: the blank
+        // margin before moved content is trimmed)
         const t = frameOf(tight);
-        expect([t.c0 - base.c0, t.r0 - base.r0, t.c1 - t.c0, t.r1 - t.r0]).toEqual([6, 2, base.c1 - base.c0, base.r1 - base.r0]);
+        const ref = k('kazoo.noodles.jumbles:to_wacky');
+        const at = (x: Scene) => x.placement.pos.get(ref)!;
+        const b0 = buildScene(doc, boxed()), t0 = buildScene(moved(true), boxed());
+        expect([t.c0 - at(t0).col - (base.c0 - at(b0).col), t.r0 - at(t0).row - (base.r0 - at(b0).row), t.c1 - t.c0, t.r1 - t.r0]).toEqual([6, 2, base.c1 - base.c0, base.r1 - base.r0]);
         expect(parseDoc(serializeDoc(moved(true)), 'x').view.tight).toBe(true);
     });
 

@@ -9,7 +9,7 @@
  * Cut calls: `grow` only.
  */
 import { BoxNode, boxOf, boxTree, boxVertices } from './boxes';
-import { buildGrid, Grid } from './grid';
+import { buildGrid, Grid, gridCost } from './grid';
 import { nodeLabel } from './labels';
 import { Layout } from './layout';
 import { ancestors, GNode, isContainer, NodeKey, Subgraph, visible } from './model';
@@ -51,6 +51,15 @@ export const isStub = (k: NodeKey) => k.startsWith(STUB);
 /** `vg` minus `cut` calls. */
 function dropCalls(vg: VGraph, cut: ReadonlySet<string>): VGraph {
     const edges = vg.edges.filter((e) => !cut.has(cutKey(e.from, e.to)));
+    const out = new Map<NodeKey, VEdge[]>(), inc = new Map<NodeKey, VEdge[]>();
+    for (const k of vg.nodes.keys()) { out.set(k, []); inc.set(k, []); }
+    for (const e of edges) { out.get(e.from)!.push(e); inc.get(e.to)!.push(e); }
+    return { ...vg, edges, out, inc };
+}
+
+/** `vg` with every vertex and only the calls from or to `own` (h41 candidate search routes these). */
+function touching(vg: VGraph, own: ReadonlySet<NodeKey>): VGraph {
+    const edges = vg.edges.filter((e) => own.has(e.from) || own.has(e.to));
     const out = new Map<NodeKey, VEdge[]>(), inc = new Map<NodeKey, VEdge[]>();
     for (const k of vg.nodes.keys()) { out.set(k, []); inc.set(k, []); }
     for (const e of edges) { out.get(e.from)!.push(e); inc.get(e.to)!.push(e); }
@@ -188,7 +197,9 @@ export function buildScene(doc: ViewDoc, style: Style, exclude: readonly PathTes
     const settleLog: Decision[] = [];
     const placeRules = R.withLog(debug?.log && ((d) => placeLog.push(d)));
     const settleRules = R.withLog(debug?.log && ((d) => settleLog.push(d)));
-    const placeWith = (offset: Record<string, Cell>) => { placeLog = []; return place({
+    // h41 groups: the cell chosen per group among candidates (below)
+    const h41At: Record<string, Cell> = {};
+    const placeWith = (offset: Record<string, Cell>, at: Record<string, Cell> = h41At) => { placeLog = []; return place({
         vg: drawn,
         tree,
         base: {
@@ -208,11 +219,53 @@ export function buildScene(doc: ViewDoc, style: Style, exclude: readonly PathTes
         rules: placeRules,
         // h41: one layer at a time, callers revealed by an opening (the full layout reveals every caller at once)
         openedUp: (k) => { const o = grows ? rev.opener.get(k) : undefined; return o?.side === 'up' ? o.by : undefined; },
+        h41At: at,
     }); };
+    // implicit and cross-language calls keep their grid style (text: dotted, dash-dot)
+    const kindOf = new Map(graph.edges.filter((e) => e.via || e.implicit).map((e) => [`${e.from}\u0000${e.to}`, e.via ? 'bridge' as const : 'implicit' as const]));
+    const gridOpts = (rules: Rules) => ({
+        kind: (a: NodeKey, b: NodeKey) => kindOf.get(`${a}\u0000${b}`),
+        arrow: style.edges.arrow,
+        first: view.straight,
+        joint: (view.parentRule ?? style.grid.parentRule) === 'joint',
+        rules,
+    });
+    /**
+     * h41 candidate search: per group placed by h41, cells around its plan (plan, drop and label-end columns, and
+     * 2 columns right; rows 0 to 2 lower), nearest first, at most `tries`; each placed, the calls touching the group
+     * routed on that placement (other content as obstacles); kept: the least route cost (grid.ts gridCost) plus `move`
+     * per cell from the plan. Placement with the kept cells.
+     */
+    function h41Search(first: Placement, offset: Record<string, Cell>): Placement {
+        const tries = R.p('h41_callee_below', 'tries'), mv = R.p('h41_callee_below', 'move');
+        if (!first.h41?.size || tries <= 1) return first;
+        const quiet = R.withLog(undefined);
+        for (const plan of first.h41.values()) {
+            const own = new Set(plan.verts);
+            const sub = touching(drawn, own);
+            // both plan columns first (drop straight down, right of the label ends), then cells nearest the plan
+            const alt = plan.col === plan.drop ? plan.ends : plan.drop;
+            const near = [plan.col, plan.col + 2, alt, alt + 2].flatMap((c) => [0, 1, 2].map((d) => [c, plan.top + d] as Cell))
+                .sort((a, b) => Math.abs(a[0] - plan.col) + Math.abs(a[1] - plan.top) - Math.abs(b[0] - plan.col) - Math.abs(b[1] - plan.top));
+            const cands = [[plan.col, plan.top] as Cell, [alt, plan.top] as Cell, ...near]
+                .filter((c, i, xs) => xs.findIndex((x) => x[0] === c[0] && x[1] === c[1]) === i).slice(0, tries);
+            const scored = cands.map((c) => {
+                const pl = placeWith(offset, { ...h41At, [plan.unit]: c });
+                const g = buildGrid(pl, sub, gridOpts(quiet));
+                return { c, cost: gridCost(g, quiet) + mv * (Math.abs(c[0] - plan.col) + Math.abs(c[1] - plan.top)) };
+            });
+            const best = scored.reduce((a, b) => (b.cost < a.cost ? b : a));
+            h41At[plan.unit] = best.c;
+            debug?.log?.({ rule: 'h41_callee_below', fn: 'buildScene', unit: plan.unit, text: `${scored.length} cells tried: (${best.c[0]}, ${best.c[1]}) kept, cost ${best.cost.toFixed(0)} (plan (${plan.col}, ${plan.top}): ${scored[0].cost.toFixed(0)})`,
+                values: { tried: scored.map((x) => `${x.c[0]},${x.c[1]}: ${x.cost.toFixed(0)}`) } });
+        }
+        return placeWith(offset);
+    }
     // moved units overlapped by grown content: nearest clean offset (settle.ts); ≤ 3 rounds, since the next
     // placement may differ from the measured one; webview saves these offsets
     let offsets = view.offset;
     let placement: Placement = placeWith(offsets);
+    placement = h41Search(placement, offsets);
     for (let round = 0; round < R.p('h23_settle', 'rounds'); round++) {
         const moves = settleMoved(placement, { ...doc, view: { ...view, offset: offsets } }, unitsOn(tree, placement, vg), settleRules, round);
         if (!moves.length) break;
@@ -228,15 +281,7 @@ export function buildScene(doc: ViewDoc, style: Style, exclude: readonly PathTes
         if (p) markers.push({ row: p.row, col: p.col - 1, text: '>', key: k, side: 'down' });
     }
     if (markers.length) placement.markers = markers;
-    // implicit and cross-language calls keep their grid style (text: dotted, dash-dot)
-    const kindOf = new Map(graph.edges.filter((e) => e.via || e.implicit).map((e) => [`${e.from}\u0000${e.to}`, e.via ? 'bridge' as const : 'implicit' as const]));
-    const grid = buildGrid(placement, drawn, {
-        kind: (a, b) => kindOf.get(`${a}\u0000${b}`),
-        arrow: style.edges.arrow,
-        first: view.straight,
-        joint: (view.parentRule ?? style.grid.parentRule) === 'joint',
-        rules: R.withLog(debug?.log),
-    });
+    const grid = buildGrid(placement, drawn, gridOpts(R.withLog(debug?.log)));
     const drawnSeeds = seedsIn(vq, doc).filter((s) => vg.nodes.has(s));
     const paths = drawnSeeds.length > 1 ? onPaths(vg, new Set(vg.nodes.keys()), drawnSeeds) : new Set<NodeKey>();
     for (const s of drawnSeeds) paths.delete(s);
@@ -289,6 +334,16 @@ export function unitAnchor(sc: Pick<Scene, 'placement' | 'vg'>, unit: string): [
     if (!!sc.vg.nodes.get(key)?.collapsed !== shut) return undefined;
     const p = sc.placement.pos.get(key);
     return p ? [p.col, p.row] : undefined;
+}
+
+/**
+ * Cell of a unit in the coordinates of locks: its anchor plus the blank margin the placement trimmed (place.ts:
+ * views without locks start at column 0 and row 0; with locks only negative coordinates shift). Lock, unlock.
+ */
+export function lockCell(sc: Pick<Scene, 'placement' | 'vg'>, unit: string): [number, number] | undefined {
+    const at = unitAnchor(sc, unit);
+    const m = sc.placement.margin ?? [0, 0];
+    return at && [at[0] + m[0], at[1] + m[1]];
 }
 
 /** Seed representatives in a quotient: the seed, or its collapsed container (keeps a reveal origin). */

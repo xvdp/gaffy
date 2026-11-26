@@ -30,14 +30,14 @@ const rule = (id: string) => `[${id.slice(0, 3)}](heuristics.md#${id})`;
 type Row = string[];
 const T_MOUSE: Row[] = [
     ['double click a label (one layer at a time)', at(MAIN, ".on('dblclick', (ev: MouseEvent, d) => {"), '`toggleSides`; on a collapsed container: expand (`collapsed` filter, `anchorAt`)'],
-    ['drag a label', at(MAIN, 'nodes.call(dragUnit('), '`dragUnit` (unit: the vertex, `collapsed:<key>` for a collapsed one, or the selection)'],
+    ['drag a label', at(MAIN, 'nodes.call(dragUnit('), '`dragUnit` (unit: the function, `collapsed:<key>` for a collapsed one, or the selection)'],
     ['click `>> ` before a label', at(MAIN, "markerClick(d.key, 'up'); })"), "`markerClick(key, 'up')`"],
     ['click `>` of a `└─>>` row', at(MAIN, '.on(\'click\', (ev: MouseEvent, m) => { ev.stopPropagation(); markerClick(m.key, m.side); })'), '`markerClick(key, side)`'],
-    ['click the elbow of a `└─>>` row', at(MAIN, ".on('click', (ev: MouseEvent, p) => {"), "`markerClick(caller, 'down')`"],
+    ['click the branch of a `└─>>` row', at(MAIN, ".on('click', (ev: MouseEvent, p) => {"), "`markerClick(caller, 'down')`"],
     ['click an arrowhead', at(MAIN, '.on(\'click\', (ev: MouseEvent, h) => { ev.stopPropagation(); h.act!.run(); })'), '`closingOf(...).run` → `setSide(..., false)`: closes the level it points into'],
     ['double click a call', at(MAIN, ".on('dblclick', (ev: MouseEvent, p) => {"), '`isolateCalls` (the selection holding the call, else the calls through the cell)'],
-    ['double click a box header', at(MAIN, "heads.on('dblclick'"), 'collapse the container (`collapsed` push)'],
-    ['drag a box header', at(MAIN, 'heads.call(dragUnit('), '`dragUnit` (unit `box:<key>`)'],
+    ['double click a group header', at(MAIN, "heads.on('dblclick'"), 'collapse the group (`collapsed` push)'],
+    ['drag a group header', at(MAIN, 'heads.call(dragUnit('), '`dragUnit` (unit `box:<key>`)'],
     ['wheel, drag the background', at(MAIN, "svg.call(zoomer).on('dblclick.zoom', null)"), 'zoom and pan only: no view change'],
 ];
 const T_KEYS: Row[] = [
@@ -91,7 +91,7 @@ const T_MENU: Row[] = [
     ['Lock Position, Unlock Position', `${menu('gaffy.node.lock')}, ${reg('gaffy.node.lock')}`, "forwarded: `runCmd('lock' | 'unlock')`"],
     ['Move Up One, Move Down One', `${menu('gaffy.node.moveUp')}, ${reg('gaffy.node.moveUp')}`, 'host `move(±1)`: `sibling`'],
     ['Tag...', `${menu('gaffy.node.tag')}, ${reg('gaffy.node.tag')}`, 'host: `tags` (a longer label widens its column)'],
-    ['Straighten This Call', `${menu('gaffy.edge.straighten')}, ${reg('gaffy.edge.straighten')}`, "forwarded: `runCmd('straighten')` (routing order only)"],
+    ['Straighten This Call', `${menu('gaffy.edge.straighten')}, ${reg('gaffy.edge.straighten')}`, "forwarded: `runCmd('straighten')` (search order only)"],
     ['Isolate This Call, Isolate the Path Through This Call', `${menu('gaffy.edge.subtree')}, ${reg('gaffy.edge.subtree')}`, "forwarded: `runCmd('callSubtree' | 'callPath')`"],
     ['canvas: Save (.gaffy), Autosave Graphs, Save as Text (.txt, .md), Refresh Language Server', `${menu('gaffy.view.save')}, ${reg('gaffy.view.save')}`, 'host: save, setting, export, `refresh`'],
     ['canvas: Group namespaces, Tight groups, Reset graph, Reset Layout, Re-arrange, Unlock all, Expand collapsed', `${menu('gaffy.toggleBoxes')}, ${reg('gaffy.toggleBoxes')}`, 'host `boxes`, `tight`; the rest forwarded to `runCmd` (the Options Arrange entries)'],
@@ -107,7 +107,7 @@ const T_OUT: Row[] = [
 const I: Row[] = [
     ['`commit`', at(MAIN, 'function commit('), 'any', 'clones the view, applies the change, redraws, posts the text to the host (an undo step)'],
     ['`toggleSides`', at(MAIN, 'function toggleSides('), '`open`', 'closes both sides, or opens every side with more'],
-    ['`setSide`', at(MAIN, 'function setSide('), '`open`; `hidden`, `cut` (restore)', 'opens or closes one side; asks the host for data the side lacks; starts the offset handover (h34)'],
+    ['`setSide`', at(MAIN, 'function setSide('), '`open`; `hidden`, `cut` (restore)', 'opens or closes one side; asks the host for data the side lacks; starts the move handover (h34)'],
     ['`markerClick`', at(MAIN, 'function markerClick('), 'via `setSide`, `restoreHidden`', 'opens the side, else brings hidden neighbors back'],
     ['`restoreHidden`', at(MAIN, 'function restoreHidden('), '`hidden`, `cut`', 'shows the hidden neighbors of one side and the hidden functions on their way from the seeds'],
     ['`closingOf`', at(MAIN, 'function closingOf('), 'via `setSide`', 'chooses the side an arrowhead closes'],
@@ -115,8 +115,8 @@ const I: Row[] = [
     ['`dragUnit`', at(MAIN, 'function dragUnit('), '`offset` or `lock`', 'drop: cell delta, `settleDrop`, `moveUnit` per unit; anchor on a function that did not move'],
     ['`topUnits`', at(MAIN, 'function topUnits('), '-', 'units a multi-selection drag moves: each selected function with its tree, once'],
     ['`settleDrop`', at(MAIN, 'function settleDrop('), '-', 'drop repulsion: tries cells along the drag, then sideways, ≤ 12 cells or 1.5 s'],
-    ['`moveUnit`', at(MAIN, 'function moveUnit('), '`offset[unit]` or `lock[unit]`', 'adds the move to the lock when locked, else to the offset'],
-    ['`lockUnit`, `unlockUnit`', at(MAIN, 'function lockUnit('), '`lock`, `offset`', 'lock: the anchor cell becomes absolute; unlock: the offset from the computed place'],
+    ['`moveUnit`', at(MAIN, 'function moveUnit('), '`offset[unit]` or `lock[unit]`', 'adds the move to the lock when locked, else to the stored move (`offset`)'],
+    ['`lockUnit`, `unlockUnit`', at(MAIN, 'function lockUnit('), '`lock`, `offset`', 'lock: the anchor cell becomes absolute; unlock: the move from the computed place'],
     ['`moveSibling`', at(MAIN, 'function moveSibling('), '`sibling`', 'swaps the focused function with its neighbor under one tree parent'],
     ['`collapseInnermost`', at(MAIN, 'function collapseInnermost('), '`collapsed`', 'collapses the innermost container not collapsed yet'],
     ['`setArrange`, `setDepth`', at(MAIN, 'function setArrange('), '`arrange`, `open`, `depthUp`, `depthDown`', 'switches one layer at a time ⇄ full, keeping what is on screen; call depths per side'],
@@ -129,8 +129,8 @@ const I: Row[] = [
     ["`runCmd: 'makeSeed'`, `'removeSeed'`", at(MAIN, "case 'makeSeed':"), '`seeds`, `joins`', 'adds a joined seed (`joins`: closed, its call paths to the other seeds drawn) or drops a seed; the host asks along both directions to the view\'s depth'],
     ["`runCmd: 'expandAll'`", at(MAIN, "case 'expandAll':"), '`collapsed`', 'expands every collapsed container'],
     ['`dropMovesWithin`', at('src/core/viewdoc.ts', 'export function dropMovesWithin('), '`offset`, `lock`', 'drops the moves and locks inside a container whose grouping changes (group, ungroup, reset grouping)'],
-    ['`afterRender`: adopt', at(MAIN, "cause = { event: 'auto', fn: 'afterRender:adopt'"), '`offset`', 'offset handover: the new tree parent of a moved function takes its offset (h34)'],
-    ['`afterRender`: settle', at(MAIN, "cause = { event: 'auto', fn: 'afterRender:settle'"), '`offset`', 'saves the offsets settle drew with, ≤ 3 saves in a row (h35)'],
+    ['`afterRender`: adopt', at(MAIN, "cause = { event: 'auto', fn: 'afterRender:adopt'"), '`offset`', 'move handover: the new parent of a moved function takes its move (h34)'],
+    ['`afterRender`: settle', at(MAIN, "cause = { event: 'auto', fn: 'afterRender:settle'"), '`offset`', 'saves the moves settle drew with, ≤ 3 saves in a row (h35)'],
     ['`anchorAt`, `render`', at(MAIN, 'function anchorAt('), '-', 'no view change: pans so the function acted on keeps its screen spot (h30, h31)'],
     ['host `Session.update`, `write`', at(EDIT, 'async write(doc: ViewDoc)'), 'any', 'replaces the document text (host commands, language server data)'],
     ['host `collapse`, `expandContainer`, `move`, group commands', at(CMDS, 'const collapse = (kinds: string[]'), '`collapsed`, `sibling`, `group`, `ungroup`', 'context menu changes made on the host'],
@@ -142,14 +142,14 @@ const P: Row[] = [
     ['`buildScene`', at('src/core/scene.ts', 'export function buildScene('), 'the pipeline below, run on every redraw', ''],
     ['`excludedKeys`, `quotient`', at('src/core/scene.ts', 'function excludedKeys('), 'drops excluded and hidden functions; a collapsed container stands for its members', ''],
     ['`revealView` → `reveal` / `revealDepth`', at('src/core/scene.ts', 'function revealView('), 'what is on screen: open sides (one layer at a time) or call depths (full)', `${rule('h01_first_revealer')}, ${rule('h02_call_depth_by_path')}`],
-    ['`seedsIn`', at('src/core/scene.ts', 'export function seedsIn('), 'the vertex standing for each seed (itself or its collapsed container)', ''],
-    ['`boxTree`', at('src/core/boxes.ts', 'export function boxTree('), 'namespace boxes and their order', rule('h03_box_order')],
+    ['`seedsIn`', at('src/core/scene.ts', 'export function seedsIn('), 'the function standing for each seed (itself or its collapsed group)', ''],
+    ['`boxTree`', at('src/core/boxes.ts', 'export function boxTree('), 'groups and their order', rule('h03_box_order')],
     ['`sortKeyOf`', at('src/core/scene.ts', 'export function sortKeyOf('), 'tie order: path, definition line, key', rule('h04_sort_key')],
-    ['`layout`', at('src/core/layout.ts', 'export function layout('), 'rows and lanes in one block: root order, child order, tree parent, ports, lanes', `${rule('h06_root_order')}–${rule('h12_lane_packing')}`],
-    ['`place` → `placeBox`', at('src/core/place.ts', 'const placeBox = '), 'items of a box (its block, then child boxes): order, column, row; unmoved boxes descend below earlier siblings', `${rule('h16_item_order')}–${rule('h20_unmoved_box_descent')}`],
-    ['`placeBlock`', at('src/core/place.ts', 'const placeBlock = '), 'one block: caller alignment, monotone rows, descent, offsets and locks per vertex', `${rule('h13_caller_alignment')}–${rule('h15_block_descent')}, ${rule('h21_moved_function_descent')}`],
+    ['`layout`', at('src/core/layout.ts', 'export function layout('), 'rows of one block: root order, child order, parents, exit rows, trunk columns', `${rule('h06_root_order')}–${rule('h12_lane_packing')}`],
+    ['`place` → `placeBox`', at('src/core/place.ts', 'const placeBox = '), 'the block and subgroups of a group: order, column, row; unmoved groups slide below earlier ones', `${rule('h16_item_order')}–${rule('h20_unmoved_box_descent')}`],
+    ['`placeBlock`', at('src/core/place.ts', 'const placeBlock = '), 'one block: caller alignment, rows only down, descent, moves and locks per function', `${rule('h13_caller_alignment')}–${rule('h15_block_descent')}, ${rule('h21_moved_function_descent')}`],
     ['frames', at('src/core/place.ts', 'const frame = (x: Rect): Rect =>'), 'frame extents (tight or keeping the computed corner)', rule('h22_frame_extent')],
-    ['`settleMoved`', at('src/core/settle.ts', 'export function settleMoved('), 'moved units on other content go to the nearest clear offset, least displacement first, ≤ 3 rounds', rule('h23_settle')],
+    ['`settleMoved`', at('src/core/settle.ts', 'export function settleMoved('), 'moved units on other content go to the nearest clear spot, least displacement first, ≤ 3 rounds', rule('h23_settle')],
     ['`buildGrid`', at('src/core/grid.ts', 'export function buildGrid('), 'draws the calls (section 4)', `${rule('h24_tree_lines_first')}–${rule('h29_route_cost')}`],
 ];
 
@@ -160,17 +160,17 @@ call u → v in the data (graph.edges)
 ├── u or v in an excluded folder, external, standard library ──────────► not drawn, no marker         ${href(S, 'function excludedKeys(')}
 ├── u or v hidden, or the call cut (removed) ──────────────────────────► not drawn; <code>>></code> or <code>└─>></code> on the end shown   ${href(S, 'function dropCalls(')}
 ├── u and v in one collapsed container ─────────────────────────────────► counted on the container (tooltip: internal calls)   ${href(Q, 'export function quotient(')}
-├── u or v in a collapsed container ────────────────────────────────────► drawn from or to the container's vertex
+├── u or v in a collapsed container ────────────────────────────────────► drawn from or to the collapsed group
 ├── an end not revealed (side closed, past the call depth) ─────────────► not drawn; marker on the end shown   ${href('src/core/reveal.ts', 'export function reveal(')}
 ├── u = v, or v above u in the same chain of one block ─────────────────► <code>↻</code>, <code>↻ v()</code> after u's label, no line   ${href(LY, "vg.selfLoops.has(k) ? ' ↻' : ''")}
 └── both ends placed
-    ├── u is v's tree parent, one block, one shift ─────────────────────► tree elbow <code>└─></code> (net t:u)   ${href(G, 'for (const [p, kids] of L.children) elbows(')}
-    ├── v takes calls through a lane (joint rule, callers in the block)
-    │   ├── every source and v share one shift, the lane column clear ──► lane <code>┌──┘ └─></code> or <code>&lt;──┘</code> (net l:v)   ${href(G, 'for (const ln of L.lanes) {', '// ---- 2.')}
-    │   └── otherwise ────────────────────────────────────────────────► routed
-    └── routed (A*), in order: straightened, level (shortest first), the rest (longest first)   ${href(G, 'todo.sort((a, b) => pri(b) - pri(a)')}
-        ├── arrival side, decided per callee before routing   ${href(G, 'const left = own || (sends && approach) ||')}
-        │   ├── v's lane already enters from the left ────────────────► left <code>──> v()</code>
+    ├── u is v's parent, one block, one shift ──────────────────────────► branch <code>└─></code> on u's stem (net t:u)   ${href(G, 'for (const [p, kids] of L.children) elbows(')}
+    ├── v takes calls through a trunk (callers in the block)
+    │   ├── every caller and v share one shift, the trunk column clear ─► trunk <code>┌──┘ └─></code> or <code>&lt;──┘</code> (net l:v)   ${href(G, 'for (const ln of L.lanes) {', '// ---- 2.')}
+    │   └── otherwise ────────────────────────────────────────────────► path search
+    └── path search (A*), in search order: straightened, then callers top to bottom (h25, row)   ${href(G, 'todo.sort((a, b) => pri(b) - pri(a)')}
+        ├── arrival side, decided per callee before path search   ${href(G, 'const left = own || (sends && approach) ||')}
+        │   ├── v's trunk already enters from the left ───────────────► left <code>──> v()</code>
         │   ├── v sends calls from its label end ──────────────────────► left
         │   ├── callers mostly left of v, two cells before v free ─────► left
         │   └── otherwise ────────────────────────────────────────────► right end <code>v() <──</code>
@@ -188,49 +188,49 @@ call u → v in the data (graph.edges)
 const PL = 'src/core/place.ts', ST = 'src/core/settle.ts';
 const drag = `<pre>
 drop: pointer delta in whole cells; zero cells: nothing   ${href(MAIN, 'const dc = Math.round((ev.x - ev.subject.x) / cw)')}
-├── 1. units: a group is its box (selection ignored); a function is itself with its tree below, or every selected
-│      function with its tree, once each, when one of several selected is dragged   ${href(MAIN, "units = !unit.startsWith('box:') && selected.has(d.key)")}
+├── 1. units: a group with its content (selection ignored); a function with the functions hanging under it, or every selected
+│      function with those under it, once each, when one of several selected is dragged   ${href(MAIN, "units = !unit.startsWith('box:') && selected.has(d.key)")}
 ├── 2. drop spot: as dropped when no call loses its route and the dropped labels collide with nothing; else the
 │      nearest such spot up to 12 cells along the drag or sideways (1.5 s); else as dropped   ${href(MAIN, 'function settleDrop(')}
-├── 3. stored: a locked unit moves its lock, any other its offset   ${href(MAIN, 'function moveUnit(')}
+├── 3. stored: a locked unit moves its lock, any other its move   ${href(MAIN, 'function moveUnit(')}
 ├── 4. placement: what was not moved keeps its computed place
-│   ├── a moved function lands at its computed place + offset, with its tree   ${href(PL, '} else if (off) shift.set(k,')}
+│   ├── a moved function lands at its computed place + move, with the functions under it   ${href(PL, '} else if (off) shift.set(k,')}
 │   │   └── labels within 2 cells of another label of its group on the row ─────► slides down until clear   ${href(PL, 'const mine = new Set(descendants(k));')}
-│   ├── a moved group: placed as unmoved, then translated whole by its offset; a locked one onto its cell   ${href(PL, 'const home = Math.max(cr, top - 1);')}
+│   ├── a moved group: placed as unmoved, then shifted whole by its move; a locked one onto its cell   ${href(PL, 'const home = Math.max(cr, top - 1);')}
 │   ├── a sibling placed later (order: locked first, then calling order)   ${href(PL, 'const order = [...topo.filter(')}
-│   │   ├── after a group moved by an offset: counts it at its unmoved place ───► stays   ${href(PL, 'const avoid = [...placed.map(')}
+│   │   ├── after a group moved by a drag: counts it at its unmoved place ─────► stays   ${href(PL, 'const avoid = [...placed.map(')}
 │   │   └── after a locked group, or one stretched by moves inside it ─────────► slides below it   ${href(PL, 'if (costRight < costDown) dcol += right; else rr += down;')}
 │   ├── frames grow to hold moved content (Tight groups: fit it on all sides) ────► later siblings of the
 │   │   enclosing group may slide below it   ${href(PL, 'const frame = (x: Rect): Rect =>')}
-│   └── content above row 0 or left of column 0 ──────────────────────────────► whole picture shifts back   ${href(PL, 'let minC = 0, minR = 0;')}
+│   └── blank margin, or content above row 0 or left of column 0 ──────────────► whole picture shifts to 0, 0   ${href(PL, 'const trim = !Object.keys(inp.lock).length;')}
 ├── 5. settle, up to 3 rounds in every redraw: moved, unlocked units that collide (on content, or a frame
-│      touching another frame with no free row or column between) move to the nearest clear offset, the least
+│      touching another frame with no free row or column between) move to the nearest clear spot, the least
 │      displacement (distance × labels) first; unmoved and locked units never move here   ${href(ST, 'export function settleMoved(')}
-└── 6. the view saves the settled offsets (at most 3 saves in a row) and pans so the still function keeps its spot   ${href(MAIN, 'function afterRender() {')}
+└── 6. the view saves the settled moves (at most 3 saves in a row) and pans so the still function keeps its spot   ${href(MAIN, 'function afterRender() {')}
 </pre>`;
 const DRAG: Row[] = [
-    ['which units move', at(MAIN, "units = !unit.startsWith('box:') && selected.has(d.key)"), 'a box header moves `box:<key>`; a label its unit (`vertexUnit`, `collapsed:<key>` for a collapsed container), or `topUnits` of the selection'],
+    ['which units move', at(MAIN, "units = !unit.startsWith('box:') && selected.has(d.key)"), 'a group header moves `box:<key>`; a label its unit (`vertexUnit`, `collapsed:<key>` for a collapsed group), or `topUnits` of the selection'],
     ['units of a selection', at(MAIN, 'function topUnits('), 'each selected function with its tree, skipping one inside another selected function\'s tree'],
     ['still function', at(MAIN, 'const still = [...doc!.view.seeds, ...sc.placement.pos.keys()]'), 'the first seed, else any function, outside what moves; none: the drop is a pan of everything'],
     ['drop accepted', at(MAIN, 'if (clean(dc, dr)) return [dc, dr];'), 'a probe redraw: no more unroutable calls, `collisions` of the dropped labels and frames zero; each probe settles (step 5), so the first spot usually passes'],
     ['drop search', at(MAIN, 'for (let k = 1; k <= cells && performance.now() - t0 < ms; k++)'), 'k cells further along the drag, then sideways either way, then back; k ≤ 12'],
-    ['lock or offset', at(MAIN, 'function moveUnit('), '`lock[unit]` when locked, else `offset[unit]` += (Δcolumn, Δrow)'],
-    ['function offset', at(PL, '} else if (off) shift.set(k,'), 'the shift of a function: its lock, else its parent\'s shift + its offset; the tree below inherits it'],
+    ['lock or move', at(MAIN, 'function moveUnit('), '`lock[unit]` when locked, else `offset[unit]` += (Δcolumn, Δrow)'],
+    ['function move', at(PL, '} else if (off) shift.set(k,'), 'the shift of a function: its lock, else its parent\'s shift + its move; the functions under it inherit it'],
     ['moved function descent', at(PL, 'const mine = new Set(descendants(k));'), 'labels on one row closer than 2 cells to another label of the group: down one row, at most 500'],
-    ['sibling order', at(PL, 'const order = [...topo.filter('), 'locked items first, then the topological order of calls between items; "earlier" in the rows below'],
+    ['sibling order', at(PL, 'const order = [...topo.filter('), 'locked ones first, then the topological order of calls between the block and subgroups; "earlier" in the rows below'],
     ['stacking', at(PL, 'const below = stack.length ?'), 'rows and columns of later siblings from earlier siblings\' unmoved extents'],
-    ['what later items avoid', at(PL, 'const avoid = [...placed.map('), 'an earlier box moved by an offset at its unmoved place; a locked box, or one stretched by moves inside it, where drawn'],
+    ['what later groups avoid', at(PL, 'const avoid = [...placed.map('), 'an earlier group moved by a drag at its unmoved place; a locked group, or one stretched by moves inside it, where drawn'],
     ['unmoved block descent', at(PL, 'const hit = avoid.find((a) => overlaps(a, rectOf(rowMap)));'), 'the functions of a group slide below what they avoid'],
-    ['moved group', at(PL, 'const home = Math.max(cr, top - 1);'), 'placed at the row it would take unmoved, then translated whole (labels, lanes, inner frames) by the offset'],
+    ['moved group', at(PL, 'const home = Math.max(cr, top - 1);'), 'placed at the row it would take unmoved, then shifted whole (labels, trunks, inner frames) by its move'],
     ['unmoved group descent', at(PL, 'if (costRight < costDown) dcol += right; else rr += down;'), 'trial placement, then below the overlapped earlier sibling, by the distance from its top'],
-    ['frame extent', at(PL, 'const frame = (x: Rect): Rect =>'), 'Tight groups: the content\'s bounding box; otherwise the computed corner, growing to hold content moved up or left'],
-    ['picture origin', at(PL, 'let minC = 0, minR = 0;'), 'everything shifts so nothing lies above row 0 or left of column 0; the pan cancels it on screen'],
+    ['frame extent', at(PL, 'const frame = (x: Rect): Rect =>'), 'Tight frames: the content\'s bounding box; otherwise the computed corner, growing to hold content moved up or left'],
+    ['picture origin', at(PL, 'const trim = !Object.keys(inp.lock).length;'), 'everything shifts so the content starts at row 0 and column 0 (with locks: only content above row 0 or left of column 0 shifts back); the pan cancels it on screen'],
     ['settle rounds', at('src/core/scene.ts', "for (let round = 0; round < R.p('h23_settle', 'rounds'); round++) {"), 'at most 3 rounds of settle per redraw'],
-    ['settle candidates', at(ST, 'const moved = Object.keys(doc.view.offset).filter('), 'units with an offset, unlocked, on screen'],
+    ['settle candidates', at(ST, 'const moved = Object.keys(doc.view.offset).filter('), 'units with a move, unlocked, on screen'],
     ['collision', at(ST, 'const hits = (x: Unit, a: number, d: number) =>'), 'a label on another frame\'s border; closer than 4 cells to a label of its row; another label inside its frame; its frame partly over another'],
-    ['clear offset', at(ST, 'const nearest = (x: Unit)'), 'rings of up to 12 cells (vertical first), then straight lines up to 80; never off the canvas'],
+    ['clear spot', at(ST, 'const nearest = (x: Unit)'), 'rings of up to 12 cells (vertical first), then straight lines up to 80; never off the canvas'],
     ['who moves first', at(ST, 'const cost = (r: { x: Unit;'), 'distance × labels moved: a small unit yields to a large one'],
-    ['save and pan', at(MAIN, 'function afterRender() {'), 'the settled offsets become the view\'s offsets (at most 3 saves in a row); render pans to the still function'],
+    ['save and pan', at(MAIN, 'function afterRender() {'), 'the settled moves become the view\'s moves (at most 3 saves in a row); render pans to the still function'],
 ];
 
 // ---- document ------------------------------------------------------------------------------------
@@ -243,11 +243,7 @@ Taxonomy of graph layout ordering functions. Drawing decision tree per call.
 2. **Interpreters**: functions that turn a trigger into a change of the view document (\`ViewDoc.view\`) and commit it; each commit is one undo step.
 3. **Layout**: functions that compute positions from a view document, on every redraw; the same document gives the same picture.
 
-Terms:
-- **unit**: group of displaced symbols: a function with its tree below, a namespace box with its content (\`box:<key>\`), or a collapsed container (\`collapsed:<key>\`).
-- **offset**: move distance \`[Δcolumn, Δrow]\` from its computed place; If lock then abs cell.
-- **settle**: units moved to the nearest clear offset  (\`settleMoved\`); offests saved in webview.
-- **anchor**: symbol that does not shift on graph window, when a graph rearranges.
+Terms: [terms.md](terms.md).
 
 
 ## 1. Triggers
@@ -286,7 +282,7 @@ ${table(['function', 'code', 'what it does', 'rules'], P)}
 
 ${tree}
 
-Nets: \`t:<parent>\` holds a tree stem and its elbows, \`l:<target>\` every call into one function (lanes, routes, the arrival). Calls into one function merge into one trunk (cost 0.3 on its own net).
+Nets: \`t:<parent>\` holds a parent's stem and branches, \`l:<target>\` the trunk of one function: every call into it (trunk columns, searched paths, the arrival). Searched calls join the trunk of their callee (cost \`bundle\`, 0.3).
 
 ## 5. Dragging a function or a group
 
@@ -304,7 +300,7 @@ Consequences:
 
 ## Trace
 
-Setting \`gaffy.trace\` records every view change to \`.baggy/gaffy/trace/<view>.jsonl\` (${at('src/host/trace.ts', 'export class Trace')}): the event, its target and grid cell, the functions above that acted, the view fields changed, the labels and boxes that moved; undo and redo included. \`node tools/gaffy-trace.mjs <file>\` prints it as a list ([tools/gaffy-trace.mjs](../tools/gaffy-trace.mjs)).
+Setting \`gaffy.trace\` records every view change to \`.baggy/gaffy/trace/<view>.jsonl\` (${at('src/host/trace.ts', 'export class Trace')}): the event, its target and grid cell, the functions above that acted, the view fields changed, the labels and groups that moved; undo and redo included. \`node tools/gaffy-trace.mjs <file>\` prints it as a list ([tools/gaffy-trace.mjs](../tools/gaffy-trace.mjs)).
 `;
 writeFileSync(resolve(ROOT, OUT), doc);
 console.log(`${OUT}: ${T_MOUSE.length + T_KEYS.length + T_BAR.length + T_MENU.length + T_OUT.length} triggers, ${I.length} interpreters, ${P.length} layout functions`);

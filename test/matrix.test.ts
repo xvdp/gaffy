@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { RULES } from '../src/core/rules';
-import { buildScene, Scene, unitAnchor } from '../src/core/scene';
+import { buildScene, lockCell, Scene, unitAnchor } from '../src/core/scene';
 import { deepMerge, DEFAULT_STYLE, glyphSet, Style } from '../src/core/style';
 import { toText } from '../src/core/grid';
 import { dropMovesWithin, parseDoc, ParentRule, ViewDoc } from '../src/core/viewdoc';
@@ -76,7 +76,7 @@ describe('rule matrix (T-a, T-b)', () => {
         if (f) d.view.offset[f.unit] = [4, -3];
         // lock where drawn, as the webview's Lock Position does
         const v = [...sc.placement.pos.keys()].reverse().find((x) => !x.startsWith('⋯') && d.graph.nodes[x] && unitAnchor(sc, x));
-        if (v) d.view.lock[v] = unitAnchor(sc, v)!;
+        if (v) d.view.lock[v] = lockCell(sc, v)!;
     };
 
     // GAFFY_MATRIX=1 (npm run test:matrix): every fixture, style and parent rule (about 3 minutes); else a subset
@@ -190,7 +190,7 @@ describe('random operation sequences (T-d)', () => {
                     case 'close': if (d.view.arrange === 'grow') d.view.open = { ...(d.view.open ?? {}), [key]: 'none' }; break;
                     case 'drag': { const o = d.view.offset[key] ?? [0, 0]; d.view.offset[key] = [o[0] + Math.round(r() * 20 - 10), o[1] + Math.round(r() * 12 - 6)]; break; }
                     case 'dragBox': { const u = pick(frames); if (u) { const o = d.view.offset[u] ?? [0, 0]; d.view.offset[u] = [o[0] + Math.round(r() * 30 - 15), o[1] + Math.round(r() * 16 - 8)]; } break; }
-                    case 'lock': { const at = unitAnchor(sc, key); if (at) { d.view.lock[key] = at; delete d.view.offset[key]; } break; }
+                    case 'lock': { const at = lockCell(sc, key); if (at) { d.view.lock[key] = at; delete d.view.offset[key]; } break; }
                     case 'unlock': delete d.view.lock[pick(Object.keys(d.view.lock)) ?? '']; break;
                     case 'group': { const n = d.graph.nodes[key]; if (n?.parent) { d.view.group = [...d.view.group, n.parent]; dropMovesWithin(d, n.parent); } break; }
                     case 'ungroup': { const c = pick(d.view.group); if (c) { d.view.group = d.view.group.filter((x) => x !== c); dropMovesWithin(d, c); } break; }

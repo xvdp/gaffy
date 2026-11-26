@@ -108,7 +108,7 @@ export function settleMoved(P: Placement, doc: ViewDoc, units: Units, R: Rules =
         const { x, to } = ranked[0];
         const [a, d] = to!;
         moves.push([x.u, a, d]);
-        R.note({ rule: 'h23_settle', fn: 'settleMoved', unit: x.u, text: `offset ${JSON.stringify(doc.view.offset[x.u])} + (${a}, ${d}): clear of other content`,
+        R.note({ rule: 'h23_settle', fn: 'settleMoved', unit: x.u, text: `move ${JSON.stringify(doc.view.offset[x.u])} + (${a}, ${d}): clear of other content`,
             values: { round, collisions: hits(x, 0, 0), cost: cost(ranked[0]), waiting: ranked.length - 1 },
             ...(Math.abs(a) + Math.abs(d) >= R.p('h23_settle', 'flag') ? { flag: `moved ${Math.abs(a) + Math.abs(d)} cells` } : {}) });
         for (const s of x.mine) { s.row += d; s.c0 += a; s.c1 += a; }
