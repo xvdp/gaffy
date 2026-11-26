@@ -84,7 +84,7 @@ gaffy> Add to Call Graph    # adds a new `seed` to the graph, which automaticall
   <img src="./images/gaffy_add.png" alt="The gaffy view it opens: Python callers reaching the CUDA function coord2Morton" width="52%" align="middle">
 </p> 
 
-## RMB over canvas e.g. Export as text
+### RMB over canvas e.g. Export as text
 
 ```
 ╭┄ milo ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄╮
