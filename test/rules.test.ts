@@ -69,7 +69,7 @@ describe('rule registry and configuration', () => {
 });
 
 describe('h38 frame overlap', () => {
-    // aloo calls zoinks and wibble: two callee boxes; zoinks moved around aloo's frame
+    // aloo calls zoinks and wibble: two called boxes; zoinks moved around aloo's frame
     const E: [string, string][] = [['aloo.patata:scoobie_jinkies_zoinks', 'zoinks.jinkies:shoo'], ['aloo.patata:scoobie_jinkies_zoinks', 'wibble.wobble:magoo'],
         ['aloo.patata:scoobie_jinkies_zoinks', 'aloo.patata:doo'], ['zoinks.jinkies:shoo', 'zoinks.jinkies:doo_be_doo_be_doo']];
     const unit = 'box:dir:zoinks';

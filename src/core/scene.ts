@@ -2,8 +2,8 @@
  * View document => drawable grid: quotient (collapse, hide), visibility (reveal.ts), namespace boxes, labels,
  * placement, routing; webview renders, extension host exports.
  *
- * Visibility: `grow`, open sides (reveal); `auto`, `depthUp` caller and `depthDown` callee levels (revealDepth).
- * place.ts lays out both on every change, caller above callee (`└─>`, `<─┘`); webview keeps the last acted-on
+ * Visibility: `grow`, open sides (reveal); `auto`, `depthUp` caller and `depthDown` called levels (revealDepth).
+ * place.ts lays out both on every change, caller above called (`└─>`, `<─┘`); webview keeps the last acted-on
  * vertex at its screen position. Marker on a side with off-screen neighbors (closed, beyond depth, hidden, cut): `>> ` label
  * prefix for callers; for calls, marker row `└─>>` as first tree child (virtual vertex `stubOf`, drawn graph only).
  * Cut calls: `grow` only.
@@ -30,7 +30,7 @@ export interface Scene {
     placement: Placement;
     grid: Grid;
     seeds: Set<NodeKey>;
-    hiddenOf: Map<NodeKey, NodeKey[]>;   // hidden callers and callees per visible vertex
+    hiddenOf: Map<NodeKey, NodeKey[]>;   // hidden callers and  per visible vertex
     rev: Reveal;                         // visible vertices, openers, allowed sides
     hasMore: (k: NodeKey, side: 'up' | 'down') => boolean;   // off-screen neighbors on side
     hiddenOn: (k: NodeKey, side: 'up' | 'down') => NodeKey[]; // hidden neighbors, cut-call ends on side
@@ -237,7 +237,7 @@ export function buildScene(doc: ViewDoc, style: Style, exclude: readonly PathTes
      * per cell from the plan. Placement with the kept cells.
      */
     function h41Search(first: Placement, offset: Record<string, Cell>): Placement {
-        const tries = R.p('h41_callee_below', 'tries'), mv = R.p('h41_callee_below', 'move');
+        const tries = R.p('h41_called_below', 'tries'), mv = R.p('h41_called_below', 'move');
         if (!first.h41?.size || tries <= 1) return first;
         const quiet = R.withLog(undefined);
         for (const plan of first.h41.values()) {
@@ -256,7 +256,7 @@ export function buildScene(doc: ViewDoc, style: Style, exclude: readonly PathTes
             });
             const best = scored.reduce((a, b) => (b.cost < a.cost ? b : a));
             h41At[plan.unit] = best.c;
-            debug?.log?.({ rule: 'h41_callee_below', fn: 'buildScene', unit: plan.unit, text: `${scored.length} cells tried: (${best.c[0]}, ${best.c[1]}) kept, cost ${best.cost.toFixed(0)} (plan (${plan.col}, ${plan.top}): ${scored[0].cost.toFixed(0)})`,
+            debug?.log?.({ rule: 'h41_called_below', fn: 'buildScene', unit: plan.unit, text: `${scored.length} cells tried: (${best.c[0]}, ${best.c[1]}) kept, cost ${best.cost.toFixed(0)} (plan (${plan.col}, ${plan.top}): ${scored[0].cost.toFixed(0)})`,
                 values: { tried: scored.map((x) => `${x.c[0]},${x.c[1]}: ${x.cost.toFixed(0)}`) } });
         }
         return placeWith(offset);
@@ -359,7 +359,7 @@ export function seedsIn(vq: VGraph, doc: ViewDoc): NodeKey[] {
 /**
  * Vertices on call paths between seeds within `shown`: reached from a seed along calls and reaching a seed along
  * calls (forward and backward search, O(V + E)), plus the seeds. A path of length L between two seeds lies within
- * the reveal when the callee depth covers it from one end or the caller depth from the other.
+ * the reveal when the called depth covers it from one end or the caller depth from the other.
  */
 export function onPaths(vg: VGraph, shown: ReadonlySet<NodeKey>, seeds: readonly NodeKey[]): Set<NodeKey> {
     const start = seeds.filter((s) => shown.has(s));

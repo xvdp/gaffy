@@ -30,7 +30,7 @@ export const FNS: [string, string, string][] = [
     ['buildGrid', 'src/core/grid.ts', 'export function buildGrid('],
 ];
 
-/** Pipeline calls: caller, callee, call text. */
+/** Pipeline calls: caller, called, call text. */
 export const CALLS: [string, string, string][] = [
     ['render', 'buildScene', 'scene = buildScene(doc, style, excludes, outside(), debugOf(log))'],
     ['render', 'afterRender', 'setTimeout(afterRender, 0)'],
@@ -77,7 +77,7 @@ export const ANCHORS: Anchor[] = [
     { id: 'h16_item_order', in: 'placeBox', at: 'const order = [...topo.filter' },
     { id: 'h17_item_column', in: 'placeBox', at: ': colOn ? Math.max(...sibCallers' },
     { id: 'h18_item_row', in: 'placeBox', at: ': rowOn && callers.length ? Math.max(cr' },
-    { id: 'h41_callee_below', in: 'placeBox', at: "R.on('h41_callee_below')" },
+    { id: 'h41_called_below', in: 'placeBox', at: "R.on('h41_called_below')" },
     { id: 'item_state', in: 'placeBox', at: 'const lock = lockOf(unit);' },
     { id: 'h19_lock_and_box_offset', in: 'item_state', at: 'const [dc, dr] = lock ? ' },
     { id: 'h20_unmoved_box_descent', in: 'item_state', at: 'const snapshot = snapshotP();' },

@@ -300,7 +300,7 @@ function crossing(nets: Map<string, number>): boolean {
  * calls only), which `curvePath` draws whole: dashes restart per subpath, so per-cell pieces would draw solid.
  * crossing: the horizontal line hops the vertical one (half circle).
  * junction (≥ 3 directions in one net): branches bend towards the root with a quarter curve, along the flow
- * (call nets: to the callee; tree stems: from the caller); the straight branch stays straight.
+ * (call nets: to the called; tree stems: from the caller); the straight branch stays straight.
  */
 function maskPaths(g: Grid): Map<string, string> {
     const byNet = new Map<string, Map<number, number>>();
@@ -721,9 +721,9 @@ function callD(p: EdgePath): string {
     return vector && curve !== 'orthogonal' ? curvePath(p, curve) : `M${p.pts.map(([x, y]) => `${X(x)},${Y(y)}`).join('L')}`;
 }
 
-/** Caller and callee of a drawn call (paths run in call direction). */
-function asCall(p: { from: NodeKey; to: NodeKey }): { caller: NodeKey; callee: NodeKey } {
-    return { caller: p.from, callee: p.to };
+/** Caller and called of a drawn call (paths run in call direction). */
+function asCall(p: { from: NodeKey; to: NodeKey }): { caller: NodeKey; called: NodeKey } {
+    return { caller: p.from, called: p.to };
 }
 
 /** Binding layer of a cross-language call (`pybind11: src/ext.cpp:42`), from the stored edge. */
@@ -740,10 +740,10 @@ function implicitOf(p: { from: NodeKey; to: NodeKey }): string | undefined {
 const edgeClass = (p: { from: NodeKey; to: NodeKey }) => (viaOf(p) ? 'net bridge' : implicitOf(p) ? 'net implicit' : 'net');
 
 /** Tooltip line of an implicit call. */
-function implicitTitle(kind: string | undefined, callee: NodeKey): string {
+function implicitTitle(kind: string | undefined, called: NodeKey): string {
     if (kind === 'construction') return '\nimplicit: runs when the class is constructed';
     if (kind === 'instance call') {
-        return scene!.graph.nodes[callee]?.name === 'forward'
+        return scene!.graph.nodes[called]?.name === 'forward'
             ? '\nimplicit: an instance called, nn.Module.__call__ runs forward'
             : '\nimplicit: an instance called runs __call__';
     }
@@ -751,10 +751,10 @@ function implicitTitle(kind: string | undefined, callee: NodeKey): string {
 }
 
 function callTitle(p: EdgePath): string {
-    const { caller, callee } = asCall(p);
+    const { caller, called } = asCall(p);
     const name = (k: NodeKey) => visible(scene!.graph.nodes[k]?.name ?? k);
     const via = viaOf(p);
-    return `${name(caller)}() → ${name(callee)}()${via ? `\nacross languages, via ${via}` : ''}${implicitTitle(implicitOf(p), callee)}\nclick select · double click: show only what lies below · right click: more`;
+    return `${name(caller)}() → ${name(called)}()${via ? `\nacross languages, via ${via}` : ''}${implicitTitle(implicitOf(p), called)}\nclick select · double click: show only what lies below · right click: more`;
 }
 
 /** Open side of a vertex: its `open` entry, else a seed's traversal side. */
@@ -898,7 +898,7 @@ function highlightCalls(ps: { from: NodeKey; to: NodeKey }[]) {
     for (const q of scene!.grid.paths) if (want.has(callKey(q))) ov.append('path').attr('class', 'hl').attr('d', callD(q));
 }
 
-/** Keeps each call's caller and the drawn graph below its callee; hides the rest. */
+/** Keeps each call's caller and the drawn graph below its called; hides the rest. */
 function isolateCalls(calls: { from: NodeKey; to: NodeKey }[]) {
     if (!calls.length) return;
     why('isolateCalls', { calls: calls.length });
@@ -1101,7 +1101,7 @@ function tooltip(d: LabelSpan): string {
     const hid = scene!.hiddenOf.get(d.key);
     if (hid) lines.push(`hidden: ${hid.map((k) => scene!.graph.nodes[k]?.name ?? k).join(', ')}`);
     const lv = scene!.rev.level.get(d.key);
-    if (lv) lines.push(`${scene!.rev.allowed.get(d.key) === 'up' ? 'caller' : 'callee'} level ${lv}`);
+    if (lv) lines.push(`${scene!.rev.allowed.get(d.key) === 'up' ? 'caller' : 'called'} level ${lv}`);
     lines.push(doc!.view.arrange === 'grow'
         ? 'Click >> to extend graph; > arrowhead to close graph path; Delete selection hides nodes'
         : 'full:  Toolbar + - extend or close caller level; Delete selection hides nodes');
@@ -1336,12 +1336,12 @@ function runCmd(cmd: string, key?: NodeKey, unit?: string, to?: NodeKey) {
             return;
         case 'callSite': {
             if (!need(call, NO_CALL)) return;
-            const { caller, callee } = asCall(call!);
-            const e = scene.vg.edges.find((x) => x.from === caller && x.to === callee);
+            const { caller, called } = asCall(call!);
+            const e = scene.vg.edges.find((x) => x.from === caller && x.to === called);
             api.postMessage({ type: 'openAt', key: caller, line: e && e.line < Number.MAX_SAFE_INTEGER ? e.line : undefined });
             return;
         }
-        case 'callee': if (need(call, NO_CALL)) api.postMessage({ type: 'open', key: asCall(call!).callee }); return;
+        case 'called': if (need(call, NO_CALL)) api.postMessage({ type: 'open', key: asCall(call!).called }); return;
         case 'resetLayout': commit((x) => { x.view.offset = {}; x.view.lock = {}; x.view.sibling = {}; x.view.straight = []; }); anchor = undefined; fit(); return;
         case 'showAll': commit((x) => { x.view.hidden = []; delete x.view.cut; x.view.collapsed = []; }); return;
         case 'lock': if (need(unit ?? k, NO_FN)) lockUnit(unit ?? k!); return;
@@ -1367,8 +1367,8 @@ function runCmd(cmd: string, key?: NodeKey, unit?: string, to?: NodeKey) {
                 selCalls.clear();
                 commit((x) => {
                     const have = new Set((x.view.cut ?? []).map(([a, b]) => callKey({ from: a, to: b })));
-                    x.view.cut = [...(x.view.cut ?? []), ...calls.filter((c) => !have.has(callKey({ from: c.caller, to: c.callee })))
-                        .map((c) => [c.caller, c.callee] as [NodeKey, NodeKey])];
+                    x.view.cut = [...(x.view.cut ?? []), ...calls.filter((c) => !have.has(callKey({ from: c.caller, to: c.called })))
+                        .map((c) => [c.caller, c.called] as [NodeKey, NodeKey])];
                 });
                 return;
             }
@@ -1381,7 +1381,7 @@ function runCmd(cmd: string, key?: NodeKey, unit?: string, to?: NodeKey) {
         case 'unlock':
             if (need(unit ?? k, NO_FN) && need(doc.view.lock[unit ?? k!], `unlock: ${(unit ?? k)!.split('#').pop()} is not locked`)) unlockUnit(unit ?? k!);
             return;
-        // callers or callees only, without the function itself
+        // callers or  only, without the function itself
         case 'upstream': if (need(k, NO_FN)) { selected = reach(k!, 'up'); selected.delete(k!); } break;
         case 'downstream': if (need(k, NO_FN)) { selected = reach(k!, 'down'); selected.delete(k!); } break;
         case 'through': if (need(k, NO_FN)) selected = new Set([...reach(k!, 'up'), ...reach(k!, 'down')]); break;
@@ -1488,10 +1488,10 @@ function highlight(key: NodeKey | undefined) {
     if (!key) return;
     for (const p of scene.grid.paths) if (p.from === key || p.to === key) draw(p, 'hl');
     const callers = new Set((scene.vg.inc.get(key) ?? []).map((e) => e.from));
-    const callees = new Set((scene.vg.out.get(key) ?? []).map((e) => e.to));
+    const called = new Set((scene.vg.out.get(key) ?? []).map((e) => e.to));
     root.selectAll<SVGGElement, LabelSpan>('.labels g')
         .classed('hl-in', (d) => callers.has(d.key))
-        .classed('hl-out', (d) => callees.has(d.key));
+        .classed('hl-out', (d) => called.has(d.key));
 }
 
 // ---- keyboard -----------------------------------------------------------------------------------
@@ -1597,7 +1597,7 @@ function folders(): { path: string; label: string; excluded: boolean }[] {
     return [...set].filter((p) => !hiddenDir(p)).sort().map((p) => ({ path: p, label: p.split('/').pop()!, excluded: ex(`${p}/x`) }));
 }
 
-/** Deepest caller (`up`) or callee (`down`) level on screen. */
+/** Deepest caller (`up`) or called (`down`) level on screen. */
 function levelOf(side: 'up' | 'down'): number {
     let m = 0;
     for (const [k, l] of scene?.rev.level ?? []) if (scene!.rev.allowed.get(k) === side) m = Math.max(m, l);
@@ -1606,7 +1606,7 @@ function levelOf(side: 'up' | 'down'): number {
 
 /**
  * Switches one layer at a time ⇄ full, keeping what is on screen: full takes the deepest shown caller and
- * callee levels as call depths; one layer at a time opens each shown vertex's sides whose next level lies
+ * called levels as call depths; one layer at a time opens each shown vertex's sides whose next level lies
  * within them.
  */
 function setArrange(to: 'grow' | 'auto') {
@@ -1714,10 +1714,10 @@ function toolbar() {
     const isolated = removed > 0;
     const canIsolate = selCalls.size > 0 || selected.size > 0;
 
-    // full: `all` `+` `−` callers  call depth  callees `−` `+` `all`
+    // full: `all` `+` `−` callers  call depth   `−` `+` `all`
     const depthBtns = (side: 'up' | 'down'): Btn[] => {
         const d = side === 'up' ? v.depthUp : v.depthDown;
-        const who = side === 'up' ? 'caller' : 'callee';
+        const who = side === 'up' ? 'caller' : 'called';
         const all: Btn = { label: 'all', title: `every ${who} level`, on: d === 'all', act: () => setDepth(side, 'all') };
         const plus: Btn = { label: '+', title: `one ${who} level more`, disabled: d === 'all', act: () => setDepth(side, (n) => n + 1) };
         const minus: Btn = { label: '−', title: `one ${who} level less`, disabled: d === 0, act: () => setDepth(side, (n) => n - 1) };
@@ -1732,13 +1732,13 @@ function toolbar() {
             : { label: 'Isolate', title: 'show only the selected calls or functions (Enter)', disabled: !canIsolate, act: () => runCmd('isolateSelection') },
         ...(v.arrange === 'grow' ? [] : [
             ...depthBtns('up'),
-            { label: 'call depth', title: 'caller levels (left), callee levels (right)', text: true, act: () => {} },
+            { label: 'call depth', title: 'caller levels (left), called levels (right)', text: true, act: () => {} },
             ...depthBtns('down'),
         ]),
         { label: 'zoom fit', title: 'fit to window (0)', act: fit },
         // the expansion mode a click switches to (Options > Call Expansion)
         v.arrange === 'grow'
-            ? { label: 'Switch expand mode to -+', title: 'switch to Global Toolbar: caller and callee levels from the toolbar (+ - call depth - +)', act: () => setArrange('auto') }
+            ? { label: 'Switch expand mode to -+', title: 'switch to Global Toolbar: caller and called levels from the toolbar (+ - call depth - +)', act: () => setArrange('auto') }
             : { label: 'Switch expand mode to >>', title: 'switch to Individual On Graph: >> and └─>> open one side, one layer at a time', act: () => setArrange('grow') },
     ];
     const fl = folders();
@@ -1746,7 +1746,7 @@ function toolbar() {
         { caption: 'Call Expansion', radio: true, items: [
             { label: 'Individual On Graph: >>', title: '>> and └─>> open a side; an arrowhead closes the level it points into; Delete removes the selection; the function acted on stays in place on screen', on: v.arrange === 'grow',
                 act: () => setArrange('grow') },
-            { label: 'Global Toolbar: + - call depth - +', title: 'caller and callee levels from the toolbar; the same picture, no opening or closing of single functions', on: v.arrange !== 'grow',
+            { label: 'Global Toolbar: + - call depth - +', title: 'caller and called levels from the toolbar; the same picture, no opening or closing of single functions', on: v.arrange !== 'grow',
                 act: () => setArrange('auto') },
             { label: 'Paths between seeds only', check: true, title: v.arrange === 'grow'
                 ? 'draw only functions on call paths from one seed to another, any number of calls, as far as the graph data reaches; seeds always; >> opens nothing. Off: the paths stay, nothing else opens'
@@ -1874,8 +1874,8 @@ function status() {
     const parts = [...(flashText ? [`⚠ ${flashText}`] : []), ...(working ? [working] : []), `${scene.vg.nodes.size} nodes`, `${scene.vg.edges.length} calls`];
     if (selected.size) parts.push(`${selected.size} selected`);
     if (selCalls.size === 1) {
-        const { caller, callee } = asCall(unkey([...selCalls][0]));
-        parts.push(`call ${scene.graph.nodes[caller]?.name ?? caller}() → ${scene.graph.nodes[callee]?.name ?? callee}()`);
+        const { caller, called } = asCall(unkey([...selCalls][0]));
+        parts.push(`call ${scene.graph.nodes[caller]?.name ?? caller}() → ${scene.graph.nodes[called]?.name ?? called}()`);
     } else if (selCalls.size) parts.push(`${selCalls.size} calls selected`);
     parts.push(v.between ? 'Locked: paths between seeds' : v.arrange === 'grow' ? '>> Individual' : '+ - Full layer');
     if (settings.debugLayout) {

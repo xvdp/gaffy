@@ -194,7 +194,7 @@ export function registerCommands(ctx: vscode.ExtensionContext, editor: GaffyEdit
     };
 
     reg('gaffy.graphCallers', () => graphAtCursor('in'));
-    reg('gaffy.graphCallees', () => graphAtCursor('out'));
+    reg('gaffy.graphCalled', () => graphAtCursor('out'));
 
     reg('gaffy.addToView', async () => {
         const sess = active();
@@ -267,7 +267,7 @@ export function registerCommands(ctx: vscode.ExtensionContext, editor: GaffyEdit
     reg('gaffy.edge.subtree', forward('callSubtree'));
     reg('gaffy.edge.path', forward('callPath'));
     reg('gaffy.edge.callSite', forward('callSite'));
-    reg('gaffy.edge.callee', forward('callee'));
+    reg('gaffy.edge.called', forward('called'));
     reg('gaffy.resetLayout', forward('resetLayout'));
     reg('gaffy.rearrange', forward('rearrange'));
     reg('gaffy.unlockAll', forward('unlockAll'));

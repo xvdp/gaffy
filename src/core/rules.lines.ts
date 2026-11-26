@@ -20,7 +20,7 @@ export const RULE_LINES: Record<string, [string, number][]> = {
     h16_item_order: [['src/core/place.ts', 307]],
     h17_item_column: [['src/core/place.ts', 356]],
     h18_item_row: [['src/core/place.ts', 362]],
-    h41_callee_below: [['src/core/place.ts', 333]],
+    h41_called_below: [['src/core/place.ts', 333]],
     item_state: [['src/core/place.ts', 383]],
     h19_lock_and_box_offset: [['src/core/place.ts', 391]],
     h20_unmoved_box_descent: [['src/core/place.ts', 403]],

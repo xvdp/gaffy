@@ -69,7 +69,7 @@ describe('fixture MOO with namespace boxes', () => {
     });
 });
 
-describe('addendum 1a: scoobie and its callees', () => {
+describe('addendum 1a: scoobie and its ', () => {
     const doc = fixtureDoc(KAZOO, { seeds: [k('kazoo.moomoo.boogaloos:scoobie')], direction: 'out' });
 
     it('boxes kazoo, moomoo.boogaloos, noodles; noodles right of moomoo.boogaloos (drawing 1c, third)', () => {
@@ -81,7 +81,7 @@ describe('addendum 1a: scoobie and its callees', () => {
         expect(rt.c0).toBeGreaterThan(rh.c1);
         expect(sc.grid.labels.find((l) => l.key === k('kazoo.moomoo.boogaloos:scoobie'))!.text).toBe('scoobie()');
         expect(sc.grid.labels.find((l) => l.key === k('kazoo.noodles.wibbles:mister_magoos'))!.text).toBe('wibbles.mister_magoos()');
-        // callee level with its caller: _lasagna() => jumbles.to_wacky() drawn on one row
+        // called level with its caller: _lasagna() => jumbles.to_wacky() drawn on one row
         expect(sc.placement.pos.get(k('kazoo.noodles.jumbles:to_wacky'))!.row)
             .toBe(sc.placement.pos.get(k('kazoo.moomoo.boogaloos:_lasagna'))!.row);
         golden('kazoo_boxes', text(sc, boxed()));
@@ -235,7 +235,7 @@ describe('one layer at a time: open sides, direction, markers, removal', () => {
         expect(sc.rev.allowed.get(k('kazoo.noodles.jumbles:to_wacky'))).toBe('down');
     });
 
-    it('a cut call or a hidden callee leaves a marker row under the caller', () => {
+    it('a cut call or a hidden called leaves a marker row under the caller', () => {
         const d = base();
         d.view.cut = [[seed, k('kazoo.noodles.jumbles:to_magoo')]];
         const s1 = buildScene(d, boxed());
@@ -362,7 +362,7 @@ describe('parent rules', () => {
 });
 
 describe('moves', () => {
-    it('callee dragged above its caller: arrow leaves over the caller, ┌─>', () => {
+    it('called dragged above its caller: arrow leaves over the caller, ┌─>', () => {
         const doc = fixtureDoc([['m:func', 'm:nextfunc'], ['m:func', 'm:other']], { seeds: [k('m:func')], offset: { [k('m:nextfunc')]: [0, -3] } });
         const sc = buildScene(doc, flat());
         invariants(sc);
@@ -577,7 +577,7 @@ describe('hidden functions leave markers', () => {
         expect(sc.drawn.nodes.has(`\u22efmore:${K('magoo')}`)).toBe(true);
         expect(sc.hiddenPath(K('scoobie'))).toEqual([K('shoo')]);
     });
-    it('one layer at a time: hidden callers of a callee show `>> `, though the callee opens only its calls', () => {
+    it('one layer at a time: hidden callers of a called show `>> `, though the called opens only its calls', () => {
         const d = doc({ arrange: 'grow', direction: 'out', open: { [K('magoo')]: 'down', [K('shoo')]: 'down' }, hidden: [K('boo')] });
         const sc = buildScene(d, flat());
         invariants(sc);
@@ -604,14 +604,14 @@ describe('view documents', () => {
         expect(parseDoc(JSON.stringify({ gaffy: 1, name: 'o', view: { seeds: [], static: 'yes' } }), 'o').view.static).toBeUndefined();
     });
     it('a full view from before per-side call depths takes them from its direction and depth; removed options drop', () => {
-        const old = parseDoc(JSON.stringify({ gaffy: 1, name: 'v', view: { seeds: ['k'], direction: 'in', depth: 3, arrange: 'auto', order: 'callees', fold: { k: 'down' }, expanded: { k: 'in' } }, graph: { nodes: {}, edges: [] } }));
+        const old = parseDoc(JSON.stringify({ gaffy: 1, name: 'v', view: { seeds: ['k'], direction: 'in', depth: 3, arrange: 'auto', order: '', fold: { k: 'down' }, expanded: { k: 'in' } }, graph: { nodes: {}, edges: [] } }));
         expect([old.view.depthUp, old.view.depthDown, old.view.depthRule]).toEqual([3, 0, 'shortest']);
         const text = serializeDoc(old);
         expect(text).not.toMatch(/"order"|"fold"|"expanded"/);
         const both = parseDoc(JSON.stringify({ gaffy: 1, name: 'v', view: { seeds: [], direction: 'both', depth: 2, depthUp: 'all' }, graph: { nodes: {}, edges: [] } }));
         expect([both.view.depthUp, both.view.depthDown]).toEqual(['all', 2]);
     });
-    it('removed calls keep only [caller, callee] pairs', () => {
+    it('removed calls keep only [caller, called] pairs', () => {
         const d = parseDoc(JSON.stringify({ gaffy: 1, name: 'v', view: { seeds: [], cut: [['a', 'b'], ['bad'], 'x'] }, graph: { nodes: {}, edges: [] } }));
         expect(d.view.cut).toEqual([['a', 'b']]);
     });
@@ -636,7 +636,7 @@ describe('moves leave the rest in place', () => {
 });
 
 describe('moved boxes move whole', () => {
-    // aloo calls zoinks and wibble: two callee boxes stacked right of it, zoinks above wibble
+    // aloo calls zoinks and wibble: two called boxes stacked right of it, zoinks above wibble
     const E: [string, string][] = [['aloo.patata:scoobie', 'zoinks.jinkies:shoo'], ['aloo.patata:scoobie', 'wibble.wobble:magoo'], ['zoinks.jinkies:shoo', 'zoinks.jinkies:doo']];
     const unit = boxUnit('dir:zoinks');
     const view = (offset: Record<string, [number, number]>) => fixtureDoc(E, { seeds: [k('aloo.patata:scoobie')], direction: 'out', offset });

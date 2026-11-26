@@ -4,7 +4,7 @@
  * Answers are stored whole; folder filters apply at draw time (re-including a folder needs no server).
  *
  * No answer ≠ empty answer. Unresolved definition (server analyzing, request failed): calls kept, not cached.
- * A call belongs to two pairs: (caller, out) and (callee, in); `GEdge.seen` records which answers reported it. An
+ * A call belongs to two pairs: (caller, out) and (called, in); `GEdge.seen` records which answers reported it. An
  * answer replaces the calls of its pair except those an answer of the other pair reported: servers answer the two
  * directions apart and not alike (the C/C++ server lists a CUDA host function as caller of `knn` and no calls for that
  * function), so one direction's silence does not refute the other's report. A call goes when neither reports it;
@@ -118,7 +118,7 @@ export async function extendGraph(
         stats.definitions = defs();
         opts.progress?.({ ...stats });
     });
-    // one edge per (caller, callee), earliest call line
+    // one edge per (caller, called), earliest call line
     const byPair = new Map<string, GEdge>();
     const join = (a: GEdge['seen'], b: GEdge['seen']): GEdge['seen'] => (a === b ? a : !a ? b : !b ? a : 'both');
     for (const e of edges) {

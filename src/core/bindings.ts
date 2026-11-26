@@ -174,7 +174,7 @@ export function pyImports(text: string): Map<string, string> {
 
 const PY_KEYWORDS = new Set(['if', 'elif', 'while', 'for', 'return', 'yield', 'not', 'and', 'or', 'in', 'is', 'lambda', 'with', 'assert', 'del', 'print', 'await']);
 
-/** Dotted callees written in `text[from, to)`: `a.b.c(` => `a.b.c`. */
+/** Dotted  written in `text[from, to)`: `a.b.c(` => `a.b.c`. */
 export function pyCallSites(text: string, from = 0, to = text.length): { dotted: string; at: number }[] {
     const m = maskPy(text).slice(from, to);
     const out: { dotted: string; at: number }[] = [];
@@ -269,14 +269,14 @@ export function slangCalls(text: string, from: number, to: number, names: Readon
     return out;
 }
 
-/** Dotted callee resolved through its file's imports: first name => its import path. */
+/** Dotted called resolved through its file's imports: first name => its import path. */
 export function resolveDotted(dotted: string, imports: ReadonlyMap<string, string>): string[] {
     const parts = dotted.split('.');
     const head = imports.get(parts[0]);
     return head ? [...head.split('.').filter(Boolean), ...parts.slice(1)] : parts;
 }
 
-/** Bindings of a resolved Python callee: path ends with the binding's module (last segment) and Python path. */
+/** Bindings of a resolved Python called: path ends with the binding's module (last segment) and Python path. */
 export function matchBindings<B extends Binding>(path: string[], bindings: readonly B[], moduleOf: (b: B) => string = (b) => b.module): B[] {
     return bindings.filter((b) => {
         const full = [...moduleOf(b).split('.'), ...b.py];

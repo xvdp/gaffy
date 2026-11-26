@@ -170,7 +170,7 @@ call u → v in the data (graph.edges)
     │   ├── every caller and v share one shift, the trunk column clear ─► trunk <code>┌──┘ └─></code> or <code>&lt;──┘</code> (net l:v)   <a href="../src/core/grid.ts#L366">grid.ts:366</a>
     │   └── otherwise ────────────────────────────────────────────────► path search
     └── path search (A*), in search order: straightened, then callers top to bottom (h25, row)   <a href="../src/core/grid.ts#L432">grid.ts:432</a>
-        ├── arrival side, decided per callee before path search   <a href="../src/core/grid.ts#L461">grid.ts:461</a>
+        ├── arrival side, decided per called before path search   <a href="../src/core/grid.ts#L461">grid.ts:461</a>
         │   ├── v's trunk already enters from the left ───────────────► left <code>──> v()</code>
         │   ├── v sends calls from its label end ──────────────────────► left
         │   ├── callers mostly left of v, two cells before v free ─────► left
@@ -185,7 +185,7 @@ call u → v in the data (graph.edges)
             └── no route in 400 000 steps ────────────────────────────► dashed fallback L with its arrowhead   <a href="../src/core/grid.ts#L576">grid.ts:576</a>
 </pre>
 
-Nets: `t:<parent>` holds a parent's stem and branches, `l:<target>` the trunk of one function: every call into it (trunk columns, searched paths, the arrival). Searched calls join the trunk of their callee (cost `bundle`, 0.3).
+Nets: `t:<parent>` holds a parent's stem and branches, `l:<target>` the trunk of one function: every call into it (trunk columns, searched paths, the arrival). Searched calls join the trunk of their called (cost `bundle`, 0.3).
 
 ## 5. Dragging a function or a group
 

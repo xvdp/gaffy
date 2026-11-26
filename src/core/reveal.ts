@@ -1,17 +1,17 @@
 /** @xvdp
  * Visibility by open sides, VS Code call hierarchy in both directions.
  *
- * `view.open`: open sides per vertex; `down` shows callees, `up` callers, one layer.
+ * `view.open`: open sides per vertex; `down` shows , `up` callers, one layer.
  * Visible set: seeds, then breadth-first neighbors on open sides of visible vertices; a seed without entry opens
  * the view's traversal side. Open sides of non-visible vertices persist: reopening a parent restores lower layers.
- * `allowed`: seeds open both sides; vertices revealed via `down` only callees, via `up` only callers.
+ * `allowed`: seeds open both sides; vertices revealed via `down` only , via `up` only callers.
  * `view.cut`: calls not followed. `pinned`: vertices visible without an opener, both sides allowed, closed unless
  * opened (no traversal side).
  *
  * `revealPaths` (one layer at a time with `between`): every vertex on a seed-to-seed call path of the graph, any
  * number of calls; both sides allowed (markers, neighbor requests that extend paths); open sides add nothing.
  *
- * `revealDepth` (full view): vertices within `up` caller and `down` callee levels, same `allowed`. Level, rule
+ * `revealDepth` (full view): vertices within `up` caller and `down` called levels, same `allowed`. Level, rule
  * `shortest`: breadth-first distance; rule `longest`: longest path from seeds in the DAG without DFS back edges
  * (dynamic program over a topological order), each vertex within the limit with a predecessor one level up,
  * so the visible set stays connected.
@@ -32,7 +32,7 @@ const under = (lev: number, lim: Depth) => lim === 'all' || lev < lim;
 
 export const seedSide = (d: Direction): OpenSide => (d === 'out' ? 'down' : d === 'in' ? 'up' : 'both');
 export const opens = (s: OpenSide | undefined, side: 'up' | 'down') => s === side || s === 'both';
-export const cutKey = (caller: NodeKey, callee: NodeKey) => `${caller}\u0000${callee}`;
+export const cutKey = (caller: NodeKey, called: NodeKey) => `${caller}\u0000${called}`;
 
 /** Open sides ∩ allowed sides. */
 export function within(s: OpenSide | undefined, allowed: OpenSide | undefined): OpenSide {

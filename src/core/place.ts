@@ -55,7 +55,7 @@ export interface Placement {
     height: number;
     elbows?: Map<NodeKey, NodeKey[]>;  // stable placement: tree elbows outside blocks
     markers?: Marker[];                // stable arrangement: markers of sides with hidden neighbors
-    h41?: Map<string, H41Plan>;        // groups placed by h41_callee_below: planned cell and plan columns (scene.ts tries others)
+    h41?: Map<string, H41Plan>;        // groups placed by h41_called_below: planned cell and plan columns (scene.ts tries others)
     margin?: Cell;                     // blank margin trimmed before moved content: drawn cell + margin = cell with locks (scene.ts lockCell)
 }
 
@@ -306,7 +306,7 @@ function placeOnce(inp: PlaceInput, adjust: Cell, final: boolean): { P: Placemen
         const unitOf = (i: number) => (items[i].kind === 'box' ? boxUnit((items[i] as { box: BoxNode }).box.key) : '');
         const order = [...topo.filter((i) => inp.lock[unitOf(i)]), ...topo.filter((i) => !inp.lock[unitOf(i)])];
         const itemName = (i: number) => (items[i].kind === 'box' ? unitOf(i) : `block:${box.key}`);
-        if (order.length > 1) note({ rule: 'h16_item_order', fn: 'placeBox', unit: boxUnit(box.key), text: 'locked ones first, then callers before callees',
+        if (order.length > 1) note({ rule: 'h16_item_order', fn: 'placeBox', unit: boxUnit(box.key), text: 'locked ones first, then callers before ',
             values: { order: order.map(itemName) } });
 
         const placed: { i: number; rect: Rect; base: Rect; f0: number; f1: number }[] = [];   // f0, f1: its frames in P.frames
@@ -327,10 +327,10 @@ function placeOnce(inp: PlaceInput, adjust: Cell, final: boolean): { P: Placemen
             // column, row, stacking: from unmoved earlier items
             const channel = R.p('h17_item_column', 'channel');
             // h41: a group whose callers were opened from it (opener side up) hangs below the caller's group, its
-            // function one indent right of the caller: `caller()` over `└─> f()`, as a callee below its caller
+            // function one indent right of the caller: `caller()` over `└─> f()`, as a called below its caller
             // only for a group called from a single sibling group: with callers in several, below one of them
             // lengthens the calls of the others (bindings view: crossing cells 23 => 68)
-            const opened = it.kind === 'box' && sibCallers.length === 1 && R.on('h41_callee_below') ? callers.find((u) => {
+            const opened = it.kind === 'box' && sibCallers.length === 1 && R.on('h41_called_below') ? callers.find((u) => {
                 const by = inp.openedUp?.(u);
                 return by !== undefined && inside.has(by) && sibCallers.some((p) => itemOf.get(u) === p.i);
             }) : undefined;
@@ -366,7 +366,7 @@ function placeOnce(inp: PlaceInput, adjust: Cell, final: boolean): { P: Placemen
                 if (tried) [col, top] = [Math.max(cc, tried[0]), Math.max(cr, tried[1])];
             }
             const name = itemName(i);
-            if (opened !== undefined) note({ rule: 'h41_callee_below', fn: 'placeBox', unit: name, text: `column ${col}, row ${top}: below the group of ${opened.slice(opened.indexOf('#') + 1)}, whose callers opened from it; ${drops ? 'its call drops straight down' : `right of ${via.length} callers' label ends`}`, values: { caller: opened, opener: openedBy, callers: via.length, drops } });
+            if (opened !== undefined) note({ rule: 'h41_called_below', fn: 'placeBox', unit: name, text: `column ${col}, row ${top}: below the group of ${opened.slice(opened.indexOf('#') + 1)}, whose callers opened from it; ${drops ? 'its call drops straight down' : `right of ${via.length} callers' label ends`}`, values: { caller: opened, opener: openedBy, callers: via.length, drops } });
             if (opened === undefined) note({ rule: 'h17_item_column', fn: 'placeBox', unit: name, text: colOn ? `column ${col}: right of ${sibCallers.length} calling siblings` : `column ${col}: content column`,
                 values: colOn ? { callers: sibCallers.map((p) => itemName(p.i)), right: Math.max(...sibCallers.map((p) => p.base.c1)), channel, entering: entering.size } : {} });
             if (opened === undefined) note({ rule: 'h18_item_row', fn: 'placeBox', unit: name, text: rowOn && callers.length ? `row ${top}: topmost caller row` : `row ${top}: below earlier siblings`,
@@ -474,7 +474,7 @@ function placeOnce(inp: PlaceInput, adjust: Cell, final: boolean): { P: Placemen
         return spans(va, fa, 0, 0).some((sp) => within(sp, at)) || spans(vb, fb, at.c0 - rb.c0, at.r0 - rb.r0).some((sp) => within(sp, ra));
     };
 
-    /** E5: calls between placed functions outside `own` whose bounding box (caller to callee) meets `x`. */
+    /** E5: calls between placed functions outside `own` whose bounding box (caller to called) meets `x`. */
     const spanned = (x: Rect, own: ReadonlySet<NodeKey>): number => {
         let n = 0;
         for (const e of vg.edges) {

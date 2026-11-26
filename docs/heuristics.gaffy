@@ -575,16 +575,16 @@
     "line": 214,
     "detail": "Group row: code src/core/place.ts:362"
    },
-   "ts:src/core/place.ts#h41_callee_below": {
-    "key": "ts:src/core/place.ts#h41_callee_below",
+   "ts:src/core/place.ts#h41_called_below": {
+    "key": "ts:src/core/place.ts#h41_called_below",
     "kind": "function",
-    "name": "h41_callee_below",
-    "qual": "h41_callee_below",
+    "name": "h41_called_below",
+    "qual": "h41_called_below",
     "module": "src/core/place",
     "parent": "ts:src/core/place.ts",
     "path": "docs/heuristics.md",
     "line": 222,
-    "detail": "Callee group below its caller: code src/core/place.ts:333"
+    "detail": "Called group below its caller: code src/core/place.ts:333"
    },
    "ts:src/core/place.ts#item_state": {
     "key": "ts:src/core/place.ts#item_state",
@@ -1027,7 +1027,7 @@
    },
    {
     "from": "ts:src/core/place.ts#placeBox",
-    "to": "ts:src/core/place.ts#h41_callee_below",
+    "to": "ts:src/core/place.ts#h41_called_below",
     "line": 332
    },
    {
@@ -1214,7 +1214,7 @@
   "ts:src/core/place.ts#h16_item_order": "both",
   "ts:src/core/place.ts#h17_item_column": "both",
   "ts:src/core/place.ts#h18_item_row": "both",
-  "ts:src/core/place.ts#h41_callee_below": "both",
+  "ts:src/core/place.ts#h41_called_below": "both",
   "ts:src/core/place.ts#item_state": "both",
   "ts:src/core/place.ts#h19_lock_and_box_offset": "both",
   "ts:src/core/place.ts#h20_unmoved_box_descent": "both",

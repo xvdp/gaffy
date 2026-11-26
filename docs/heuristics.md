@@ -22,7 +22,7 @@ Reading the graph: a function calls the functions and rules below it in code ord
 ┆  ┆  ├─&gt; <a href="../src/webview/main.ts#L1119">topUnits()</a>                  │    │ │ ┆     ┆  ├─&gt; <a href="../src/core/place.ts#L89">place.place()</a>                                           ┆ ┆
 ┆  ┆  │   └─&gt; <a href="#h32_multi_unit_drag">h32_multi_unit_drag()</a>   │    │ │ ┆     ┆  │   └─&gt; <a href="../src/core/place.ts#L277">place.placeBox() ↻</a> ───────────────────────────────┐ ┆ ┆
 ┆  ┆  └─&gt; <a href="../src/webview/main.ts#L1229">settleDrop()</a>                │    │ │ ┆     ┆  │       ├─&gt; <a href="#h16_item_order">place.h16_item_order()</a>                        │ ┆ ┆
-┆  ┆      └─&gt; <a href="#h33_drop_repulsion">h33_drop_repulsion()</a>    │    │ │ ┆     ┆  │       ├─&gt; <a href="#h41_callee_below">place.h41_callee_below()</a>                      │ ┆ ┆
+┆  ┆      └─&gt; <a href="#h33_drop_repulsion">h33_drop_repulsion()</a>    │    │ │ ┆     ┆  │       ├─&gt; <a href="#h41_called_below">place.h41_called_below()</a>                      │ ┆ ┆
 ┆  ┆  <a href="../src/webview/main.ts#L1298"><b>runCmd()</b></a> ───────────────────────┼────┤ │ ┆     ┆  │       ├─&gt; <a href="#h17_item_column">place.h17_item_column()</a>                       │ ┆ ┆
 ┆  ┆      ┌───────────────────────────┘    │ │ ┆     ┆  │       ├─&gt; <a href="#h18_item_row">place.h18_item_row()</a>                          │ ┆ ┆
 ┆  ┆      └─&gt; <a href="#h31_still_anchor">h31_still_anchor()</a>           │ │ ┆     ┆  │       ├─&gt; <a href="../src/core/place.ts#L123">place.placeBlock()</a>                            │ ┆ ┆
@@ -118,7 +118,7 @@ Code: [layout.ts:102](../src/core/layout.ts#L102), in `layout`.
 
 ### h08_row_order
 
-**Row order.** Rows follow a depth-first walk from uncalled functions (seeds first where a loop has no entry). Every caller lies above its callees, except calls back up a loop, which show as `↻` tags.
+**Row order.** Rows follow a depth-first walk from uncalled functions (seeds first where a loop has no entry). Every caller lies above its , except calls back up a loop, which show as `↻` tags.
 
 Code: [layout.ts:152](../src/core/layout.ts#L152), in `layout`.
 
@@ -199,7 +199,7 @@ Code: [place.ts:230](../src/core/place.ts#L230), in `placeBlock`.
 
 ### h16_item_order
 
-**Group order.** Within a group, its block and subgroups are placed locked ones first, then callers before callees (ties by h03_box_order).
+**Group order.** Within a group, its block and subgroups are placed locked ones first, then callers before  (ties by h03_box_order).
 
 Code: [place.ts:307](../src/core/place.ts#L307), in `placeBox`.
 
@@ -220,13 +220,13 @@ Code: [place.ts:356](../src/core/place.ts#L356), in `placeBox`.
 
 Code: [place.ts:362](../src/core/place.ts#L362), in `placeBox`.
 
-### h41_callee_below
+### h41_called_below
 
-**Callee group below its caller.** One layer at a time: a group called from a single sibling group, on screen because the callers of one of its functions were opened, hangs below the caller's group, placed for the calls into it: one caller with nothing hanging under it and no label below it in its group drops its call straight down, so the group's content sits one indent right of it (`caller()` over `└─> f()`); otherwise the group sits right of the callers' label ends and a channel, so their calls run right, down into one trunk, in from the left. Then up to `tries` cells around this plan are tried, nearest first: for each, the calls touching the group are routed (everything else an obstacle), and the cell with the least route cost plus `move` per cell from the plan is kept. What was drawn before stays. Replaces h17_item_column and h18_item_row for that group; h20_unmoved_box_descent still keeps it clear of other groups.
+**Called group below its caller.** One layer at a time: a group called from a single sibling group, on screen because the callers of one of its functions were opened, hangs below the caller's group, placed for the calls into it: one caller with nothing hanging under it and no label below it in its group drops its call straight down, so the group's content sits one indent right of it (`caller()` over `└─> f()`); otherwise the group sits right of the callers' label ends and a channel, so their calls run right, down into one trunk, in from the left. Then up to `tries` cells around this plan are tried, nearest first: for each, the calls touching the group are routed (everything else an obstacle), and the cell with the least route cost plus `move` per cell from the plan is kept. What was drawn before stays. Replaces h17_item_column and h18_item_row for that group; h20_unmoved_box_descent still keeps it clear of other groups.
 
 - Switch (Rules panel): off: the group sits right of its calling groups, at the caller's row (h17_item_column, h18_item_row).
-- Parameter `h41_callee_below.tries` = 6, range [1, 15]: cells tried around the plan; 1: the plan only.
-- Parameter `h41_callee_below.move` = 1, range [0, 10]: cost per cell between a tried cell and the plan.
+- Parameter `h41_called_below.tries` = 6, range [1, 15]: cells tried around the plan; 1: the plan only.
+- Parameter `h41_called_below.move` = 1, range [0, 10]: cost per cell between a tried cell and the plan.
 
 Code: [place.ts:333](../src/core/place.ts#L333), in `placeBox`.
 
@@ -298,9 +298,9 @@ Code: [grid.ts:360](../src/core/grid.ts#L360), in `buildGrid`.
 
 ### h25_routing_order
 
-**Search order.** Calls are searched one at a time, each an obstacle for the calls after it: the order decides which call takes a free corridor and which must cross it. Straightened calls first, then by the chosen alternative: `row` (default), callers top to bottom, a caller's calls together in callee order; `longest`, level calls shortest first, then the rest longest first; `shortest`, level calls, then the rest shortest first.
+**Search order.** Calls are searched one at a time, each an obstacle for the calls after it: the order decides which call takes a free corridor and which must cross it. Straightened calls first, then by the chosen alternative: `row` (default), callers top to bottom, a caller's calls together in called order; `longest`, level calls shortest first, then the rest longest first; `shortest`, level calls, then the rest shortest first.
 
-- Alternatives (Rules panel): `longest`: level calls shortest first, then the rest longest first; `shortest`: level calls, then the rest shortest first; `row` (default): by caller row, then callee row: top to bottom.
+- Alternatives (Rules panel): `longest`: level calls shortest first, then the rest longest first; `shortest`: level calls, then the rest shortest first; `row` (default): by caller row, then called row: top to bottom.
 
 Code: [grid.ts:432](../src/core/grid.ts#L432), in `buildGrid`.
 
@@ -328,13 +328,13 @@ Code: [grid.ts:588](../src/core/grid.ts#L588), in `buildGrid`.
 
 ### h29_route_cost
 
-**Path cost.** Path search: A* over (cell, heading), guided by the grid (Manhattan) distance to the arrival cell. Each step costs 1; +`border` entering a frame border, +`cross` crossing another call line, `bundle` along a line into the same callee (joining its trunk) or along the caller's own lines, also where another line crosses them (calls of one caller leave as one bundle and split once), +`bend` per change of heading, +`adjacent` for a vertical step next to another call's vertical line. Never: label cells and padding, markers, reversing, running along a border, cells kept for another call. The first pass forbids running along or turning on another line; a second allows them at +`relaxAlong` and +`relaxTurn`. No path in both passes (`steps` search states): dashed.
+**Path cost.** Path search: A* over (cell, heading), guided by the grid (Manhattan) distance to the arrival cell. Each step costs 1; +`border` entering a frame border, +`cross` crossing another call line, `bundle` along a line into the same called (joining its trunk) or along the caller's own lines, also where another line crosses them (calls of one caller leave as one bundle and split once), +`bend` per change of heading, +`adjacent` for a vertical step next to another call's vertical line. Never: label cells and padding, markers, reversing, running along a border, cells kept for another call. The first pass forbids running along or turning on another line; a second allows them at +`relaxAlong` and +`relaxTurn`. No path in both passes (`steps` search states): dashed.
 
 - Parameter `h29_route_cost.bend` = 3, range [0, 100]: per change of heading.
 - Parameter `h29_route_cost.cross` = 6, range [0, 100]: per crossing of another call line.
 - Parameter `h29_route_cost.border` = 4, range [0, 100]: per frame border crossed.
 - Parameter `h29_route_cost.adjacent` = 2, range [0, 100]: per vertical step next to another call's vertical line.
-- Parameter `h29_route_cost.bundle` = 0.3, range [0.05, 1]: per step along a line into the same callee, or along the caller's own lines, crossings included (joining it).
+- Parameter `h29_route_cost.bundle` = 0.3, range [0.05, 1]: per step along a line into the same called, or along the caller's own lines, crossings included (joining it).
 - Parameter `h29_route_cost.relaxTurn` = 40, range [0, 1000]: second pass: turning on another line.
 - Parameter `h29_route_cost.relaxAlong` = 400, range [0, 10000]: second pass: running along another line.
 - Parameter `h29_route_cost.steps` = 400000, range [1000, 2000000]: search states per call before a dashed line.
@@ -354,7 +354,7 @@ Code: [grid.ts:135](../src/core/grid.ts#L135), in `buildGrid`.
 
 ### h40_lookahead
 
-**Room for later calls.** Each cell costs `weight` per call not searched yet whose bounding box (caller to callee) holds it, so early paths leave the corridors later calls need; 0: off.
+**Room for later calls.** Each cell costs `weight` per call not searched yet whose bounding box (caller to called) holds it, so early paths leave the corridors later calls need; 0: off.
 
 - Parameter `h40_lookahead.weight` = 0, range [0, 4]: cost per call not searched yet whose bounding box holds the cell.
 

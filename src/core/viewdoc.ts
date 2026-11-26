@@ -51,7 +51,7 @@ export interface ViewSpec {
     open?: Record<NodeKey, OpenSide>;        // grow: open sides per vertex
     arrange: 'grow' | 'auto';                // grow: one layer at a time; auto: all levels within depthUp, depthDown
     depthUp: Depth;                          // auto: caller levels above seeds
-    depthDown: Depth;                        // auto: callee levels below seeds
+    depthDown: Depth;                        // auto: called levels below seeds
     depthRule: DepthRule;                    // auto: level = shortest or longest call path from seeds
     sibling: Record<NodeKey, NodeKey[]>;     // child order per tree parent; ROOTS: top level
     offset: Record<string, Cell>;            // unlocked moves: [Δcolumn, Δrow] per unit
@@ -76,8 +76,8 @@ export interface ViewSpec {
     rules?: RuleConfig;                      // rule switches, alternatives, parameters over style.json `rules` (rules.ts)
     pinPaths?: boolean;                      // grow + between: after the first build, the paths pinned, `between` off (giddy)
     tags: Record<NodeKey, string>;
-    straight?: string[];                     // calls routed first (caller\u0000callee)
-    cut?: [NodeKey, NodeKey][];              // grow: removed calls [caller, callee], neither drawn nor followed
+    straight?: string[];                     // calls routed first (caller\u0000called)
+    cut?: [NodeKey, NodeKey][];              // grow: removed calls [caller, called], neither drawn nor followed
 }
 
 export interface ViewDoc {

@@ -70,7 +70,7 @@ export interface Layout {
     roots: NodeKey[];
     lanes: Lane[];
     back: Map<NodeKey, NodeKey[]>;
-    merges: Set<string>;   // rule `joint`: calls `caller\u0000callee` drawn as stem into callee elbow
+    merges: Set<string>;   // rule `joint`: calls `caller\u0000called` drawn as stem into called elbow
     indent: number;
     width: number;
 }

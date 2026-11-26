@@ -129,16 +129,16 @@ test/data/            view files reduced from real cases (runaway.gaffy: box des
 
 ## 2. D3 in gaffy
 
-D3¹⁶ is a set of independent modules. gaffy uses four, bundled into `dist/webview.js` [observed: `package.json` `dependencies`]:
+gaffy uses four D3 modules, bundled into `dist/webview.js`. Built on top of D3 for interaction ([src/webview/main.ts](../src/webview/main.ts)):
 
 | Module | Version | Use |
 |---|---|---|
-| `d3-selection` | 3.0.1 | data joins: one SVG element per frame, call, hit path, label, marker, box header; the HTML toolbar and options panel |
-| `d3-zoom` | 3.0.1 | pan and zoom of the SVG root; the transform is stored in the webview state and shifted to keep the anchored function in place |
+| `d3-selection` | 3.0.1 | data joins: SVG element per frame, call, hit path, label, marker, box header;  HTML toolbar and options panel |
+| `d3-zoom` | 3.0.1 | pan and zoom of SVG root; the transform is stored in the webview state and shifted to keep the anchored function in place |
 | `d3-drag` | 3.0.1 | dragging functions and boxes, snapped to whole grid cells |
 | `d3-shape` | 3.2.0 | curve generation for the spline style |
 
-D3 lays out nothing here. Placement and routing are gaffy's own (`src/core/`): the grid assigns every label, line and arrowhead a character cell, and the webview draws those cells either as glyphs or as vector paths. Built on top of D3 for interaction ([src/webview/main.ts](../src/webview/main.ts)):
+Layout is gaffy's (`src/core/`): grid assigns label, line and arrowhead, character cell. Wwebview draws those cells either as glyphs or as vector paths. 
 
 - hit paths: wide transparent strokes over each call; a click resolves the grid cell under the pointer to every call through it (forks and merges select together);
 - arrowhead regions (one layer at a time): the arrowhead cell and the blank before the name close a level, separate from the line, which only selects;
@@ -150,6 +150,8 @@ D3 lays out nothing here. Placement and routing are gaffy's own (`src/core/`): t
 - the message protocol with the host: `state`, `edit`, `expand`, `refresh`, `progress`, `note`.
 
 ## 3. Security
+
+I ran several security reviews to ensure that this code is not leveraged with ill intent. Still this relies on language servers and user trusted projects, if those are bad the user has a bigger fish in the pond.
 
 Threat model: a workspace or a `.gaffy` file comes from someone else (a cloned repository, a download). Its files are data to gaffy; none of them may run code, read files outside the workspace through gaffy, or reach the network.
 
@@ -176,7 +178,7 @@ Trace reader: `tools/gaffy-trace.mjs` prints control, zero-width and bidirection
 ## Building, progress, cache
 
 - Progress: status line `⟳ language server: <phase> …` with growing dots (seed resolution `resolving seeds 3/34`, then layers, definitions, language-server requests, cached answers), the same phase in a banner over the graph; after 400 ms also a notification with cancel.
-- Cache: each language-server answer (callers or callees of one definition), in `.baggy/gaffy/cache/calls.json` (`calls-external.json` for views with external code). Depth or direction changes, expansion and view opening ask the language server only for uncached answers.
+- Cache: each language-server answer (callers or called of one definition), in `.baggy/gaffy/cache/calls.json` (`calls-external.json` for views with external code). Depth or direction changes, expansion and view opening ask the language server only for uncached answers.
 - Invalidation: a saved, renamed or externally changed source file drops its definitions' cached outgoing calls and all cached incoming calls; files of an extension no cached definition has (logs, bytecode, build output): none. `gaffy: Clear Call Cache`: everything.
 - No answer ≠ empty answer: a definition the language server does not resolve (analyzing after a reload, renamed, removed) keeps its stored calls, uncached, unexplored; retries after 2, 4, 8, 15, 30, 60 s (`language server not ready` in the status line), then a warning with the count.
 - Timeout: 30 s without an answer counts as no answer (retried); one stalled request never holds the queue.
@@ -209,6 +211,6 @@ Trace reader: `tools/gaffy-trace.mjs` prints control, zero-width and bidirection
 
 ## Tests and preview
 
-Commands: [docs/development.md](docs/development.md#scripts). Preview page parameters: `dist/preview.html?doc=sh|exp4|star|grow|two[&edges=vector&curve=sigmoid&fill=hue&boxes=off&parentRule=joint]`.
+Preview page parameters: `../dist/preview.html?doc=sh|exp4|star|grow|two[&edges=vector&curve=sigmoid&fill=hue&boxes=off&parentRule=joint]`.
 
 Preview: the webview bundle in a browser, mocked VS Code API, fixture views (`sh`, `exp4`, `star`, `grow`, `two`) over made-up packages; `GAFFY_PREVIEW_FILE=<view.gaffy>` previews any view.

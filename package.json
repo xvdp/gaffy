@@ -2,7 +2,7 @@
   "name": "gaffy",
   "displayName": "gaffy",
   "description": "Persistent, manipulable call graphs on a character grid, rendered with D3",
-  "version": "0.9.38",
+  "version": "1.0.0",
   "publisher": "xvdp",
   "license": "Apache-2.0",
   "repository": {
@@ -128,7 +128,7 @@
         "title": "gaffy> Call Hierarchy (up)"
       },
       {
-        "command": "gaffy.graphCallees",
+        "command": "gaffy.graphCalled",
         "title": "gaffy> Call Hierarchy (dn)"
       },
       {
@@ -311,7 +311,7 @@
         "title": "Go to Call Site"
       },
       {
-        "command": "gaffy.edge.callee",
+        "command": "gaffy.edge.called",
         "title": "Go to Called Symbol"
       },
       {
@@ -415,7 +415,7 @@
           "group": "0_navigation@5"
         },
         {
-          "command": "gaffy.graphCallees",
+          "command": "gaffy.graphCalled",
           "when": "editorHasCallHierarchyProvider || resourceExtname =~ /^\\.(glsl|vert|frag|geom|comp|tesc|tese|rgen|rint|rahit|rchit|rmiss|rcall|mesh|task|hlsl|hlsli|fx|fxh|slang|slangh|wgsl|metal)$/",
           "group": "0_navigation@6"
         },
@@ -431,7 +431,7 @@
           "group": "1@1"
         },
         {
-          "command": "gaffy.graphCallees",
+          "command": "gaffy.graphCalled",
           "group": "1@2"
         },
         {
@@ -734,7 +734,7 @@
           "group": "2_go@1"
         },
         {
-          "command": "gaffy.edge.callee",
+          "command": "gaffy.edge.called",
           "when": "webviewId == 'gaffy.view' && webviewSection == 'edge'",
           "group": "2_go@2"
         }
@@ -869,7 +869,7 @@
           "when": "false"
         },
         {
-          "command": "gaffy.edge.callee",
+          "command": "gaffy.edge.called",
           "when": "false"
         },
         {

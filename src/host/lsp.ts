@@ -2,7 +2,7 @@
  * Call graph provider over the LSP call hierarchy (VS Code commands `vscode.prepareCallHierarchy`,
  * `vscode.provideIncomingCalls`, `vscode.provideOutgoingCalls`, `vscode.executeDocumentSymbolProvider`): TS/JS
  * built in, Python via Pylance, C/C++, Rust, Go, .... Languages without call hierarchy (shaders, `TEXT_LANGS`): text
- * calls (textcalls.ts); callees by go to definition, else by name; callers by references, else workspace scan.
+ * calls (textcalls.ts);  by go to definition, else by name; callers by references, else workspace scan.
  *
  * Node keys: `<lang>:<relpath>#<qual>`; qual: segments (langs.ts) of the document-symbol chain at the item's name.
  * Containers: file `<lang>:<relpath>`, class `<lang>:<relpath>#<Class>`, folder `dir:<reldir>` (Python package
@@ -279,7 +279,7 @@ export class LspProvider {
         return p;
     }
 
-    /** Call-site callees: go to definition, else functions of that name (same file first). */
+    /** Call-site : go to definition, else functions of that name (same file first). */
     private async resolve(uri: vscode.Uri, pos: vscode.Position, name: string): Promise<vscode.CallHierarchyItem[]> {
         let locs: (vscode.Location | vscode.LocationLink)[] = [];
         try { locs = await vscode.commands.executeCommand<(vscode.Location | vscode.LocationLink)[]>('vscode.executeDefinitionProvider', uri, pos) ?? []; } catch { /* none */ }

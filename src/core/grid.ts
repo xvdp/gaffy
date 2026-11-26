@@ -10,7 +10,7 @@
  *    `cross` (another net's perpendicular segment), `border` (frame border at right angle); 0.3 on own net or
  *    caller cells (merging into a trunk). Blocked: labels, headers, frame corners, arrowheads, running along or
  *    turning on another net. Departure: label end (`f() ──`), or at cost 2 below or above the first character
- *    (`├─>`, `┌─>`; callee above caller). Arrival: left (`──> f()`) without a drawn tree elbow, else right (`f() <──`).
+ *    (`├─>`, `┌─>`; called above caller). Arrival: left (`──> f()`) without a drawn tree elbow, else right (`f() <──`).
  *
  * Cell glyph: one net => its mask glyph; several => union mask, or `GlyphSet.cross` for a pure crossing (masks
  * N|S and E|W only). Straight cells of implicit-only or cross-language-only calls (`Grid.kinds`) =>
@@ -48,7 +48,7 @@ export interface EdgePath {
     to: NodeKey;
     net: string;
     pts: [number, number][];  // [x, y] in cell units: x = column, y = row; centers at +0.5
-    cells: number[];           // cell ids, caller to callee, through merged trunks
+    cells: number[];           // cell ids, caller to called, through merged trunks
     start: 'E' | 'S' | 'N';    // initial heading: label end, below or above its first character
     arrive: 'E' | 'W';         // final heading
     fallback?: boolean;        // no route: dashed L on top, no grid cells
@@ -76,7 +76,7 @@ export interface Grid {
 
 /**
  * Edge log record of one call. `kind`: tree elbow, lane, routed (A*), fallback (dashed); `order`: routing position
- * (routed calls); `arrival`: why its callee receives left or at its end; `pass`: 0 strict, 1 relaxed; cost parts at
+ * (routed calls); `arrival`: why its called receives left or at its end; `pass`: 0 strict, 1 relaxed; cost parts at
  * routing time: `steps` (cells), `bends`, `paid` (crossings of earlier lines), `borders`, `relaxed` (penalties of the
  * relaxed pass), `cost` (A* total); `received`: crossings by calls routed after it, `by` their calls; `round`: the
  * h39 reroute round that routed it last (0: first routing).
@@ -118,7 +118,7 @@ function bends(cells: number[]): [number, number][] {
 }
 
 /**
- * `joint` (tree parent rule): elbow tails in the callee's net, open to its other calls; collector lanes enter from
+ * `joint` (tree parent rule): elbow tails in the called net, open to its other calls; collector lanes enter from
  * the left; routed calls arrive left when the two cells before the label are free (no caller vote).
  */
 export interface GridOpts { arrow: boolean; cost?: Partial<RouteCost>; first?: string[]; joint?: boolean; kind?: (from: NodeKey, to: NodeKey) => CallKind | undefined; rules?: Rules }
@@ -287,7 +287,7 @@ function gridOnce(P: Placement, vg: VGraph, opts: GridOpts, R: Rules, last: Read
         for (let r = pp.row + 1; r <= last; r++) add(r, pp.col, net, N | (r < last ? S : 0) | (childRows.has(r) ? E : 0), p);
         for (const c of ok) {
             const pc = P.pos.get(c)!;
-            // joint: tail in the callee's net, open to its other calls
+            // joint: tail in the called net, open to its other calls
             const tn = opts.joint ? lane(c) : net;
             hline(pc.row, pp.col + 1, pc.col - 3, tn, p);
             if (opts.arrow) { add(pc.row, pc.col - 2, tn, W, p); mark({ row: pc.row, col: pc.col - 2, ch: '>', net: tn, role: 'arrowE' }); }
@@ -554,7 +554,7 @@ function gridOnce(P: Placement, vg: VGraph, opts: GridOpts, R: Rules, last: Read
             return top;
         };
         const srcKey = `src:${u}`;
-        /** Lines on a cell other than the callee's trunk and the caller's own calls (`mine`: their masks). */
+        /** Lines on a cell other than the called trunk and the caller's own calls (`mine`: their masks). */
         const otherNets = (id: number) => {
             const cell = cells.get(id);
             if (!cell) return null;
@@ -572,7 +572,7 @@ function gridOnce(P: Placement, vg: VGraph, opts: GridOpts, R: Rules, last: Read
         // estimate: Manhattan distance × `estimate` (≤ OWN: admissible, cheapest routes; 1: faster, may miss them)
         const h = (r: number, c: number) => EST * (Math.abs(r - gr) + Math.abs(c - gc));
 
-        // no route: dashed L to the callee's arrival side, with arrowhead
+        // no route: dashed L to the called arrival side, with arrowhead
         const fallback = () => {
             unrouted++;
             failed.push([u, v]);
@@ -738,7 +738,7 @@ function gridOnce(P: Placement, vg: VGraph, opts: GridOpts, R: Rules, last: Read
             let end = pts[pts.length - 1];
             let arrive: 'E' | 'W' = left ? 'E' : 'W';
             if (merged) {
-                // follow the joined trunk to the callee; arrive as the trunk does
+                // follow the joined trunk to the called; arrive as the trunk does
                 const j = own[own.length - 1];
                 const host = paths.find((q) => q.to === v && q.net === net && q.cells.includes(j));
                 if (host) {

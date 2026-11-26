@@ -1,5 +1,5 @@
 /** @xvdp
- * Implicit calls: runtime calls without a call expression naming the callee, absent from language-server answers;
+ * Implicit calls: runtime calls without a call expression naming the called, absent from language-server answers;
  * edges carry `implicit`.
  * - construction: Python `C(...)` => `C.__new__`, `C.__init__`; dataclass `__init__` => `__post_init__`;
  *   TypeScript/JavaScript `new C(...)` => `constructor`. `__init__`, `constructor`: class, else nearest defining base

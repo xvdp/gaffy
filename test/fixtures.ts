@@ -84,7 +84,7 @@ export const MOO: [string, string][] = [
     ['moomoo.yo_wombat:wingding_widgets', 'moomoo.yo_blinkers:flibbity_bibbidi_bob'],
 ];
 
-/** ..rrequest.md addendum 1a: `kazoo.moomoo.boogaloos.scoobie` and its callees. */
+/** ..rrequest.md addendum 1a: `kazoo.moomoo.boogaloos.scoobie` and its . */
 const RH = 'kazoo.moomoo.boogaloos', IO = 'kazoo.noodles.jumbles', VA = 'kazoo.noodles.wibbles', DV = 'kazoo.noodles.doodle';
 export const KAZOO: [string, string][] = [
     [`${RH}:scoobie`, `${RH}:hullabaloo_hoot`],

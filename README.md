@@ -1,12 +1,28 @@
 # gaffy
 ## Call Hierarchy graph.
-One of the hammers in my bag to understand code tangles. Persistent data saved to `<vscode-root>/.baggy/`.
 
-Extends vscode `Call Hierarchy` upstream with `downstream` calls in the form of `editable`, `persistent`, `exportable` as ASCII (UTF) graph style.
+Extends vscode `Call Hierarchy`, up, downstream and across languages. Generates persistent editable vector graphs extending D3 interactions, exportable as text in 'ASCII graph' style, UTF really.
 
-Supports `Python`, `TypeScript`, `JavaScript`, `Java`, `Rust`, `C`,`C++`, `CUDA`, `C#`, `Go`, `Kotlin`, `Swift`, `Dart`, relying on their language servers. Partial support for `Slang`.  Partial cross language support across `pybind11`, `nanobind`, `wasm-bindgen`. More info in [docs/development.md](docs/development.md#L4). Language Providers: [src/core/langs.ts](src/core/langs.ts#L95)
+Why D3. Because i like the look. 
 
-Generates .json graphs saved as  `<vscode-root>/.baggy/gaffy/<symbol>_<commit>.gaffy`.
+Why ASCII style. 1. No other graph medium is as portable as text. 2. Line character grid enforcing makes for the most logical base rule for graphs containing text, leading to tighter graphing.
+
+### Languages
+Supports `Python`, `TypeScript`, `JavaScript`, `Java`, `Rust`, `C`,`C++`, `CUDA`, `C#`, `Go`, `Kotlin`, `Swift`, `Dart`, relying on installed language servers. Partial support for `Slang`.  Partial cross language support across `pybind11`, `nanobind`, `wasm-bindgen`. More info in [docs/development.md](./docs/development.md#L4). Language Providers: [src/core/langs.ts](./src/core/langs.ts#L95)
+
+### Files
+Generates JSON graph interpreted by gaffy viewer. Default unsaved, `gaffy.autoSave`. 
+
+```
+.baggy/                        shared with other tools in my bag of hammers. .gitignore .baggy/
+  gaffy/
+    <symbol>_<commit>.gaffy    JSON file if saved   # saved views are open frozen
+    <symbol>_<commit>.md       saved on export markdown
+    <symbol>_<commit>.txt      saved on exported text
+    cache/calls.json           cached language-server answers
+    trace/<view>.jsonl         gaffy.trace log
+    style.json                 appearance: font, colors, labels, frames, call lines (Options set the rest per view)
+```
 
 ### Not published as vscode extension because...
 MS appears to think that I am not human, ergo my accounts get locked when i try to publish. Perhaps I need an ai assisstant to pass the "are you human" tests.
@@ -24,70 +40,100 @@ npm run install:local   # install latest "gaffy-$(node -p 'require('./package.js
 # reenter vscode or reload
 `Ctrl+Shift+P` > Developer: Reload Window
 ```
-Scripts descriptions: [docs/development.md](docs/development.md#L50)
+## Interaction menus
+1. RMB over a function in a VSCode tab.
+2. RMB over a function in gaffy graph: inspect code functions, grouping, seeding, etc.
+3. RMB on the gaffy canvas. General fuynctions for the graph, Save, Export, clear. etc.
+4. RMB over a file in the VS Code explorer. Callers for all functions in a file.
+5. Top tool bar, Options Menu 
 
-### Usage: 1. Code tab > RMB over a symbol >  menu > 
+Examples of interactions with 1, 3 and 5, below.
+
+
+## Use: 1. VS Code tab > RMB over a function >  menu > 
+<small>Example uses https://github.com/Anttwo/MILo </small>
 
 ```
-gaffy> Call hierarchy (up)  # similar to VS Code Show Call Hierarchy: upstream callers
-gaffy> Call hierarchy (dn)  # downstream calls
-gaffy> Add to Call graph    # calls and callers in an existing call graph.
+gaffy> Call Hierarchy (up)  # similar to VS Code Show Call Hierarchy: upstream callers
+gaffy> Call Hierarchy (dn)  # downstream calls. Generates the same graph `seed` expanded once into callers.
+    Expanding the graph a couple more times crosses from CUDA to python.
+
+>> └─▶> folded call | caller. Click to expand.
+ ────▶    expanded calls. Click on arrowheads collapse.
+ ·─·─▶    call across languages.
+ ····▶    Class members. Pylance patch to permit tracing a call path to an instanced class.
+Select and delete a closes callers. Code can be filtered by folders.
 ```
 
-
-<p align="center">
-  <img src="images/gaffy_func_ctxt.png" alt="Editor right click on a function: gaffy> Call Hierarchy (up)" width="32.2%" align="middle">
-  &nbsp;<b> -> generates editable vectors </b>&nbsp;
-  <img src="images/gaffy_cross_lang.png" alt="The gaffy view it opens: Python callers reaching the CUDA function coord2Morton" width="45%" align="middle">
-  &nbsp;<b> -> exports </b>&nbsp;
+  &nbsp;<b> VS Code function RMB context --> gaffy window with D3 Vectors </b>&nbsp;
+<p align="left">
+  <img src="./images/gaffy_cmenu.png" alt="Editor right click on a function: gaffy> Call Hierarchy (up)" width="36%" align="middle">
+  <img src="./images/gaffy_call.png" alt="The gaffy view it opens: Python callers reaching the CUDA function coord2Morton" width="43%" align="middle">
 </p> 
-<small>Example reference on https://github.com/Anttwo/MILo </small>
 
-- Expandable modes: `>>` traverse individual calls, or `switch to -+ mode` a call depth step at once.
-- Link types: `───` regular callers, `┈┈` class members,  `·─·─` cross language calls.
 
 ```
-╭┄ scene ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄╮
-┆  __init__.__init__()                                ┆
-┆  └─> gaussian_model.GaussianModel.create_from_pcd() ·┐
-┆  >> gaussian_model.GaussianModel.reinitial_pts() ─┐ ┆·
-╰┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄│┄╯│
-                    ┌─·─·─·─·─·─·─·─·─·─·─·─·─·─·─·─┴─·┘
-                    │╭┄ submodules/simple-knn ┄┄┄┄┄┄┄┄┄┄┄┄╮
-                    └─> spatial.distCUDA2()               ┆
-                     ┆  └─> simple_knn.knn()              ┆
-                     ┆      ├─> simple_knn.coord2Morton() ┆
-                     ┆      ├─> simple_knn.boxMinMax()    ┆
-                     ┆      └─> simple_knn.boxMeanDist()  ┆
-                     ┆          └─>>                      ┆
-                     ╰┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄╯
+gaffy> Add to Call Graph    # adds a new `seed` to the graph, which automatically expands calls linking functions, colored red.
 ```
-Most interactions are intuitive albeit some may be arcanely named.
 
-Saving a `.gaffy`, exporting to UTF, `.txt`, `.md`, or debug trace creates `<vscode root>/.baggy/`. 
+<p align="left">
+  <img src="./images/gaffy_amenu.png" alt="Editor right click on a function: gaffy> Call Hierarchy (up)" width="38%" align="middle">
+  <img src="./images/gaffy_add.png" alt="The gaffy view it opens: Python callers reaching the CUDA function coord2Morton" width="60%" align="middle">
+</p> 
 
-Default .gaffy vscode config declared in `package.json`, is accessble accessible thru the gaffy window `Options` menu. 
+## (RMB over canvas) Exporting as text on gaffy canvas RMB context menu 
 
-Functions can be grouped by namespace or as flat hierarchy and reorganized in the gaffy canvas. Calls hierarchies stemmig to the queried function `seed` can be expanded or collapsed. A graph can have multiple seeds. When adding a new seed, the call links between seeds are exposed. 
+```
+╭┄ milo ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄╮
+┆  >> mesh_extract_sdf.extract_mesh_with_sdf_refinement()            ┆
+┆  ├─>>                                                              ┆
+┆  │ ╭┄ scene ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄╮ ┆
+┆  ├──> >> __init__.Scene() ─────────────────────────────────────┐ ┆ ┆
+┆  │ ┆  ├─>>                                                     │ ┆ ┆
+┆  │ ┆  └┈> __init__.Scene.__init__() ───────────────────────────┤ ┆ ┆
+┆  │ ┆      └─>>                                                 │ ┆ ┆
+┆  │ ┆      ┌────────────────────────────────────────────────────┘ ┆ ┆  ╭┄ submodules/simple-knn ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄╮
+┆  │ ┆      └─> gaussian_model.GaussianModel.create_from_pcd() ·─┬─·─·─·─> spatial.distCUDA2()                   ┆
+┆  └──> gaussian_model.GaussianModel() ·─·─·─·─·─·─·─·─·─·─┬─·─·─┘ ┆ ┆  ┆  └─> simple_knn.knn()                  ┆
+┆    ┆  └─>>                                               ·       ┆ ┆  ┆      ├─> simple_knn.coord2Morton()     ┆
+┆    ┆  >> gaussian_model.GaussianModel.reinitial_pts() ─·─┘       ┆ ┆  ┆      │   └─>>                          ┆
+┆    ╰┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄╯ ┆  ┆      ├─> simple_knn.boxMinMax()        ┆
+╰┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄╯  ┆      └─> simple_knn.boxMeanDist()      ┆
+                                                                        ┆          ├─> simple_knn.updateKBest()  ┆
+                                                                        ┆          └─> simple_knn.distBoxPoint() ┆
+                                                                        ╰┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄╯
+```
 
 
-### Usage 2. vs Code Explorer menu
-
-![demo](images/demo.gif)
+Other interactions should be mostly intuitive: function grouping, edge styles etc. 
 
 
-Development: `gaffy/` in VS Code, F5 (Extension Development Host); `npm run watch` rebuilds on change.
+## (Options menu) > Layout debug
 
-## Docs
+Open ended graphs are always tangled, instead of using spring models I relied in heuristics, But those also tangle.
+To manage that I added a debug mode, which allows individual heuristic rules to be turned off.
+The real solution would be a bit smarter optimization but thats for another day.
 
-- [docs/development.md](docs/development.md): tooling, release, publishing, project parts, security measures.
-- [docs/heuristics.md](docs/heuristics.md): layout rules with code links, as a pipeline graph; [docs/heuristics.gaffy](docs/heuristics.gaffy): the same graph as a gaffy view.
-- [docs/ordering.md](docs/ordering.md): functions that change what a view shows and where (triggers, interpreters, layout), drawing of one call, what a drag moves.
+- **Rules**: layout rule with switch, choice and parameters, saved with the graph. Includes links to [docs/heuristics.md](./docs/heuristics.md) and  to code. Terms: [docs/terms.md](./docs/terms.md).
+- **Actions**: objects moved, results and rules.
+- **Calls**: drawing logic. Branch, trunk, path search, search order, crossings, cost.
+
+<p align="left">
+  <img src="./images/gaffy_gaffy.png" alt="Editor right click on a function: gaffy> Call Hierarchy (up)" width="85%" align="middle">
+</p> 
+
+Layout debug from script.
+
+```bash
+npm run explain -- <view.gaffy>                        # every decision, with file:line
+npm run explain -- <view.gaffy> --unit <text> --flags  # one unit's decisions, flagged only
+npm run explain -- <view.gaffy> --off h20_unmoved_box_descent,h23_settle   # what moves without these rules
+npm run explain -- <view.gaffy> --trace .baggy/gaffy/trace/<view>.jsonl    # replay a gaffy.trace
+npm run metrics -- <view.gaffy> '{"alt":{"h25_routing_order":"longest"}}'  # crossings, bends, time per rule choice
+```
 
 
-
-
-## Usage 3. script call graphs
+## Scripting call graphs
 
 ```python
 import json, pathlib, subprocess
@@ -111,35 +157,13 @@ subprocess.run(["code", str(p)])
 ```
 
 
+## Docs
 
-## Files
+- [docs/development.md](./docs/development.md): tooling, release, publishing, project parts, security measures.
+- [docs/heuristics.md](./docs/heuristics.md): layout rules with code links, as pipeline graph; [docs/heuristics.gaffy](./docs/heuristics.gaffy).
+- [docs/ordering.md](./docs/ordering.md): view order functions: triggers, interpreters, layout/
+- [docs/terms.md](./docs/terms.md): glossary to ensure any gobledigook is clarifiable.
+- [docs/examples.md](./docs/examples.md): visual examples of heuristics.
+- [refs.bib](./refs.bib): bibliography built during the search for graph algorithms. Includes nonstandard fields `project`, `preprint`, `code`. Which I find are useful references.
 
-```
-.baggy/                        shared with other tools in my bag of hallenrs
-  gaffy/
-    <symbol>_<commit>.gaffy    JSON file if saved   # saved views are open frozen
-    <symbol>_<commit>.md       saved on export markdown
-    <symbol>_<commit>.txt      saved on exported text
-    cache/calls.json           cached language-server answers
-    trace/<view>.jsonl         gaffy.trace log
-    style.json                 appearance: font, colors, labels, frames, call lines (Options set the rest per view)
-```
 
-Placement: views created in VS Code under the workspace folder; views written by giddy or a script under their repository (seed paths, exports and the commit hash refer to the folder holding `.baggy/`). Style and call cache: per workspace folder. Views in a `.gaffy/views/` folder still open; new files go to `.baggy/gaffy/`.
-
-## Layout debugging
-
-Options > Arrange > Layout debug (setting `gaffy.debugLayout`). Right click a function or group > **Why Here?**: the decisions that placed it. The panel under the graph:
-- **Rules**: every layout rule with its switch, choice and parameters, saved with the graph; links to [docs/heuristics.md](docs/heuristics.md) and the code. Terms: [docs/terms.md](docs/terms.md).
-- **Actions**: each change, what moved where, the rule that moved it.
-- **Calls**: how each call line is drawn (branch, trunk, path search), search order, crossings, cost.
-
-Offline, in this repository:
-
-```bash
-npm run explain -- <view.gaffy>                        # every decision, with file:line
-npm run explain -- <view.gaffy> --unit <text> --flags  # one unit's decisions, flagged only
-npm run explain -- <view.gaffy> --off h20_unmoved_box_descent,h23_settle   # what moves without these rules
-npm run explain -- <view.gaffy> --trace .baggy/gaffy/trace/<view>.jsonl    # replay a gaffy.trace
-npm run metrics -- <view.gaffy> '{"alt":{"h25_routing_order":"longest"}}'  # crossings, bends, time per rule choice
-```

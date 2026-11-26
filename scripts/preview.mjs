@@ -69,7 +69,7 @@ const simulate = () => {
     else r.dispatchEvent(new MouseEvent('click', { bubbles: true, view: window }));
   }
   if (params.get('key')) document.getElementById('graph').dispatchEvent(new KeyboardEvent('keydown', { key: params.get('key'), bubbles: true }));
-  // steps=a|b|..., in order: marker=<name>:<up|down>, isolate=<caller>,<callee>, arrow=<name>, sel=<name>, key=<key>,
+  // steps=a|b|..., in order: marker=<name>:<up|down>, isolate=<caller>,<called>, arrow=<name>, sel=<name>, key=<key>,
   // dbl=<name> (double click a label), drag=<name>,<dx>,<dy> (pixels), dump=<name>,... (collapsed, their offsets and label cells; shown in #log),
   // opt=<label start> (click an Options entry), hover=<name> (hover card)
   const dumps = [];
@@ -133,7 +133,7 @@ const simulate = () => {
   }
   if (dumps.length || traced.length) { const el = document.getElementById('log'); el.style.whiteSpace = 'pre'; el.textContent = [...dumps.map((d) => JSON.stringify(d)), ...traced].join('\\n'); }
   if (params.get('callclick')) {
-    // click a point on a call's path: callclick=<caller>,<callee>,<fraction of its length>
+    // click a point on a call's path: callclick=<caller>,<called>,<fraction of its length>
     const [a, b, f] = params.get('callclick').split(',');
     const p = [...document.querySelectorAll('.hits path')].find((x) => (x.querySelector('title')?.textContent ?? '').startsWith(a + '() → ' + b + '()'));
     if (!p) { log({ sim: 'no call ' + a + ' → ' + b }); return; }
@@ -144,7 +144,7 @@ const simulate = () => {
     return;
   }
   if (params.get('call')) {
-    // double click a call: call=<caller>,<callee>
+    // double click a call: call=<caller>,<called>
     const [a, b] = params.get('call').split(',');
     const p = [...document.querySelectorAll('.hits path')].find((x) => (x.querySelector('title')?.textContent ?? '').startsWith(a + '() → ' + b + '()'));
     if (!p) { log({ sim: 'no call ' + a + ' → ' + b }); return; }

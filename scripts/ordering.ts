@@ -169,7 +169,7 @@ call u → v in the data (graph.edges)
     │   ├── every caller and v share one shift, the trunk column clear ─► trunk <code>┌──┘ └─></code> or <code>&lt;──┘</code> (net l:v)   ${href(G, 'for (const ln of L.lanes) {', '// ---- 2.')}
     │   └── otherwise ────────────────────────────────────────────────► path search
     └── path search (A*), in search order: straightened, then callers top to bottom (h25, row)   ${href(G, 'todo.sort((a, b) => pri(b) - pri(a)')}
-        ├── arrival side, decided per callee before path search   ${href(G, 'const left = own || (sends && approach) ||')}
+        ├── arrival side, decided per called before path search   ${href(G, 'const left = own || (sends && approach) ||')}
         │   ├── v's trunk already enters from the left ───────────────► left <code>──> v()</code>
         │   ├── v sends calls from its label end ──────────────────────► left
         │   ├── callers mostly left of v, two cells before v free ─────► left
@@ -282,7 +282,7 @@ ${table(['function', 'code', 'what it does', 'rules'], P)}
 
 ${tree}
 
-Nets: \`t:<parent>\` holds a parent's stem and branches, \`l:<target>\` the trunk of one function: every call into it (trunk columns, searched paths, the arrival). Searched calls join the trunk of their callee (cost \`bundle\`, 0.3).
+Nets: \`t:<parent>\` holds a parent's stem and branches, \`l:<target>\` the trunk of one function: every call into it (trunk columns, searched paths, the arrival). Searched calls join the trunk of their called (cost \`bundle\`, 0.3).
 
 ## 5. Dragging a function or a group
 
