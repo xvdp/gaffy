@@ -168,7 +168,7 @@ const simulate = () => {
 // messages to the webview are delivered synchronously, so the page is final when it finishes loading
 // settings shown in Options: external=1 includes external code, std=1 the standard library
 // trace=1: gaffy.trace on; each edit's cause and number of moved cells are listed in #log after the steps
-// debug=1: gaffy.debugLayout on (Why Here?: steps cmd=why:<name>)
+// debug=1: gaffy.debugLayout on (Layout: explain position: steps cmd=why:<name>)
 // between=1: Only paths between seeds on
 const settings = { includeExternal: params.get('external') === '1', includeStandardLibrary: params.get('std') === '1', autoSave: false, untitled: false, unsaved: false, trace: params.get('trace') === '1', held: false, debugLayout: params.get('debug') === '1' };
 const traced = [];

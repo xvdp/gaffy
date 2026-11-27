@@ -72,6 +72,11 @@
           "default": false,
           "description": "Autosave Graphs: a new view is written to .baggy/gaffy/ at once and every view is saved after each change. Off: a new view opens unsaved (bound to its .baggy/gaffy/ path); right click > Save writes it, closing it without saving discards it, and edits wait for Save. A view file with \"save\": true (written by a script) saves after each change either way. The canvas menu, Options > File > Autosave Graphs and this setting change the same value; changes from a view go to the workspace settings."
         },
+        "gaffy.exportWebLinks": {
+          "type": "boolean",
+          "default": false,
+          "description": "Save as Text: links in the .md export point to the git remote (origin) at the current commit, so the export reads on the web (valid once that commit is pushed). Off: links relative to .baggy/gaffy/, for the local clone."
+        },
         "gaffy.refreshOnSave": {
           "type": "string",
           "enum": [
@@ -113,7 +118,7 @@
         "gaffy.debugLayout": {
           "type": "boolean",
           "default": false,
-          "description": "Layout debugging: right click a function or group > Why Here? lists the placement and settle decisions that put it there (rule, values, outcome); decisions past a threshold are flagged on the graph; Options > Arrange opens the debugging panel: Rules (every layout rule: switch, alternative, parameters, saved with the graph; links to its explanation and code), Actions (running log of what moved where and the rules behind it), Calls (per call line: branch, trunk or path search, search order, arrival, cost, crossings). Offline: npm run explain in the gaffy repository."
+          "description": "Layout debugging: right click a function or group > Layout: explain position lists the placement and settle decisions that put it there (rule, values, outcome); decisions past a threshold are flagged on the graph; Options > Arrange opens the debugging panel: Rules (every layout rule: switch, alternative, parameters, saved with the graph; links to its explanation and code), Actions (running log of what moved where and the rules behind it), Calls (per call line: branch, trunk or path search, search order, arrival, cost, crossings). Offline: npm run explain in the gaffy repository."
         },
         "gaffy.trace": {
           "type": "boolean",
@@ -148,6 +153,16 @@
       {
         "command": "gaffy.export",
         "title": "Save as Text (.txt, .md)",
+        "category": "gaffy"
+      },
+      {
+        "command": "gaffy.toggleExportWebLinks",
+        "title": "Export links: git web",
+        "category": "gaffy"
+      },
+      {
+        "command": "gaffy.toggleExportWebLinks.checked",
+        "title": "✓ Export links: git web",
         "category": "gaffy"
       },
       {
@@ -272,7 +287,7 @@
       },
       {
         "command": "gaffy.node.why",
-        "title": "Why Here? (layout decisions)"
+        "title": "Layout: explain position"
       },
       {
         "command": "gaffy.node.moveUp",
@@ -474,9 +489,19 @@
           "group": "1_file@3"
         },
         {
+          "command": "gaffy.toggleExportWebLinks",
+          "when": "webviewId == 'gaffy.view' && webviewSection == 'canvas' && !config.gaffy.exportWebLinks",
+          "group": "1_file@4"
+        },
+        {
+          "command": "gaffy.toggleExportWebLinks.checked",
+          "when": "webviewId == 'gaffy.view' && webviewSection == 'canvas' && config.gaffy.exportWebLinks",
+          "group": "1_file@4"
+        },
+        {
           "command": "gaffy.refresh",
           "when": "webviewId == 'gaffy.view' && webviewSection == 'canvas'",
-          "group": "1_file@4"
+          "group": "1_file@5"
         },
         {
           "command": "gaffy.isolateSelection",
@@ -745,6 +770,10 @@
           "when": "false"
         },
         {
+          "command": "gaffy.toggleExportWebLinks.checked",
+          "when": "false"
+        },
+        {
           "command": "gaffy.tightBoxes.checked",
           "when": "false"
         },
@@ -933,7 +962,7 @@
     "test:matrix": "GAFFY_MATRIX=1 vitest run test/matrix.test.ts",
     "package": "npm run typecheck && npm test && npm run build && vsce package --no-dependencies",
     "release": "npm run typecheck && npm test && npm version patch --no-git-tag-version && npm run build && vsce package --no-dependencies",
-    "install:local": "code --install-extension gaffy-$npm_package_version.vsix",
+    "install:local": "code --install-extension gaffy-$npm_package_version.vsix --force",
     "docs:check": "npm run heuristics && git diff --exit-code -- docs src/core/rules.lines.ts schemas/style.schema.json",
     "preview": "npm run build && node scripts/preview.mjs",
     "heuristics": "node scripts/heuristics.mjs",

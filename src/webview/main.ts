@@ -35,7 +35,7 @@ let styleText = '';
 let excludeGlobs: string[] = [];
 let excludes: PathTest[] = [];        // `gaffy.exclude` path tests for buildScene
 // VS Code settings (`trace`: gaffy.trace); `held`: the view is frozen (editor.ts, freeze on open)
-let settings = { includeExternal: false, includeStandardLibrary: false, autoSave: false, untitled: false, unsaved: false, trace: false, held: false, debugLayout: false };
+let settings = { includeExternal: false, includeStandardLibrary: false, autoSave: false, untitled: false, unsaved: false, trace: false, held: false, debugLayout: false, exportWebLinks: false };
 // layout debugging (gaffy.debugLayout, explain.ts): decisions of the drawn picture, flagged units, switched-off rules
 let decisions: Decision[] = [];
 let flagged = new Set<string>();
@@ -1660,7 +1660,7 @@ function showWhy(unit: string) {
     el.classed('on', true);
     const head = el.append('div').attr('class', 'whyhead');
     const off = rulesOff();
-    head.append('span').text(`Trace layout heuristics: ${name} · ${mine.length} decisions${off.size ? ` · rules off: ${[...off].map((r) => r.slice(0, 3)).join(' ')}` : ''}`);
+    head.append('span').text(`Layout: explain position: ${name} · ${mine.length} decisions${off.size ? ` · rules off: ${[...off].map((r) => r.slice(0, 3)).join(' ')}` : ''}`);
     head.append('button').text('actions').attr('title', 'running log of changes with the rules that moved each function and group (panel under the graph)').on('click', () => dbg.toggle('actions'));
     head.append('button').text('×').attr('title', 'close (Esc)').on('click', hideWhy);
     el.append('div').attr('class', 'whynote').text('in placement order: outer groups first, then the block, settle moves last. Offline, with code lines: npm run explain -- <view> --unit <text>');
@@ -1788,7 +1788,7 @@ function toolbar() {
             { label: `Unlock all (${Object.keys(v.lock).length})`, title: 'unlock every locked function and group', act: () => runCmd('unlockAll') },
             { label: `Expand collapsed (${v.collapsed.length})`, title: 'expand every collapsed container', act: () => runCmd('expandAll') },
             { label: 'Layout debug', on: settings.debugLayout,
-                title: 'gaffy.debugLayout: right click a function or group > Why Here? lists the decisions that placed it; flagged decisions underlined; the panel below the graph holds the rules and the logs',
+                title: 'gaffy.debugLayout: right click a function or group > Layout: explain position lists the decisions that placed it; flagged decisions underlined; the panel below the graph holds the rules and the logs',
                 act: () => api.postMessage({ type: 'setting', key: 'debugLayout', value: !settings.debugLayout }) },
             ...(settings.debugLayout ? [
                 { label: `Rules... (${rulesOff().size} off)`, sub: true, on: dbg.open && dbg.tab === 'rules',
@@ -1826,6 +1826,9 @@ function toolbar() {
             { label: 'Autosave Graphs', title: 'gaffy.autoSave (workspace setting, same as the canvas menu entry): new graphs are written to .baggy/gaffy/ and every graph is saved after each change; off: a new graph opens unsaved, Save (.gaffy) keeps it',
                 on: settings.autoSave, act: () => api.postMessage({ type: 'setting', key: 'autoSave', value: !settings.autoSave }) },
             { label: 'Save as Text (.txt, .md)', title: '.baggy/gaffy/<symbol>_<commit>.md and .txt, then _2, _3 (x)', act: () => api.postMessage({ type: 'export' }) },
+            { label: 'Export links: git web', on: settings.exportWebLinks, sub: true,
+                title: 'gaffy.exportWebLinks (workspace): .md export links to the git remote (origin) at the current commit, valid once pushed; off: links relative to .baggy/gaffy/',
+                act: () => api.postMessage({ type: 'setting', key: 'exportWebLinks', value: !settings.exportWebLinks }) },
             { label: 'Refresh Language Server', disabled: settings.held, title: settings.held ? 'frozen: unfreeze first' : v.arrange === 'grow'
                 ? 'calls of the functions on screen from the language server; the others when a side opens onto them. Unanswered functions keep their calls (r)'
                 : 'calls of the functions on screen from the language server, then the levels within the call depths. Unanswered functions keep their calls (r)',

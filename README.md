@@ -3,9 +3,9 @@
 
 Extends vscode `Call Hierarchy`, up, downstream and across languages. Generates persistent editable vector graphs extending D3 interactions, exportable as text in 'ASCII graph' style, UTF really.
 
-Why D3. Because i like the look. 
+Why D3. Because i like the look. Is it necessary? I dont know but I started thinking that it was.
 
-Why ASCII style. 1. No other graph medium is as portable as text. 2. Line character grid enforcing makes for the most logical base rule for graphs containing text, leading to tighter graphing.
+Why ASCII style. Monospace text grid is the most portable format. It is compact and has high information content ratio.
 
 ### Languages
 Supports `Python`, `TypeScript`, `JavaScript`, `Java`, `Rust`, `C`,`C++`, `CUDA`, `C#`, `Go`, `Kotlin`, `Swift`, `Dart`, relying on installed language servers. Partial support for `Slang`.  Partial cross language support across `pybind11`, `nanobind`, `wasm-bindgen`. More info in [docs/development.md](./docs/development.md#L4). Language Providers: [src/core/langs.ts](./src/core/langs.ts#L95)
@@ -24,8 +24,12 @@ Generates JSON graph interpreted by gaffy viewer. Default unsaved, `gaffy.autoSa
     style.json                 appearance: font, colors, labels, frames, call lines (Options set the rest per view)
 ```
 
-### Not published as vscode extension because...
-MS appears to think that I am not human, ergo my accounts get locked when i try to publish. Perhaps I need an ai assisstant to pass the "are you human" tests.
+## TODO:
+* **Not published as vscode extension because...**
+MS appears to think that I am not human. Perhaps I need an ai assisstant to pass the "are you human" tests.
+* npm web version
+* link to commits ( currently only file on disk )
+* execution trace
 
 ## Install from Source
 <details>
@@ -68,7 +72,6 @@ Examples of interactions with 1, 3 and 5, below.
 
 
 ## VS Code tab > RMB over a function >  menu > 
-<small>Example parses thru https://github.com/Anttwo/MILo </small>
 
 ```
 gaffy> Call Hierarchy (up)  # similar to VS Code Show Call Hierarchy: upstream callers
@@ -88,6 +91,7 @@ Select and delete a closes callers. Code can be filtered by folders.
   <img src="./images/gaffy_call.png" alt="The gaffy view it opens: Python callers reaching the CUDA function coord2Morton" width="55%" align="middle">
 </p> 
 
+<small>Example parses thru https://github.com/Anttwo/MILo </small>
 ```
 gaffy> Add to Call Graph    # adds a new `seed` to the graph, which automatically expands calls linking functions, colored red.
 ```
@@ -98,7 +102,7 @@ gaffy> Add to Call Graph    # adds a new `seed` to the graph, which automaticall
 </p> 
 
 ### RMB over canvas e.g. Export as text
-
+Saves .txt and .md
 ```
 ╭┄ milo ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄╮
 ┆  >> mesh_extract_sdf.extract_mesh_with_sdf_refinement()              ┆
@@ -126,6 +130,35 @@ gaffy> Add to Call Graph    # adds a new `seed` to the graph, which automaticall
                                          ┆          └─>>                      ┆
                                          ╰┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄╯
 ```
+.md optionally links to git repo if it exists.
+
+<pre>
+╭┄ milo ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄╮
+┆  <a href="https://github.com/Anttwo/MILo/blob/0c38aa65f8b768513964f13246ef1ae54f001c70/milo/mesh_extract_sdf.py#L48"><b>&gt;&gt; mesh_extract_sdf.extract_mesh_with_sdf_refinement()</b></a>              ┆
+┆  ├─&gt;&gt;                                                                ┆
+┆  │   ╭┄ scene ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄╮ ┆
+┆  ├────&gt; <a href="https://github.com/Anttwo/MILo/blob/0c38aa65f8b768513964f13246ef1ae54f001c70/milo/scene/__init__.py#L21">&gt;&gt; __init__.Scene()</a> ─────────────────────────────────────┐ ┆ ┆
+┆  │   ┆  ├─&gt;&gt;                                                     │ ┆ ┆
+┆  │   ┆  └┈&gt; <a href="https://github.com/Anttwo/MILo/blob/0c38aa65f8b768513964f13246ef1ae54f001c70/milo/scene/__init__.py#L25">__init__.Scene.__init__()</a> ───────────────────────────┤ ┆ ┆
+┆  │   ┆      └─&gt;&gt;                                                 │ ┆ ┆
+┆  │   ┆      ┌────────────────────────────────────────────────────┘ ┆ ┆
+┆  │   ┆      └─&gt; <a href="https://github.com/Anttwo/MILo/blob/0c38aa65f8b768513964f13246ef1ae54f001c70/milo/scene/gaussian_model.py#L379">gaussian_model.GaussianModel.create_from_pcd()</a> ·┐  ┆ ┆
+┆  └────&gt; <a href="https://github.com/Anttwo/MILo/blob/0c38aa65f8b768513964f13246ef1ae54f001c70/milo/scene/gaussian_model.py#L50">gaussian_model.GaussianModel()</a> ·─·─·─·─·─·─·─·─·─·┐     │  ┆ ┆
+┆      ┆  └─&gt;&gt;                                              ·     ·  ┆ ┆
+┆      ┆  <a href="https://github.com/Anttwo/MILo/blob/0c38aa65f8b768513964f13246ef1ae54f001c70/milo/scene/gaussian_model.py#L1031">&gt;&gt; gaussian_model.GaussianModel.reinitial_pts()</a> ─·┤     │  ┆ ┆
+┆      ╰┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄·┄┄┄┄┄·┄┄╯ ┆
+╰┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄│┄┄┄┄┄│┄┄┄┄╯
+                                        ┌·─·─·─·─·─·─·─·─·─·┴·─·─·┘
+                                        │╭┄ submodules/simple-knn ┄┄┄┄┄┄┄┄┄┄┄┄╮
+                                        └·&gt; <a href="https://github.com/Anttwo/MILo/blob/0c38aa65f8b768513964f13246ef1ae54f001c70/submodules/simple-knn/spatial.cu#L16">spatial.distCUDA2()</a>               ┆
+                                         ┆  └─&gt; <a href="https://github.com/Anttwo/MILo/blob/0c38aa65f8b768513964f13246ef1ae54f001c70/submodules/simple-knn/simple_knn.cu#L185"><b>simple_knn.knn()</b></a>              ┆
+                                         ┆      ├─&gt; <a href="https://github.com/Anttwo/MILo/blob/0c38aa65f8b768513964f13246ef1ae54f001c70/submodules/simple-knn/simple_knn.cu#L63">simple_knn.coord2Morton()</a> ┆
+                                         ┆      │   └─&gt;&gt;                      ┆
+                                         ┆      ├─&gt; <a href="https://github.com/Anttwo/MILo/blob/0c38aa65f8b768513964f13246ef1ae54f001c70/submodules/simple-knn/simple_knn.cu#L78">simple_knn.boxMinMax()</a>    ┆
+                                         ┆      └─&gt; <a href="https://github.com/Anttwo/MILo/blob/0c38aa65f8b768513964f13246ef1ae54f001c70/submodules/simple-knn/simple_knn.cu#L147">simple_knn.boxMeanDist()</a>  ┆
+                                         ┆          └─&gt;&gt;                      ┆
+                                         ╰┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄╯
+</pre>
 
 Other interactions should be mostly intuitive: function grouping, edge styles etc. 
 
@@ -181,7 +214,7 @@ subprocess.run(["code", str(p)])
 
 ## Docs
 
-- [docs/development.md](./docs/development.md): tooling, release, publishing, project parts, security measures.
+- [docs/development.md](./docs/development.md): tooling, release, project parts, security measures.
 - [docs/heuristics.md](./docs/heuristics.md): layout rules with code links, as pipeline graph; [docs/heuristics.gaffy](./docs/heuristics.gaffy).
 - [docs/ordering.md](./docs/ordering.md): view order functions: triggers, interpreters, layout/
 - [docs/terms.md](./docs/terms.md): glossary to ensure any gobledigook is clarifiable.

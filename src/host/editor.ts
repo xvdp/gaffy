@@ -139,7 +139,7 @@ export class Session {
         const settings = { includeExternal: cfg.get<boolean>('includeExternal') ?? false, includeStandardLibrary: cfg.get<boolean>('includeStandardLibrary') ?? false,
             autoSave: autoSaveOf(this.folder), untitled: this.document.isUntitled, unsaved: this.document.isUntitled || this.document.isDirty,
             trace: cfg.get<boolean>('trace') ?? false,
-            held: this.held, debugLayout: cfg.get<boolean>('debugLayout') ?? false };
+            held: this.held, debugLayout: cfg.get<boolean>('debugLayout') ?? false, exportWebLinks: cfg.get<boolean>('exportWebLinks') ?? false };
         void this.panel.webview.postMessage({ type: 'state', text: this.document.getText(), name: this.name, style, exclude, settings, busy: this.busy });
     }
 

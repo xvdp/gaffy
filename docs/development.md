@@ -53,7 +53,7 @@ Not followed (a call trace would see them): backprop, hooks, `with` blocks, iter
 | command | effect |
 |---|---|
 | `npm install` | dependencies, after cloning or a `package.json` change |
-| `npm run install:local` | latest vsix: `code --install-extension gaffy-<version>.vsix`, version from `package.json` |
+| `npm run install:local` | latest vsix: `code --install-extension gaffy-<version>.vsix --force` (reinstalls same version), version from `package.json` |
 | `npm run typecheck` | `tsc --noEmit` over `src/` and `test/` |
 | `npm test` | vitest: core, routing invariants, golden text pictures in `test/golden/`, rule configuration, edge rules on `test/data/bindings.gaffy`, a subset of the rule matrix, seeded operation sequences |
 | `npm run test:matrix` | tests all rules (fixtures × boxes × tight × parent rule × switched-off rules × moves; about 3 minutes) |
@@ -75,6 +75,7 @@ Not followed (a call trace would see them): backprop, hooks, `with` blocks, iter
 
 ```
 package.json          manifest: identity, VS Code version range, entry point, activation, contributions; npm scripts
+.github/workflows/publish.yml  Marketplace publish, manual run, Trusted Publishing (OIDC, no stored token)
 esbuild.mjs           two bundles: host (Node, CommonJS⁸, `vscode` left external) and webview (browser, IIFE⁹)
 schemas/              JSON schema of .baggy/gaffy/style.json: appearance keys (font, colors, labels, frame and edge drawing); layout choices live in the view (Options, Rules panel)
 media/webview.css     webview styles, mapped to VS Code theme variables
@@ -96,6 +97,7 @@ src/core/             TypeScript, no VS Code API: runs in the host (export), the
   scene.ts              pipeline: document → quotient → visibility → boxes → layout → placement → grid
   style.ts              style defaults and merge
   langs.ts, textcalls.ts  language rules; calls found in text for shader languages
+  weblinks.ts           git remote -> https web base; file links at a commit (GitHub, GitLab, Bitbucket)
 src/host/             extension host: Node.js, VS Code API
   extension.ts          activate(): registers the editor and commands, watches saves and renames
   editor.ts             custom text editor: one Session per open view; webview messages; language-server queue
@@ -107,6 +109,7 @@ src/host/             extension host: Node.js, VS Code API
   servers.ts            language providers per workspace language: installed, active, live probe; List Language Providers; warning with actions
   settings.ts           gaffy.autoSave read per folder, written where it takes effect
   sources.ts            rule links of the debugging panel: local gaffy sources, else GitHub at the build commit
+  git.ts                commit for view file names; remote, commit and root for export web links
   scope.ts              URI scheme gate (`readable`)
   safefs.ts             no writes through symbolic links under `.baggy/gaffy/` (`noLinks`)
   seedspec.ts           seeds written by name in a view file (`<path>#<qualified name>`, `<path>:<line>`)
@@ -163,12 +166,12 @@ Threat model: a workspace or a `.gaffy` file comes from someone else (a cloned r
 | Node records in `.gaffy` files and the call cache | Opened only for the scheme `file` or a workspace folder's scheme (`readable` in `src/host/scope.ts`); shown with `showTextDocument` (read only), never executed. Node keys `__proto__`, `constructor`, `prototype` are dropped on load; the cache looks up the modification times of its files for those schemes only. |
 | Language-server answers | Call hierarchy items, incoming and outgoing calls, definitions, references, document and workspace symbols: a location of another scheme is dropped where the answer arrives, before any document is opened, hashed or asked about (`readable`); gaffy sends no request for a URI of another scheme. At most 5000 calls per answer (`MAX_CALLS`; a longer answer is cut, cached with its full length, and reported once per view in a warning), 30 s per request (`REQUEST_MS`) in `src/host/lsp.ts`. A file outside every workspace folder is keyed from its library root (`externalPath` in `src/core/langs.ts`: `site-packages/torch/functional.py`), so its folder chain is finite. Answer data reaches no command id, setting, process argument, file path outside `.gaffy/`, HTML markup, or the network; every `executeCommand` id is a constant. |
 | `style.json` | Merged without the keys `__proto__`, `constructor`, `prototype` (prototype pollution); colors become CSS custom properties, which cannot load external resources under the policy above. |
-| git | `git rev-parse --short HEAD` (view file names) runs only in a trusted workspace and only in a workspace folder: a `.git/config` from a downloaded folder can make git run programs. `package.json` declares `untrustedWorkspaces: limited`. |
+| git | `git rev-parse --short HEAD` (view file names); `git remote get-url origin`, `git rev-parse HEAD`, `git rev-parse --show-toplevel` (export web links): run only in a trusted workspace and only in a workspace folder: a `.git/config` from a downloaded folder can make git run programs. `package.json` declares `untrustedWorkspaces: limited`. |
 | Source text (bindings, shader languages) | Read, never run: `setup.py` and build files are matched with regular expressions; a name from the text enters an expression only after it matches an identifier pattern (a `TORCH_LIBRARY` variable such as `.*.*.*` once took 16 s to scan); a class walk over base classes visits each class once, at most 64. Files over 2 MB are skipped; declaration headers over 600 characters are not parsed (bounded regular-expression work); a `.slang` path written in Python source resolves only inside a workspace folder. |
 | Writes under `.baggy/gaffy/` | Call cache, trace, exports, new views and `style.json` never write through a symbolic link: every existing path segment below the workspace folder is checked with lstat first (`noLinks` in `src/host/safefs.ts`); a repository shipping `.gaffy/cache/calls.json` as a link to a shell startup file cannot make gaffy truncate or append to it. The trace writes only in a trusted workspace and rotates at 20 MB. |
 | Settings from the workspace | `package.json` lists `gaffy.trace`, `gaffy.exclude` and `gaffy.style` as restricted configurations: in an untrusted workspace VS Code reads them from user settings only. Globs match in linear time (`globMatcher`, no regular expression to backtrack); style numbers are clamped to the ranges of `schemas/style.schema.json` (`boundedStyle`). |
 | View files | `parseDoc` keeps strings in lists, drops special keys and values of the wrong type in keyed records, bounds offsets to ±1000 and locks to [0, 2000] cells; routing searches grids up to 10⁶ cells and draws larger ones with fallback lines, so a crafted file cannot allocate gigabytes. |
-| Export | Writes only under the project's `.baggy/gaffy/`; file names keep `[A-Za-z0-9_.-]`; HTML text and attributes are escaped (`&`, `<`, `>`, `"`, `'`); links are paths relative to `.baggy/gaffy/` and start with `./` or `../`, so no first segment reads as a scheme. |
+| Export | Writes only under the project's `.baggy/gaffy/`; file names keep `[A-Za-z0-9_.-]`; HTML text and attributes are escaped (`&`, `<`, `>`, `"`, `'`); links are paths relative to `.baggy/gaffy/` and start with `./` or `../`, so no first segment reads as a scheme; with `gaffy.exportWebLinks`, links are `https://` URLs built from the origin remote (`src/core/weblinks.ts`): credentials dropped, other schemes and local remotes refused, path segments URI-encoded. |
 | Dependencies | Shipped: the D3 modules in `dist/webview.js` (`npm audit --omit=dev`: 0 vulnerabilities). Development only (vitest, vsce): findings in `npm audit` that do not reach the package. |
 
 Trace reader: `tools/gaffy-trace.mjs` prints control, zero-width and bidirectional characters from trace data as `\u{…}` (text) or `\uXXXX` (`--json`), so names cannot send terminal escape sequences.
@@ -205,6 +208,7 @@ Trace reader: `tools/gaffy-trace.mjs` prints control, zero-width and bidirection
 | `gaffy.exclude` | none | globs of folders and files kept off screen (for example `"**/tests/**"`); Options > Folders includes them again per view |
 | `gaffy.includeExternal` | false | new views: show external code (Options > Folders per view): installed packages (site-packages, node_modules), stubs, system headers, build output, wasm-pack glue |
 | `gaffy.includeStandardLibrary` | false | new views, with external code: builtins and standard library (Python typeshed `stdlib`, `pythonX.Y`; Rust core, alloc, std; C++ standard headers; TypeScript `lib.*.d.ts`); off: installed packages only; drawn without the language server |
+| `gaffy.exportWebLinks` | false | Save as Text: .md links point to the origin remote at the current commit (valid once pushed); off: relative to `.baggy/gaffy/` |
 | `gaffy.autoSave` | true | save the view file after each graph change |
 | `gaffy.refreshOnSave` | touched | update policy after a source save |
 | `gaffy.openDefinitions` | true | Open Definitions: a view from the editor opens beside it; a click opens the definition next to the graph. Off: active column; a click only selects |

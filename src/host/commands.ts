@@ -11,17 +11,21 @@ import { buildScene, siblingsOf } from '../core/scene';
 import { DEFAULT_STYLE, glyphSet, userDefaults } from '../core/style';
 import { Direction, dropMovesWithin, emptyDoc, globMatcher, ROOTS, serializeDoc, ViewDoc, ViewSpec } from '../core/viewdoc';
 import { GaffyEditor, localOptions, Session } from './editor';
-import { gitShort } from './git';
+import { gitShort, gitWeb } from './git';
 import { noLinks } from './safefs';
 import { readable } from './scope';
 import { warnNoProvider } from './servers';
 import { openRuleSite } from './sources';
+import { blobLink } from '../core/weblinks';
 import { autoSaveOf, setAutoSave } from './settings';
 import { folderOf, gaffyDir } from './style';
 
 interface NodeArg { key?: NodeKey; unit?: string; to?: NodeKey; webviewSection?: string }
 
 const cfg = () => vscode.workspace.getConfiguration('gaffy');
+/** Writes a boolean gaffy setting to the workspace, or to the user settings without a workspace folder. */
+const setFlag = (key: string, value: boolean) => cfg().update(key, value,
+    vscode.workspace.workspaceFolders?.length ? vscode.ConfigurationTarget.Workspace : vscode.ConfigurationTarget.Global);
 
 /** Error whose message a warning already showed. */
 class Shown extends Error {}
@@ -298,13 +302,27 @@ export function registerCommands(ctx: vscode.ExtensionContext, editor: GaffyEdit
         const outDir = gaffyDir(s.home);
         await noLinks(s.home, outDir);
         await vscode.workspace.fs.createDirectory(outDir);
+        // gaffy.exportWebLinks: links to each file's git remote (origin) at its repository's current commit, valid once
+        // pushed; the repository found per folder, so files of a submodule link to the submodule; else relative
+        const webOf = new Map<string, Awaited<ReturnType<typeof gitWeb>>>();
+        if (cfg().get<boolean>('exportWebLinks')) {
+            const dirs = new Set(Object.values(doc.graph.nodes).filter((n) => n.uri && vscode.Uri.parse(n.uri).scheme === 'file')
+                .map((n) => path.posix.dirname(vscode.Uri.parse(n.uri!).path)));
+            for (const d of dirs) webOf.set(d, await gitWeb(vscode.Uri.file(d).fsPath));
+            if (![...webOf.values()].some(Boolean)) void vscode.window.showWarningMessage('gaffy: export web links: no git remote `origin` (or untrusted workspace); links are relative');
+        }
         const href = (key: NodeKey) => {
             const n = nodeOf(doc, key);
             if (!n?.uri) return undefined;
+            const file = vscode.Uri.parse(n.uri).path;
+            const line = n.line !== undefined && n.kind !== 'package' && n.kind !== 'folder' ? n.line + 1 : undefined;
+            const web = webOf.get(n.kind === 'folder' || n.kind === 'package' ? file : path.posix.dirname(file));
+            const inRepo = web ? path.posix.relative(web.root, file) : '..';
+            if (web && !inRepo.startsWith('..') && !path.posix.isAbsolute(inRepo)) return blobLink(web.base, web.commit, inRepo, line);
             /* secure tooling: links start with ./ or ../, so no path reads as a command */
-            const p = path.posix.relative(outDir.path, vscode.Uri.parse(n.uri).path);
+            const p = path.posix.relative(outDir.path, file);
             const rel = p.startsWith('.') ? p : `./${p}`;
-            return n.line !== undefined && n.kind !== 'package' && n.kind !== 'folder' ? `${rel}#L${n.line + 1}` : rel;
+            return line !== undefined ? `${rel}#L${line}` : rel;
         };
         const md = `# ${doc.name}\n\n<pre>\n${toHtmlPre(sc.grid, gs, href, (k) => doc.view.seeds.includes(k))}\n</pre>\n`;
         const seed = doc.view.seeds[0];
@@ -347,6 +365,10 @@ export function registerCommands(ctx: vscode.ExtensionContext, editor: GaffyEdit
     };
     reg('gaffy.toggleAutoSave', toggleAutoSave);
     reg('gaffy.toggleAutoSave.checked', toggleAutoSave);
+    // canvas menu, two entries as Autosave Graphs; Options > File > Export links: git web writes the same key (`setting`)
+    const toggleWebLinks = () => setFlag('exportWebLinks', !(cfg().get<boolean>('exportWebLinks') ?? false));
+    reg('gaffy.toggleExportWebLinks', toggleWebLinks);
+    reg('gaffy.toggleExportWebLinks.checked', toggleWebLinks);
 
     reg('gaffy.editStyle', async () => {
         const folder = editor.active?.folder ?? vscode.workspace.workspaceFolders?.[0]?.uri;
@@ -485,14 +507,12 @@ export function registerCommands(ctx: vscode.ExtensionContext, editor: GaffyEdit
             case 'editStyle': await vscode.commands.executeCommand('gaffy.editStyle'); break;
             case 'openSettings': await vscode.commands.executeCommand('workbench.action.openSettings', `@ext:${ctx.extension.id}`); break;
             case 'setting': {
-                // Options > File > Autosave Graphs: the canvas menu's command; Options > Arrange > Layout debug:
-                // workspace setting (user setting without a workspace); listed keys, boolean only
+                // Options > File > Autosave Graphs: the canvas menu's command; Options > Arrange > Layout debug and
+                // Options > File > Export links: git web: setFlag; listed keys, boolean only
                 const key = m.key as string;
                 if (typeof m.value !== 'boolean') break;
                 if (key === 'autoSave') { await vscode.commands.executeCommand('gaffy.toggleAutoSave', m.value); break; }
-                if (key !== 'debugLayout') break;
-                const target = vscode.workspace.workspaceFolders?.length ? vscode.ConfigurationTarget.Workspace : vscode.ConfigurationTarget.Global;
-                await vscode.workspace.getConfiguration('gaffy').update(key, m.value, target);
+                if (key === 'debugLayout' || key === 'exportWebLinks') await setFlag(key, m.value);
                 break;
             }
             case 'hiddenNeighbors': {

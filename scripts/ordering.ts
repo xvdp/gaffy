@@ -63,7 +63,7 @@ const T_BAR: Row[] = [
     ['Options > Call Expansion: Individual On Graph, Global Toolbar', at(MAIN, "label: 'Individual On Graph: >>'"), "`setArrange('grow' | 'auto')`"],
     ['Options > Call Expansion > Paths between seeds only', at(MAIN, "label: 'Paths between seeds only'"), '`between`: full view, drawn functions filtered to seed-to-seed call paths (`onPaths`); one layer at a time, the reveal is the paths of the whole graph (`revealPaths`); off: the paths become `pinned`, every side closed (`toggleBetween`)'],
     ['marker click, one layer at a time with Paths between seeds only', at(MAIN, 'cannot expand ${'), 'refused, status line: the side leads to no other seed'],
-    ['Options > Arrange > Layout debug (gaffy.debugLayout)', at(MAIN, "label: 'Layout debug'"), 'debugging panel (dbgpanel.ts): Rules (switches, alternatives, parameters written to `view.rules`, saved with the graph), Actions (running log of moves and the decisions behind them), Edges (routing record per call); Why Here? reads `decisions` (explain.ts)'],
+    ['Options > Arrange > Layout debug (gaffy.debugLayout)', at(MAIN, "label: 'Layout debug'"), 'debugging panel (dbgpanel.ts): Rules (switches, alternatives, parameters written to `view.rules`, saved with the graph), Actions (running log of moves and the decisions behind them), Calls (how each call line is drawn); Layout: explain position reads `decisions` (explain.ts)'],
     ['Options > Call depth by: shortest, longest path', at(MAIN, "label: r === 'shortest' ? 'Shortest call path'"), '`depthRule`'],
     ['Options > Grouping > by Namespace', at(MAIN, "label: 'by Namespace'"), '`boxes`'],
     ['Options > Grouping > Tight', at(MAIN, "{ label: 'Tight', title:"), '`tight`'],
